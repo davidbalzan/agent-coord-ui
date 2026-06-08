@@ -6,52 +6,80 @@ interface Props {
   body: string;
   agentIds: Set<string>;
   onHover?: (id: string | null) => void;
+  onChannelClick?: (roomId: string) => void;
 }
 
 function processText(
   text: string,
   agentIds: Set<string>,
-  onHover?: (id: string | null) => void
+  onHover?: (id: string | null) => void,
+  onChannelClick?: (roomId: string) => void
 ): ReactNode {
-  const parts = text.split(/(@[\w-]+)/g);
+  // Split on @mentions and #channels
+  const parts = text.split(/(@[\w-]+|#[\w-]+)/g);
   if (parts.length === 1) return text;
   return parts.map((part, i) => {
-    if (!part.startsWith("@")) return part;
-    const handle = part.slice(1).toLowerCase();
-    const known = agentIds.has(handle);
-    return (
-      <span
-        key={i}
-        onMouseEnter={known && onHover ? () => onHover(handle) : undefined}
-        onMouseLeave={known && onHover ? () => onHover(null) : undefined}
-        style={{
-          color: known ? "#00d4ff" : "#7b6fff",
-          fontWeight: 600,
-          textShadow: known
-            ? "0 0 8px rgba(0,212,255,0.7)"
-            : "0 0 6px rgba(123,111,255,0.5)",
-          background: known ? "rgba(0,212,255,0.06)" : "rgba(123,111,255,0.06)",
-          borderRadius: 2,
-          padding: "0 2px",
-          cursor: known && onHover ? "crosshair" : undefined,
-        }}
-      >
-        {part}
-      </span>
-    );
+    if (part.startsWith("@")) {
+      const handle = part.slice(1).toLowerCase();
+      const known = agentIds.has(handle);
+      return (
+        <span
+          key={i}
+          onMouseEnter={known && onHover ? () => onHover(handle) : undefined}
+          onMouseLeave={known && onHover ? () => onHover(null) : undefined}
+          style={{
+            color: known ? "#00d4ff" : "#7b6fff",
+            fontWeight: 600,
+            textShadow: known
+              ? "0 0 8px rgba(0,212,255,0.7)"
+              : "0 0 6px rgba(123,111,255,0.5)",
+            background: known
+              ? "rgba(0,212,255,0.06)"
+              : "rgba(123,111,255,0.06)",
+            borderRadius: 2,
+            padding: "0 2px",
+            cursor: known && onHover ? "crosshair" : undefined,
+          }}
+        >
+          {part}
+        </span>
+      );
+    }
+    if (part.startsWith("#")) {
+      const roomId = part.slice(1).toLowerCase();
+      return (
+        <span
+          key={i}
+          onClick={onChannelClick ? () => onChannelClick(roomId) : undefined}
+          style={{
+            color: "#7b6fff",
+            fontWeight: 600,
+            textShadow: "0 0 6px rgba(123,111,255,0.6)",
+            background: "rgba(123,111,255,0.08)",
+            borderRadius: 2,
+            padding: "0 2px",
+            cursor: onChannelClick ? "pointer" : undefined,
+          }}
+        >
+          {part}
+        </span>
+      );
+    }
+    return part;
   });
 }
 
 function withMentions(
   children: ReactNode,
   agentIds: Set<string>,
-  onHover?: (id: string | null) => void
+  onHover?: (id: string | null) => void,
+  onChannelClick?: (roomId: string) => void
 ): ReactNode {
   if (typeof children === "string")
-    return processText(children, agentIds, onHover);
+    return processText(children, agentIds, onHover, onChannelClick);
   if (Array.isArray(children))
     return children.map((c, i) => {
-      const processed = withMentions(c, agentIds, onHover);
+      const processed = withMentions(c, agentIds, onHover, onChannelClick);
       return Array.isArray(processed) ? (
         <span key={i}>{processed}</span>
       ) : (
@@ -61,13 +89,17 @@ function withMentions(
   return children;
 }
 
-export function MdMessage({ body, agentIds, onHover }: Props) {
+export function MdMessage({ body, agentIds, onHover, onChannelClick }: Props) {
   const components: Components = {
     p: ({ children }) => (
-      <p>{withMentions(children as ReactNode, agentIds, onHover)}</p>
+      <p>
+        {withMentions(children as ReactNode, agentIds, onHover, onChannelClick)}
+      </p>
     ),
     li: ({ children }) => (
-      <li>{withMentions(children as ReactNode, agentIds, onHover)}</li>
+      <li>
+        {withMentions(children as ReactNode, agentIds, onHover, onChannelClick)}
+      </li>
     ),
   };
 

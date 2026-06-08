@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { MdMessage } from "./MdMessage.js";
 import { useShallow } from "zustand/react/shallow";
-import { useBusStore, dmMessages } from "../store/bus.js";
+import { useBusStore } from "../store/bus.js";
 
 interface Props {
   agentId: string;
@@ -23,6 +23,7 @@ const STATUS_LABEL: Record<string, string> = {
 
 export function DMPanel({ agentId }: Props) {
   const [draft, setDraft] = useState("");
+  const bottomRef = useRef<HTMLDivElement>(null);
   const agent = useBusStore((s) => s.agents[agentId]);
   const agentIdList = useBusStore(useShallow((s) => Object.keys(s.agents)));
   const agentIds = new Set(agentIdList);
@@ -32,9 +33,19 @@ export function DMPanel({ agentId }: Props) {
   );
   const sendMessage = useBusStore((s) => s.sendMessage);
   const setHoveredAgentId = useBusStore((s) => s.setHoveredAgentId);
+  const setNameFilter = useBusStore((s) => s.setNameFilter);
+  // All DMs where this agent is sender or recipient, sorted oldest-first
   const msgs = useBusStore(
-    useShallow((s) => dmMessages(s, "operator", agentId))
+    useShallow((s) =>
+      s.messages
+        .filter((m) => m.isDM && (m.from === agentId || m.to === agentId))
+        .sort((a, b) => a.timestamp - b.timestamp)
+    )
   );
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [msgs.length]);
 
   if (!agent)
     return (
@@ -162,14 +173,15 @@ export function DMPanel({ agentId }: Props) {
           </p>
         )}
         {msgs.map((m) => {
-          const isOp = m.from === "operator";
+          // outgoing = sent BY the viewed agent; incoming = received by them
+          const isOutgoing = m.from === agentId;
           return (
             <div
               key={m.id}
               style={{
                 display: "flex",
                 flexDirection: "column",
-                alignItems: isOp ? "flex-end" : "flex-start",
+                alignItems: isOutgoing ? "flex-end" : "flex-start",
               }}
             >
               <div
@@ -177,24 +189,26 @@ export function DMPanel({ agentId }: Props) {
                   fontFamily: "Share Tech Mono",
                   fontSize: "9px",
                   letterSpacing: "0.1em",
-                  color: isOp ? "rgba(0,212,255,0.4)" : "rgba(0,255,136,0.5)",
+                  color: isOutgoing
+                    ? "rgba(0,255,136,0.5)"
+                    : "rgba(0,212,255,0.4)",
                   marginBottom: "3px",
                 }}
               >
-                {isOp ? "OPERATOR" : agent.name.toUpperCase()}
+                {m.from.toUpperCase()} → {m.to.toUpperCase()}
               </div>
               <div
                 style={{
                   fontFamily: "Exo 2, sans-serif",
                   fontSize: "12px",
-                  color: isOp ? "#8ecfff" : "#c8f7e4",
-                  background: isOp
-                    ? "rgba(0,212,255,0.07)"
-                    : "rgba(0,255,136,0.05)",
-                  border: `1px solid ${isOp ? "rgba(0,212,255,0.2)" : "rgba(0,255,136,0.15)"}`,
+                  color: isOutgoing ? "#c8f7e4" : "#8ecfff",
+                  background: isOutgoing
+                    ? "rgba(0,255,136,0.05)"
+                    : "rgba(0,212,255,0.07)",
+                  border: `1px solid ${isOutgoing ? "rgba(0,255,136,0.15)" : "rgba(0,212,255,0.2)"}`,
                   padding: "6px 10px",
-                  maxWidth: "240px",
-                  clipPath: isOp
+                  maxWidth: "85%",
+                  clipPath: isOutgoing
                     ? "polygon(0 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%)"
                     : "polygon(0 0, 100% 0, 100% 100%, 6px 100%, 0 calc(100% - 6px))",
                 }}
@@ -203,11 +217,13 @@ export function DMPanel({ agentId }: Props) {
                   body={m.body}
                   agentIds={agentIds}
                   onHover={setHoveredAgentId}
+                  onChannelClick={setNameFilter}
                 />
               </div>
             </div>
           );
         })}
+        <div ref={bottomRef} />
       </div>
 
       {/* Compose */}

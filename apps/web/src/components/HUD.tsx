@@ -1,3 +1,4 @@
+import { useState, useRef, useEffect } from "react";
 import { useBusStore } from "../store/bus.js";
 
 export function HUD() {
@@ -10,6 +11,24 @@ export function HUD() {
   const active = agents.filter((a) => a.status === "active").length;
   const idle = agents.filter((a) => a.status === "idle").length;
   const stale = agents.filter((a) => a.status === "stale").length;
+
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  const suggestions = nameFilter.trim()
+    ? rooms.filter((r) => r.id.toLowerCase().includes(nameFilter.toLowerCase()))
+    : rooms;
+
+  // Close on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
 
   return (
     <header
@@ -135,7 +154,7 @@ export function HUD() {
           >
             FILTER
           </span>
-          <div style={{ position: "relative", flex: 1 }}>
+          <div ref={wrapRef} style={{ position: "relative", flex: 1 }}>
             <input
               className="holo-input"
               style={{
@@ -143,13 +162,20 @@ export function HUD() {
                 padding: "3px 24px 3px 8px",
                 fontSize: "11px",
               }}
-              placeholder="agent or room name…"
+              placeholder="agent or room…"
               value={nameFilter}
-              onChange={(e) => setNameFilter(e.target.value)}
+              onChange={(e) => {
+                setNameFilter(e.target.value);
+                setOpen(true);
+              }}
+              onFocus={() => setOpen(true)}
             />
-            {nameFilter && (
+            {nameFilter ? (
               <button
-                onClick={() => setNameFilter("")}
+                onClick={() => {
+                  setNameFilter("");
+                  setOpen(false);
+                }}
                 style={{
                   position: "absolute",
                   right: "6px",
@@ -163,10 +189,105 @@ export function HUD() {
                   fontSize: "11px",
                   lineHeight: 1,
                 }}
-                title="Clear filter"
               >
                 ×
               </button>
+            ) : (
+              <span
+                style={{
+                  position: "absolute",
+                  right: "7px",
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  color: "rgba(0,212,255,0.3)",
+                  fontSize: "9px",
+                  pointerEvents: "none",
+                }}
+              >
+                ▾
+              </span>
+            )}
+
+            {/* Holo dropdown */}
+            {open && suggestions.length > 0 && (
+              <div
+                style={{
+                  position: "absolute",
+                  top: "calc(100% + 4px)",
+                  left: 0,
+                  right: 0,
+                  background: "rgba(0,8,22,0.97)",
+                  border: "1px solid rgba(0,212,255,0.35)",
+                  boxShadow:
+                    "0 4px 24px rgba(0,212,255,0.15), inset 0 0 0 1px rgba(0,212,255,0.05)",
+                  zIndex: 9999,
+                  overflow: "hidden",
+                }}
+              >
+                {/* top accent line */}
+                <div
+                  style={{
+                    height: "1px",
+                    background:
+                      "linear-gradient(90deg, transparent, rgba(0,212,255,0.5), transparent)",
+                  }}
+                />
+                {suggestions.map((r) => (
+                  <button
+                    key={r.id}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      setNameFilter(r.id);
+                      setOpen(false);
+                    }}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      width: "100%",
+                      padding: "6px 10px",
+                      background: "none",
+                      border: "none",
+                      borderBottom: "1px solid rgba(0,212,255,0.07)",
+                      cursor: "pointer",
+                      textAlign: "left",
+                      fontFamily: "Share Tech Mono",
+                      fontSize: "11px",
+                      color: "rgba(0,212,255,0.85)",
+                      letterSpacing: "0.06em",
+                      transition: "background 0.1s",
+                    }}
+                    onMouseEnter={(e) => {
+                      (e.currentTarget as HTMLButtonElement).style.background =
+                        "rgba(0,212,255,0.08)";
+                    }}
+                    onMouseLeave={(e) => {
+                      (e.currentTarget as HTMLButtonElement).style.background =
+                        "none";
+                    }}
+                  >
+                    <span
+                      style={{
+                        color: "rgba(123,111,255,0.7)",
+                        fontSize: "9px",
+                      }}
+                    >
+                      ◈
+                    </span>
+                    {r.id}
+                    <span
+                      style={{
+                        marginLeft: "auto",
+                        fontSize: "9px",
+                        color: "rgba(0,212,255,0.3)",
+                        letterSpacing: "0.1em",
+                      }}
+                    >
+                      {r.members.length} MBR
+                    </span>
+                  </button>
+                ))}
+              </div>
             )}
           </div>
         </div>

@@ -3,6 +3,13 @@ import { useShallow } from "zustand/react/shallow";
 import { MdMessage } from "./MdMessage.js";
 import { useBusStore, roomMessages } from "../store/bus.js";
 
+const STATUS_COLOR: Record<string, string> = {
+  active: "#00ff88",
+  idle: "#ff8c00",
+  stale: "#ff3333",
+  unknown: "#334466",
+};
+
 interface Props {
   roomId: string;
 }
@@ -14,6 +21,7 @@ export function RoomPanel({ roomId }: Props) {
   const agentIds = new Set(Object.keys(agents));
   const sendMessage = useBusStore((s) => s.sendMessage);
   const setHoveredAgentId = useBusStore((s) => s.setHoveredAgentId);
+  const setNameFilter = useBusStore((s) => s.setNameFilter);
   const msgs = useBusStore(useShallow((s) => roomMessages(s, roomId)));
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -104,28 +112,33 @@ export function RoomPanel({ roomId }: Props) {
         className="px-4 py-2 flex flex-wrap gap-1.5 flex-shrink-0"
         style={{ borderBottom: "1px solid rgba(0,212,255,0.08)" }}
       >
-        {room.members.map((id: string) => (
-          <span
-            key={id}
-            onMouseEnter={() => setHoveredAgentId(id)}
-            onMouseLeave={() => setHoveredAgentId(null)}
-            style={{
-              fontFamily: "Share Tech Mono",
-              fontSize: "9px",
-              letterSpacing: "0.08em",
-              color: "rgba(0,212,255,0.7)",
-              background: "rgba(0,212,255,0.06)",
-              border: "1px solid rgba(0,212,255,0.2)",
-              padding: "2px 8px",
-              cursor: "crosshair",
-              clipPath:
-                "polygon(0 0, calc(100% - 4px) 0, 100% 4px, 100% 100%, 4px 100%, 0 calc(100% - 4px))",
-              transition: "color 0.15s, background 0.15s",
-            }}
-          >
-            {agents[id]?.name ?? id}
-          </span>
-        ))}
+        {room.members.map((id: string) => {
+          const status = agents[id]?.status ?? "unknown";
+          const color = STATUS_COLOR[status] ?? STATUS_COLOR["unknown"]!;
+          return (
+            <span
+              key={id}
+              onMouseEnter={() => setHoveredAgentId(id)}
+              onMouseLeave={() => setHoveredAgentId(null)}
+              style={{
+                fontFamily: "Share Tech Mono",
+                fontSize: "9px",
+                letterSpacing: "0.08em",
+                color,
+                background: `${color}12`,
+                border: `1px solid ${color}40`,
+                padding: "2px 8px",
+                cursor: "crosshair",
+                clipPath:
+                  "polygon(0 0, calc(100% - 4px) 0, 100% 4px, 100% 100%, 4px 100%, 0 calc(100% - 4px))",
+                transition: "color 0.15s, background 0.15s, border-color 0.15s",
+                textShadow: `0 0 6px ${color}80`,
+              }}
+            >
+              {agents[id]?.name ?? id}
+            </span>
+          );
+        })}
       </div>
 
       {/* Messages */}
@@ -172,6 +185,7 @@ export function RoomPanel({ roomId }: Props) {
               body={m.body}
               agentIds={agentIds}
               onHover={setHoveredAgentId}
+              onChannelClick={setNameFilter}
             />
           </div>
         ))}

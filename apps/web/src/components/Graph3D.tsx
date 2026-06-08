@@ -58,7 +58,8 @@ function buildGlowNode(
   hexColor: number,
   radius = 5,
   pulse = false,
-  agentId?: string
+  agentId?: string,
+  roomId?: string
 ): THREE.Group {
   const group = new THREE.Group();
 
@@ -88,6 +89,7 @@ function buildGlowNode(
     halo2Mat
   );
   if (pulse) halo2.userData.pulseHalo = true;
+  if (roomId) halo2.userData.activityHalo = roomId;
   group.add(halo2);
 
   const light = new THREE.PointLight(hexColor, 1.5, radius * 8);
@@ -132,6 +134,8 @@ export function Graph3D() {
   const graphRef = useRef<any>(null);
   const lastClickRef = useRef<{ id: string; time: number } | null>(null);
   const lastMsgTimeRef = useRef<Map<string, number>>(new Map());
+  // unix ms of last message per room id — drives halo ripple
+  const roomActivityRef = useRef<Map<string, number>>(new Map());
   const prevMsgLenRef = useRef(0);
   const colorSetters = useRef<
     Map<string, (hex: number, pulse: boolean) => void>
@@ -142,6 +146,9 @@ export function Graph3D() {
   const paneSelSetters = useRef<Map<string, (selected: boolean) => void>>(
     new Map()
   );
+  const paneActivitySetters = useRef<
+    Map<string, (lastActivity: number) => void>
+  >(new Map());
 
   const agentsMap = useBusStore((s) => s.agents);
   const roomsMap = useBusStore((s) => s.rooms);
@@ -155,6 +162,7 @@ export function Graph3D() {
   const setSelection = useBusStore((s) => s.setSelection);
   const setPaneSelection = useBusStore((s) => s.setPaneSelection);
   const hoveredAgentId = useBusStore((s) => s.hoveredAgentId);
+  const sidePanelWidth = useBusStore((s) => s.sidePanelWidth);
 
   // Always-current ref so color updater doesn't need agentsMap as a dep
   const agentsMapRef = useRef(agentsMap);
@@ -213,6 +221,7 @@ export function Graph3D() {
     // any new DM edge before we try to find it.
     for (const msg of fresh) {
       lastMsgTimeRef.current.set(linkKey(msg), now);
+      if (!msg.isDM) roomActivityRef.current.set(msg.to, now);
     }
     requestAnimationFrame(() => {
       if (!graphRef.current) return;
@@ -343,7 +352,8 @@ export function Graph3D() {
       .nodeLabel("label")
       .nodeThreeObject((n: object) => {
         const node = n as GraphNode;
-        if (node.kind === "room") return buildGlowNode(ROOM_COLOR, 6);
+        if (node.kind === "room")
+          return buildGlowNode(ROOM_COLOR, 6, false, undefined, node.id);
         if (node.kind === "pane") {
           const pane = node.data as PaneSnapshot;
           const group = new THREE.Group();
@@ -428,6 +438,65 @@ export function Graph3D() {
             ring.userData.isSelected = selected;
             outer.userData.isSelected = selected;
           });
+
+          // Activity indicator dot — top-right corner of the icon
+          const dotMat = new THREE.MeshBasicMaterial({
+            color: 0x00ff41,
+            transparent: true,
+            opacity: 0,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+          });
+          const dotGlowMat = new THREE.MeshBasicMaterial({
+            color: 0x00ff41,
+            transparent: true,
+            opacity: 0,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+          });
+          const dot = new THREE.Mesh(
+            new THREE.SphereGeometry(0.7, 8, 8),
+            dotMat
+          );
+          const dotGlow = new THREE.Mesh(
+            new THREE.SphereGeometry(1.4, 8, 8),
+            dotGlowMat
+          );
+          dot.position.set(3.6, 3.6, 0.5);
+          dotGlow.position.set(3.6, 3.6, 0.5);
+          dotGlow.userData.paneActivityGlow = true;
+          group.add(dotGlow);
+          group.add(dot);
+
+          const dotLight = new THREE.PointLight(0x00ff41, 0, 5);
+          dotLight.position.set(3.6, 3.6, 1);
+          group.add(dotLight);
+
+          paneActivitySetters.current.set(pane.id, (lastActivity: number) => {
+            const ago = (Date.now() - lastActivity) / 1000;
+            const color = ago < 5 ? 0x00ff41 : ago < 30 ? 0xff8c00 : 0x334455;
+            const opacity = ago < 5 ? 1.0 : ago < 30 ? 0.8 : 0.3;
+            const c = new THREE.Color(color);
+            dotMat.color.set(c);
+            dotMat.opacity = opacity;
+            dotGlowMat.color.set(c);
+            dotGlowMat.opacity = ago < 5 ? 0.45 : ago < 30 ? 0.3 : 0.1;
+            dotLight.color.set(c);
+            dotLight.intensity = ago < 5 ? 2.0 : ago < 30 ? 1.0 : 0;
+          });
+
+          // Seed with current activity
+          const ago0 = (Date.now() - pane.lastActivity) / 1000;
+          const initColor =
+            ago0 < 5 ? 0x00ff41 : ago0 < 30 ? 0xff8c00 : 0x334455;
+          const initOpacity = ago0 < 5 ? 1.0 : ago0 < 30 ? 0.8 : 0.3;
+          const ic = new THREE.Color(initColor);
+          dotMat.color.set(ic);
+          dotMat.opacity = initOpacity;
+          dotGlowMat.color.set(ic);
+          dotGlowMat.opacity = ago0 < 5 ? 0.45 : ago0 < 30 ? 0.3 : 0.1;
+          dotLight.color.set(ic);
+          dotLight.intensity = ago0 < 5 ? 2.0 : ago0 < 30 ? 1.0 : 0;
 
           return group;
         }
@@ -574,9 +643,41 @@ export function Graph3D() {
             ).material.opacity =
               0.04 + Math.abs(Math.sin(elapsed * Math.PI * 1.5)) * 0.22;
           }
+          if (obj.userData?.activityHalo) {
+            const lastTs = roomActivityRef.current.get(
+              obj.userData.activityHalo as string
+            );
+            const mesh = obj as THREE.Mesh<
+              THREE.BufferGeometry,
+              THREE.MeshBasicMaterial
+            >;
+            if (lastTs) {
+              const secAgo = (performance.now() - lastTs) / 1000;
+              // decaying ripple: sin wave * exponential envelope, ~4 s duration
+              const ripple = Math.max(
+                0,
+                Math.sin(secAgo * Math.PI * 2.5) * Math.exp(-secAgo * 1.2)
+              );
+              mesh.material.opacity = 0.12 + ripple * 0.55;
+            } else {
+              mesh.material.opacity = 0.12;
+            }
+          }
           if (obj.userData?.selectionRing && obj.userData?.isSelected) {
             obj.rotation.z = elapsed * 1.4; // slow spin
             obj.rotation.x = Math.sin(elapsed * 0.7) * 0.4; // gentle tilt oscillation
+          }
+          if (obj.userData?.paneActivityGlow) {
+            const mesh = obj as THREE.Mesh<
+              THREE.BufferGeometry,
+              THREE.MeshBasicMaterial
+            >;
+            // Pulse the glow only when recently active (green dot, < 5s)
+            const baseOpacity = mesh.material.opacity;
+            if (baseOpacity > 0.35) {
+              mesh.material.opacity =
+                0.3 + Math.abs(Math.sin(elapsed * Math.PI * 2)) * 0.2;
+            }
           }
         });
       }
@@ -586,10 +687,60 @@ export function Graph3D() {
     return () => cancelAnimationFrame(rafId);
   }, []);
 
+  // Push live activity timestamps to pane dots whenever panes update
+  useEffect(() => {
+    for (const pane of panes) {
+      paneActivitySetters.current.get(pane.id)?.(pane.lastActivity);
+    }
+  }, [panes]);
+
   // Filter
   useEffect(() => {
     if (!graphRef.current) return;
-    const filter = nameFilter.toLowerCase();
+    const filter = nameFilter.toLowerCase().trim();
+
+    // Exact room match → room-scoped view: show only that room + its members
+    const matchedRoom = filter
+      ? rooms.find((r) => r.id.toLowerCase() === filter)
+      : null;
+
+    if (matchedRoom) {
+      const memberSet = new Set(matchedRoom.members);
+      // Also show pane nodes whose agentId belongs to a visible member
+      const visiblePaneIds = new Set(
+        panes
+          .filter((p) => p.agentId && memberSet.has(p.agentId))
+          .map((p) => `pane:${p.id}`)
+      );
+      graphRef.current
+        .nodeVisibility((n: object) => {
+          const node = n as GraphNode;
+          return (
+            node.id === matchedRoom.id ||
+            memberSet.has(node.id) ||
+            visiblePaneIds.has(node.id)
+          );
+        })
+        .linkVisibility((l: object) => {
+          const link = l as GraphLink;
+          const src = nodeId(link.source as string | GraphNode);
+          const tgt = nodeId(link.target as string | GraphNode);
+          if (link.kind === "membership")
+            return src === matchedRoom.id || tgt === matchedRoom.id;
+          if (link.kind === "dm")
+            return memberSet.has(src) && memberSet.has(tgt);
+          // pane-agent link: show if the agent end is a member
+          if (link.kind === "pane-agent")
+            return memberSet.has(src) || memberSet.has(tgt);
+          // pane split links: show if both pane ends are visible
+          if (link.kind === "pane-h" || link.kind === "pane-v")
+            return visiblePaneIds.has(src) && visiblePaneIds.has(tgt);
+          return false;
+        });
+      return;
+    }
+
+    // Partial text filter
     graphRef.current
       .nodeVisibility((n: object) => {
         if (!filter) return true;
@@ -611,7 +762,7 @@ export function Graph3D() {
           tgtLabel.toLowerCase().includes(filter)
         );
       });
-  }, [nameFilter]);
+  }, [nameFilter, rooms, panes]);
 
   // Topology signature — only the structure that determines nodes/links, not status
   const topoSig = [
@@ -646,5 +797,90 @@ export function Graph3D() {
     requestAnimationFrame(applyNodeColors);
   }, [topoSig, buildGraphData, applyNodeColors]);
 
-  return <div ref={containerRef} style={{ position: "absolute", inset: 0 }} />;
+  const sidePanelWidthRef = useRef(sidePanelWidth);
+  sidePanelWidthRef.current = sidePanelWidth;
+
+  const fitToScreen = useCallback(() => {
+    const graph = graphRef.current;
+    if (!graph) return;
+    graph.zoomToFit(800, 60);
+
+    // After the fit animation settles, pan left so the panel doesn't obscure nodes
+    const panelW = sidePanelWidthRef.current;
+    if (panelW <= 0) return;
+    setTimeout(() => {
+      const g = graphRef.current;
+      if (!g) return;
+      const camera = g.camera() as THREE.PerspectiveCamera;
+      const controls = g.controls() as { target: THREE.Vector3 };
+      const dist = camera.position.distanceTo(controls.target);
+      const canvasH = containerRef.current?.clientHeight ?? window.innerHeight;
+      const worldPerPx =
+        (2 * dist * Math.tan(((camera.fov * Math.PI) / 180) * 0.5)) / canvasH;
+      const shift = (panelW / 2) * worldPerPx;
+
+      const right = new THREE.Vector3()
+        .crossVectors(camera.getWorldDirection(new THREE.Vector3()), camera.up)
+        .normalize()
+        .multiplyScalar(-shift); // negative = shift view leftward
+
+      g.cameraPosition(
+        {
+          x: camera.position.x + right.x,
+          y: camera.position.y + right.y,
+          z: camera.position.z + right.z,
+        },
+        {
+          x: controls.target.x + right.x,
+          y: controls.target.y + right.y,
+          z: controls.target.z + right.z,
+        },
+        0
+      );
+    }, 850);
+  }, []);
+
+  return (
+    <>
+      <div ref={containerRef} style={{ position: "absolute", inset: 0 }} />
+      <button
+        onClick={fitToScreen}
+        title="Fit all to screen"
+        style={{
+          position: "absolute",
+          bottom: "20px",
+          right: `${sidePanelWidth + 20}px`,
+          width: "36px",
+          height: "36px",
+          background: "rgba(0,8,20,0.85)",
+          border: "1px solid rgba(0,212,255,0.35)",
+          borderRadius: "6px",
+          cursor: "pointer",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: "rgba(0,212,255,0.75)",
+          fontSize: "16px",
+          boxShadow: "0 0 12px rgba(0,212,255,0.15)",
+          transition: "border-color 0.15s, color 0.15s, box-shadow 0.15s",
+          zIndex: 10,
+          backdropFilter: "blur(4px)",
+        }}
+        onMouseEnter={(e) => {
+          const b = e.currentTarget;
+          b.style.borderColor = "rgba(0,212,255,0.8)";
+          b.style.color = "#00d4ff";
+          b.style.boxShadow = "0 0 16px rgba(0,212,255,0.4)";
+        }}
+        onMouseLeave={(e) => {
+          const b = e.currentTarget;
+          b.style.borderColor = "rgba(0,212,255,0.35)";
+          b.style.color = "rgba(0,212,255,0.75)";
+          b.style.boxShadow = "0 0 12px rgba(0,212,255,0.15)";
+        }}
+      >
+        ⊡
+      </button>
+    </>
+  );
 }

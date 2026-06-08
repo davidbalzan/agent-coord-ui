@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { useBusStore } from "../store/bus.js";
 import { DMPanel } from "./DMPanel.js";
 import { RoomPanel } from "./RoomPanel.js";
@@ -10,8 +10,16 @@ const MAX_W = 560;
 export function SidePanel() {
   const selection = useBusStore((s) => s.selection);
   const setSelection = useBusStore((s) => s.setSelection);
+  const setSidePanelWidth = useBusStore((s) => s.setSidePanelWidth);
   const [width, setWidth] = useState(320);
   const startRef = useRef<{ mx: number; w: number } | null>(null);
+
+  const isOpen = !!selection && selection.kind !== "pane";
+
+  // Keep store in sync with actual visible width
+  useEffect(() => {
+    setSidePanelWidth(isOpen ? width : 0);
+  }, [isOpen, width, setSidePanelWidth]);
 
   const onEdgeMouseDown = useCallback(
     (e: React.MouseEvent) => {
@@ -33,7 +41,7 @@ export function SidePanel() {
     [width]
   );
 
-  if (!selection || selection.kind === "pane") return null;
+  if (!isOpen) return null;
 
   return (
     <aside
