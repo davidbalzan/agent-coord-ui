@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { MdMessage } from "./MdMessage.js";
 import { useShallow } from "zustand/react/shallow";
 import { useBusStore, dmMessages } from "../store/bus.js";
 
@@ -23,6 +24,8 @@ const STATUS_LABEL: Record<string, string> = {
 export function DMPanel({ agentId }: Props) {
   const [draft, setDraft] = useState("");
   const agent = useBusStore((s) => s.agents[agentId]);
+  const agentIdList = useBusStore(useShallow((s) => Object.keys(s.agents)));
+  const agentIds = new Set(agentIdList);
   const sendMessage = useBusStore((s) => s.sendMessage);
   const msgs = useBusStore(
     useShallow((s) => dmMessages(s, "operator", agentId))
@@ -182,7 +185,7 @@ export function DMPanel({ agentId }: Props) {
                     : "polygon(0 0, 100% 0, 100% 100%, 6px 100%, 0 calc(100% - 6px))",
                 }}
               >
-                {m.body}
+                <MdMessage body={m.body} agentIds={agentIds} />
               </div>
             </div>
           );
