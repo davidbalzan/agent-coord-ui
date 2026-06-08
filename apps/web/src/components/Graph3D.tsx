@@ -35,11 +35,10 @@ const STATUS_GLOW: Record<string, number> = {
 };
 
 const ROOM_COLOR = 0x7b6fff;
-const PANE_COLOR = 0x00ff41; // classic terminal green
 
-const SPEED_BASE = 0.0008;
-const SPEED_BOOST = 0.014;
-const SPEED_DECAY = 0.12;
+const SPEED_BASE = 0.004;
+const SPEED_BOOST = 0.04;
+const SPEED_DECAY = 0.15;
 
 function linkKey(msg: MessageSnapshot): string {
   return msg.isDM
@@ -101,7 +100,6 @@ function buildGlowNode(
 
   if (agentId) {
     group.userData.agentId = agentId;
-    // Called when agent status changes — updates all materials in-place
     group.userData.setColor = (hex: number, isPulse: boolean) => {
       const c = new THREE.Color(hex);
       coreMat.color.set(c);
@@ -110,6 +108,13 @@ function buildGlowNode(
       halo2Mat.color.set(c);
       light.color.set(c);
       halo2.userData.pulseHalo = isPulse;
+    };
+    group.userData.setHighlight = (on: boolean) => {
+      group.scale.setScalar(on ? 1.5 : 1.0);
+      halo1Mat.opacity = on ? 0.42 : 0.18;
+      halo2Mat.opacity = on ? 0.2 : 0.07;
+      light.intensity = on ? 4.0 : 1.5;
+      coreMat.emissiveIntensity = on ? 2.0 : 0.9;
     };
   }
 
@@ -127,11 +132,12 @@ export function Graph3D() {
   const lastClickRef = useRef<{ id: string; time: number } | null>(null);
   const lastMsgTimeRef = useRef<Map<string, number>>(new Map());
   const prevMsgLenRef = useRef(0);
-  // Direct registry of agent id → color/pulse setter — avoids relying on scene traversal
   const colorSetters = useRef<
     Map<string, (hex: number, pulse: boolean) => void>
   >(new Map());
-  // Registry of raw pane id → selection indicator setter
+  const highlightSetters = useRef<Map<string, (on: boolean) => void>>(
+    new Map()
+  );
   const paneSelSetters = useRef<Map<string, (selected: boolean) => void>>(
     new Map()
   );
@@ -147,6 +153,7 @@ export function Graph3D() {
   const panes = Object.values(panesMap);
   const setSelection = useBusStore((s) => s.setSelection);
   const setPaneSelection = useBusStore((s) => s.setPaneSelection);
+  const hoveredAgentId = useBusStore((s) => s.hoveredAgentId);
 
   // Always-current ref so color updater doesn't need agentsMap as a dep
   const agentsMapRef = useRef(agentsMap);
@@ -168,12 +175,54 @@ export function Graph3D() {
     }
   }, [paneSelection]);
 
-  // Track last message timestamp per link for speed decay
+  // Highlight hovered agent node and fly camera toward it
+  useEffect(() => {
+    for (const setter of highlightSetters.current.values()) setter(false);
+    if (!hoveredAgentId || !graphRef.current) return;
+    highlightSetters.current.get(hoveredAgentId)?.(true);
+    const gd = graphRef.current.graphData() as { nodes: GraphNode[] };
+    const node = gd.nodes.find((n) => n.id === hoveredAgentId);
+    if (!node || node.x == null) return;
+    const nx = node.x,
+      ny = node.y ?? 0,
+      nz = node.z ?? 0;
+    const dist = 80;
+    const mag = Math.hypot(nx, ny, nz) || 1;
+    const ratio = 1 + dist / mag;
+    graphRef.current.cameraPosition(
+      { x: nx * ratio, y: ny * ratio, z: nz * ratio },
+      { x: nx, y: ny, z: nz },
+      600
+    );
+  }, [hoveredAgentId]);
+
+  // Emit particle bursts on new messages — skip historical (full_state) messages
   useEffect(() => {
     const newMsgs = messages.slice(prevMsgLenRef.current);
     prevMsgLenRef.current = messages.length;
-    for (const msg of newMsgs) {
-      lastMsgTimeRef.current.set(linkKey(msg), msg.timestamp);
+    if (!newMsgs.length || !graphRef.current) return;
+
+    const now = Date.now();
+    // Only react to messages sent in the last 15 s — filters out full_state history
+    const fresh = newMsgs.filter((m) => now - m.timestamp < 15_000);
+    if (!fresh.length) return;
+
+    const gd = graphRef.current.graphData?.() as
+      | { links: GraphLink[] }
+      | undefined;
+    if (!gd) return;
+
+    for (const msg of fresh) {
+      const key = linkKey(msg);
+      lastMsgTimeRef.current.set(key, now);
+      const link = gd.links.find((l) => graphLinkKey(l) === key);
+      if (link) {
+        try {
+          graphRef.current.emitParticle(link);
+        } catch {
+          /* not yet mounted */
+        }
+      }
     }
   }, [messages]);
 
@@ -264,7 +313,51 @@ export function Graph3D() {
         if (node.kind === "room") return buildGlowNode(ROOM_COLOR, 6);
         if (node.kind === "pane") {
           const pane = node.data as PaneSnapshot;
-          const group = buildGlowNode(PANE_COLOR, 3.5);
+          const group = new THREE.Group();
+
+          // Canvas sprite — terminal >_ icon
+          const SIZE = 64;
+          const cv = document.createElement("canvas");
+          cv.width = SIZE;
+          cv.height = SIZE;
+          const ctx = cv.getContext("2d")!;
+          // rounded rect background
+          const r = 10;
+          ctx.beginPath();
+          ctx.moveTo(r, 0);
+          ctx.lineTo(SIZE - r, 0);
+          ctx.quadraticCurveTo(SIZE, 0, SIZE, r);
+          ctx.lineTo(SIZE, SIZE - r);
+          ctx.quadraticCurveTo(SIZE, SIZE, SIZE - r, SIZE);
+          ctx.lineTo(r, SIZE);
+          ctx.quadraticCurveTo(0, SIZE, 0, SIZE - r);
+          ctx.lineTo(0, r);
+          ctx.quadraticCurveTo(0, 0, r, 0);
+          ctx.closePath();
+          ctx.fillStyle = "rgba(0,20,10,0.85)";
+          ctx.fill();
+          ctx.strokeStyle = "#00ff41";
+          ctx.lineWidth = 2.5;
+          ctx.stroke();
+          // >_ text
+          ctx.font = "bold 22px monospace";
+          ctx.fillStyle = "#00ff41";
+          ctx.shadowColor = "#00ff41";
+          ctx.shadowBlur = 8;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(">_", SIZE / 2, SIZE / 2);
+
+          const tex = new THREE.CanvasTexture(cv);
+          const spriteMat = new THREE.SpriteMaterial({
+            map: tex,
+            transparent: true,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+          });
+          const sprite = new THREE.Sprite(spriteMat);
+          sprite.scale.set(8, 8, 1);
+          group.add(sprite);
 
           // Selection indicator — rotating torus ring, hidden until selected
           const ringMat = new THREE.MeshBasicMaterial({
@@ -308,11 +401,16 @@ export function Graph3D() {
         const agent = node.data as AgentSnapshot;
         const hex = STATUS_GLOW[agent.status] ?? STATUS_GLOW["unknown"]!;
         const group = buildGlowNode(hex, 5, agent.status === "stale", agent.id);
-        // Register the color setter so applyNodeColors can reach it without scene traversal
         if (group.userData.setColor) {
           colorSetters.current.set(
             agent.id,
             group.userData.setColor as (hex: number, pulse: boolean) => void
+          );
+        }
+        if (group.userData.setHighlight) {
+          highlightSetters.current.set(
+            agent.id,
+            group.userData.setHighlight as (on: boolean) => void
           );
         }
         return group;
@@ -334,12 +432,12 @@ export function Graph3D() {
       })
       .linkDirectionalParticles((l: object) => {
         const kind = (l as GraphLink).kind;
-        return kind === "pane-sibling" ? 0 : 2;
+        return kind === "pane-sibling" ? 0 : 4;
       })
-      .linkDirectionalParticleWidth(0.8)
+      .linkDirectionalParticleWidth(1.4)
       .linkDirectionalParticleColor((l: object) => {
         const kind = (l as GraphLink).kind;
-        if (kind === "dm") return "#7b6fff";
+        if (kind === "dm") return "#b090ff";
         if (kind === "pane-agent") return "#00ff41";
         return "#00d4ff";
       })

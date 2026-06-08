@@ -22,9 +22,11 @@ interface BusState {
   selection: Selection | null; // agent / room panel (right side)
   paneSelection: string | null; // raw pane ID — independent of selection
   nameFilter: string;
+  hoveredAgentId: string | null;
   setSelection: (s: Selection | null) => void;
   setPaneSelection: (id: string | null) => void;
   setNameFilter: (f: string) => void;
+  setHoveredAgentId: (id: string | null) => void;
   sendMessage: (to: string, body: string, isDM: boolean) => void;
   sendPaneKeys: (paneId: string, keys: string) => void;
   requestPaneOutput: (paneId: string) => void;
@@ -97,9 +99,11 @@ export const useBusStore = create<BusState>((set) => {
     selection: null,
     paneSelection: null,
     nameFilter: "",
+    hoveredAgentId: null,
     setSelection: (selection) => set({ selection }),
     setPaneSelection: (paneSelection) => set({ paneSelection }),
     setNameFilter: (nameFilter) => set({ nameFilter }),
+    setHoveredAgentId: (hoveredAgentId) => set({ hoveredAgentId }),
     sendMessage: (to, body, isDM) => {
       busSocket.send({ type: "send_message", to, body, isDM });
     },

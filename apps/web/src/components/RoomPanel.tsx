@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useShallow } from "zustand/react/shallow";
+import { MdMessage } from "./MdMessage.js";
 import { useBusStore, roomMessages } from "../store/bus.js";
 
 interface Props {
@@ -10,7 +11,9 @@ export function RoomPanel({ roomId }: Props) {
   const [draft, setDraft] = useState("");
   const room = useBusStore((s) => s.rooms[roomId]);
   const agents = useBusStore((s) => s.agents);
+  const agentIds = new Set(Object.keys(agents));
   const sendMessage = useBusStore((s) => s.sendMessage);
+  const setHoveredAgentId = useBusStore((s) => s.setHoveredAgentId);
   const msgs = useBusStore(useShallow((s) => roomMessages(s, roomId)));
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -104,6 +107,8 @@ export function RoomPanel({ roomId }: Props) {
         {room.members.map((id: string) => (
           <span
             key={id}
+            onMouseEnter={() => setHoveredAgentId(id)}
+            onMouseLeave={() => setHoveredAgentId(null)}
             style={{
               fontFamily: "Share Tech Mono",
               fontSize: "9px",
@@ -112,8 +117,10 @@ export function RoomPanel({ roomId }: Props) {
               background: "rgba(0,212,255,0.06)",
               border: "1px solid rgba(0,212,255,0.2)",
               padding: "2px 8px",
+              cursor: "crosshair",
               clipPath:
                 "polygon(0 0, calc(100% - 4px) 0, 100% 4px, 100% 100%, 4px 100%, 0 calc(100% - 4px))",
+              transition: "color 0.15s, background 0.15s",
             }}
           >
             {agents[id]?.name ?? id}
@@ -147,26 +154,25 @@ export function RoomPanel({ roomId }: Props) {
             }}
           >
             <div
+              onMouseEnter={() => setHoveredAgentId(m.from)}
+              onMouseLeave={() => setHoveredAgentId(null)}
               style={{
                 fontFamily: "Share Tech Mono",
                 fontSize: "9px",
                 color: "#7b6fff",
                 letterSpacing: "0.1em",
                 marginBottom: "2px",
+                cursor: "crosshair",
+                display: "inline-block",
               }}
             >
               {agents[m.from]?.name?.toUpperCase() ?? m.from}
             </div>
-            <p
-              style={{
-                fontFamily: "Exo 2, sans-serif",
-                fontSize: "12px",
-                color: "#8ecfff",
-                margin: 0,
-              }}
-            >
-              {m.body}
-            </p>
+            <MdMessage
+              body={m.body}
+              agentIds={agentIds}
+              onHover={setHoveredAgentId}
+            />
           </div>
         ))}
       </div>

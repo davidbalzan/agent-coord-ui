@@ -26,7 +26,12 @@ export function DMPanel({ agentId }: Props) {
   const agent = useBusStore((s) => s.agents[agentId]);
   const agentIdList = useBusStore(useShallow((s) => Object.keys(s.agents)));
   const agentIds = new Set(agentIdList);
+  const cwd = useBusStore(
+    (s) =>
+      Object.values(s.panes).find((p) => p.agentId === agentId)?.cwd ?? null
+  );
   const sendMessage = useBusStore((s) => s.sendMessage);
+  const setHoveredAgentId = useBusStore((s) => s.setHoveredAgentId);
   const msgs = useBusStore(
     useShallow((s) => dmMessages(s, "operator", agentId))
   );
@@ -130,6 +135,15 @@ export function DMPanel({ agentId }: Props) {
           }}
         >
           <span>ID: {agentId.slice(0, 8).toUpperCase()}</span>
+          {cwd && (
+            <span
+              style={{ color: "rgba(0,255,65,0.5)", letterSpacing: "0.04em" }}
+              title={cwd}
+            >
+              ~/
+              {cwd.replace(/^.*\/([^/]+\/[^/]+)$/, "$1")}
+            </span>
+          )}
         </div>
       </div>
 
@@ -185,7 +199,11 @@ export function DMPanel({ agentId }: Props) {
                     : "polygon(0 0, 100% 0, 100% 100%, 6px 100%, 0 calc(100% - 6px))",
                 }}
               >
-                <MdMessage body={m.body} agentIds={agentIds} />
+                <MdMessage
+                  body={m.body}
+                  agentIds={agentIds}
+                  onHover={setHoveredAgentId}
+                />
               </div>
             </div>
           );
