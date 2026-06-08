@@ -1,4 +1,8 @@
 import { WebSocketServer, WebSocket } from "ws";
+import { appendFile, mkdir } from "node:fs/promises";
+import { homedir } from "node:os";
+import { join } from "node:path";
+import { randomUUID } from "node:crypto";
 import type { IncomingMessage } from "node:http";
 import type {
   BusEvent,
@@ -8,6 +12,11 @@ import type {
 import { busWatcher } from "./watcher.js";
 import { sendKeys, capturePane, tmuxWatcher } from "./tmux.js";
 import { logger } from "./logger.js";
+
+const ROOT =
+  process.env.AGENT_COORD_DIR ??
+  process.env.CLAUDE_COORD_DIR ??
+  join(homedir(), "agent-coord");
 
 export function attachWss(server: import("node:http").Server) {
   const wss = new WebSocketServer({ server });
@@ -68,7 +77,28 @@ function send(ws: WebSocket, data: BusEvent | Record<string, unknown>) {
   }
 }
 
-// Stub — wire to agent-coord-mcp HTTP API or store in M4
-async function handleSend(_payload: SendMessagePayload) {
-  logger.warn("handleSend not yet implemented");
+async function handleSend(payload: SendMessagePayload) {
+  const { to, body, isDM } = payload;
+  const record = JSON.stringify({
+    id: randomUUID(),
+    ts: Date.now(),
+    from: "david",
+    ...(isDM ? { to } : { room: to }),
+    text: body,
+  });
+
+  if (isDM) {
+    // DMs go to the agent's inbox file
+    const inboxDir = join(ROOT, "inbox");
+    await mkdir(inboxDir, { recursive: true });
+    await appendFile(join(inboxDir, `${to}.jsonl`), record + "\n");
+  } else if (to === "general") {
+    await appendFile(join(ROOT, "room.jsonl"), record + "\n");
+  } else {
+    const roomsDir = join(ROOT, "rooms");
+    await mkdir(roomsDir, { recursive: true });
+    await appendFile(join(roomsDir, `${to}.jsonl`), record + "\n");
+  }
+
+  logger.info({ to, isDM }, "message written");
 }

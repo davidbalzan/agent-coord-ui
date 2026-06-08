@@ -10,6 +10,12 @@ export interface PaneSnapshot {
   pane: number;
   active: boolean; // pane is the focused pane in its window
   lastActivity: number; // unix ms, updated on output change
+  cwd: string; // current working directory (#{pane_current_path})
+  // tmux geometry (column/row coordinates within the terminal)
+  left: number;
+  top: number;
+  width: number;
+  height: number;
   agentId?: string; // set if we can match this pane to a registered agent
   lines: string[]; // last N lines of output (plain text, no ANSI)
 }

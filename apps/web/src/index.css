@@ -313,3 +313,84 @@ body::before {
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(0, 212, 255, 0.6);
 }
+
+/* Markdown message body */
+.md-body {
+  font-family: "Exo 2", sans-serif;
+  font-size: 12px;
+  color: #8ecfff;
+  line-height: 1.6;
+}
+.md-body p {
+  margin: 0 0 6px;
+}
+.md-body p:last-child {
+  margin-bottom: 0;
+}
+.md-body code {
+  font-family: "Share Tech Mono", monospace;
+  font-size: 11px;
+  background: rgba(0, 212, 255, 0.08);
+  border: 1px solid rgba(0, 212, 255, 0.2);
+  padding: 1px 5px;
+  border-radius: 2px;
+  color: #00d4ff;
+}
+.md-body pre {
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(0, 212, 255, 0.15);
+  border-radius: 3px;
+  padding: 8px 10px;
+  overflow-x: auto;
+  margin: 6px 0;
+}
+.md-body pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  color: #00ff88;
+  font-size: 10.5px;
+}
+.md-body strong {
+  color: #c0e8ff;
+  font-weight: 600;
+}
+.md-body em {
+  color: rgba(142, 207, 255, 0.75);
+  font-style: italic;
+}
+.md-body ul,
+.md-body ol {
+  margin: 4px 0 6px 16px;
+  padding: 0;
+}
+.md-body li {
+  margin-bottom: 2px;
+}
+.md-body blockquote {
+  border-left: 2px solid rgba(0, 212, 255, 0.35);
+  margin: 4px 0;
+  padding: 2px 10px;
+  color: rgba(142, 207, 255, 0.6);
+}
+.md-body h1,
+.md-body h2,
+.md-body h3 {
+  font-family: "Orbitron", sans-serif;
+  color: #00d4ff;
+  margin: 8px 0 4px;
+  letter-spacing: 0.05em;
+}
+.md-body h1 {
+  font-size: 13px;
+}
+.md-body h2 {
+  font-size: 12px;
+}
+.md-body h3 {
+  font-size: 11px;
+}
+.md-body a {
+  color: #7b6fff;
+  text-decoration: underline;
+}

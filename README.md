@@ -1,15 +1,36 @@
 # agent-coord-ui
 
-> 3D force-graph command centre for [agent-coord-mcp](https://github.com/davidbalzan/agent-coord-mcp). See every agent, room, and message flow in real time — click any node to speak directly to an agent or room.
+> Holographic 3D command centre for [agent-coord-mcp](https://github.com/davidbalzan/agent-coord-mcp). Watch every agent, room, and message flow in real time — click any node to chat directly with an agent or room.
 
-## What's in the box
+## What it does
 
-- **3D force-directed graph** — agents as glowing spheres, rooms as prisms, real-time message particles flowing along edges
-- **Click-to-interact** — click an agent node → DM panel; click a room node → room chat; click an edge → thread view
-- **Live updates** — WebSocket bridge polls the `agent-coord-mcp` file store and pushes diffs to the UI
-- **Hono backend** (`apps/api`) + **React 19 / Vite frontend** (`apps/web`) in a pnpm + Turborepo monorepo
+- **3D force-directed graph** — agents as glowing spheres, rooms as nodes, tmux panes as terminals; message particles flow along edges in real time
+- **Live DM & room chat** — click a node to open a side panel; send messages directly to agents or broadcast to a room
+- **Markdown rendering** — chat messages render as markdown with `@mention` highlighting (known agents in cyan, unknown in purple)
+- **tmux integration** — pane nodes show the agent's current working directory; spatially adjacent panes are linked by split direction (horizontal/vertical)
+- **Status colours** — green (active < 60 s), amber (idle < 5 min), red (stale); driven by heartbeat + pane output activity
+- **Particle animations** — particles travel along edges on new messages; DM edges have a constant slow ambient pulse
 
-See [`docs/prd.md`](./docs/prd.md) for the full product spec.
+## Architecture
+
+```
+apps/
+  api/        Hono + WebSocket server — watches the agent-coord-mcp file store,
+              diffs on every poll and pushes BusEvents to all clients
+  web/        React 19 + Vite — 3d-force-graph / Three.js canvas, Zustand store
+packages/
+  shared/     TypeScript types shared between api and web
+```
+
+The API polls `~/agent-coord/` (or `$AGENT_COORD_DIR`) every second and on `fs.watch` events. It broadcasts:
+
+| Event                         | When                      |
+| ----------------------------- | ------------------------- |
+| `full_state`                  | on WebSocket connect      |
+| `agent_join / leave / update` | agents.json changes       |
+| `room_update`                 | rooms.json changes        |
+| `message`                     | new line in any `.jsonl`  |
+| `pane_update / remove`        | tmux pane content changes |
 
 ## Quick start
 
@@ -18,70 +39,35 @@ git clone https://github.com/davidbalzan/agent-coord-ui
 cd agent-coord-ui
 pnpm install
 
-# Point at your agent-coord-mcp store (defaults to ~/.agent-coord)
-cp .env.example .env
-# Set COORD_STORE_DIR if your store is elsewhere
+# Defaults to ~/agent-coord — override if needed
+export AGENT_COORD_DIR=~/.agent-coord
 
-pnpm dev          # api :3001, web :5173
+pnpm dev        # api on :3001, web on :5173
 ```
 
-Then in your AI assistant:
+Requires [agent-coord-mcp](https://github.com/davidbalzan/agent-coord-mcp) to be running so agents are registered in `~/agent-coord/agents.json`.
+
+## Message store layout
+
+The API reads from the same flat-file store that `agent-coord-mcp` writes:
 
 ```
-/kickstart    # generates docs/TECH_STACK.md, ARCHITECTURE_GUIDE.md,
-              # DECISIONS.md, PRODUCTION_ROADMAP.md, phases/, CURRENT_FOCUS.md
-/create-prd   # product requirements via guided discovery
-/plan-phase 1 # detailed task breakdown for Phase 1
-/start-session # loads project context at the start of each session
+~/agent-coord/
+  agents.json          registered agents + heartbeats
+  rooms.json           room metadata + member lists
+  room.jsonl           "general" channel messages
+  rooms/<name>.jsonl   named channel messages
+  inbox/<agent>.jsonl  DMs addressed to <agent>
 ```
+
+Sending a message from the UI appends a JSONL record to the appropriate file; the watcher picks it up on the next diff cycle (< 1 s).
 
 ## Logs
 
-The API uses [pino](https://github.com/pinojs/pino) and writes structured NDJSON to both the console and `logs/api.log`. The web app forwards browser logs (and uncaught errors) to `POST /api/logs`, so one file captures both sides.
+The API uses [pino](https://github.com/pinojs/pino) and writes structured NDJSON to `logs/api.log`.
 
 ```bash
-tail -f logs/api.log                    # all server + client logs
-tail -f logs/api.log | grep '"client"'  # browser-side only
+tail -f logs/api.log
 ```
 
-`LOG_LEVEL` (default `info`) controls verbosity. AI agents working in this repo can tail `logs/api.log` to observe runtime behavior across both apps.
-
-## Open the docs as an Obsidian vault
-
-```
-Obsidian → Open folder as vault → <your-repo>/docs
-```
-
-The vault's home note is **`docs/_INDEX.md`**. Every generated doc is cross-linked with wikilinks and surfaces in graph view.
-
-## Project layout
-
-```
-├── apps/
-│   ├── api/          # Hono API
-│   └── web/          # React + Vite
-├── packages/
-│   ├── shared/       # Types, utils, constants
-│   └── ui/           # Shared components
-├── docs/             # ← Obsidian vault (open as vault root)
-│   ├── _INDEX.md     # Home / Map of Content
-│   ├── README.md     # Full project README (detailed quick start)
-│   ├── AGENT_COORD_UI_METHODOLOGY.md  # Philosophy & workflow
-│   ├── CURRENT_FOCUS.md         # Active work
-│   ├── DECISIONS.md             # ADRs
-│   ├── COMMANDS.md              # Skill reference
-│   ├── STACK_MAP.md             # Tech reference
-│   ├── templates/               # Doc templates used by /kickstart
-│   └── phases/                  # Phase docs generated by /plan-phase
-├── .claude/skills/   # Claude Code skills
-├── .cursor/          # Cursor commands & prompts
-└── .vscode/prompts/  # VS Code Copilot prompts
-```
-
-## Learn more
-
-**Full README with detailed setup, troubleshooting, and skill walkthroughs:** [`docs/README.md`](./docs/README.md)
-
-**Methodology (why it's built this way):** [`docs/AGENT_COORD_UI_METHODOLOGY.md`](./docs/AGENT_COORD_UI_METHODOLOGY.md)
-
-**Skills reference:** [`docs/COMMANDS.md`](./docs/COMMANDS.md)
+`LOG_LEVEL` (default `info`) controls verbosity.

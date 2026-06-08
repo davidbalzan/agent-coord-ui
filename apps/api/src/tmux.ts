@@ -28,10 +28,15 @@ interface RawPane {
   window: number;
   pane: number;
   active: boolean;
+  cwd: string;
+  left: number;
+  top: number;
+  width: number;
+  height: number;
 }
 
 async function listPanes(): Promise<RawPane[]> {
-  // Format: session:window.pane \t pid \t title \t command \t active
+  // Format: session:window.pane \t pid \t title \t command \t session \t window \t pane \t active \t cwd
   const fmt = [
     "#{session_name}:#{window_index}.#{pane_index}",
     "#{pane_pid}",
@@ -41,6 +46,11 @@ async function listPanes(): Promise<RawPane[]> {
     "#{window_index}",
     "#{pane_index}",
     "#{pane_active}",
+    "#{pane_current_path}",
+    "#{pane_left}",
+    "#{pane_top}",
+    "#{pane_width}",
+    "#{pane_height}",
   ].join("\t");
 
   try {
@@ -49,8 +59,21 @@ async function listPanes(): Promise<RawPane[]> {
       .split("\n")
       .filter(Boolean)
       .map((line) => {
-        const [id, pid, title, command, session, window, pane, active] =
-          line.split("\t");
+        const [
+          id,
+          pid,
+          title,
+          command,
+          session,
+          window,
+          pane,
+          active,
+          cwd,
+          left,
+          top,
+          width,
+          height,
+        ] = line.split("\t");
         return {
           id: id ?? "",
           pid: parseInt(pid ?? "0", 10),
@@ -60,6 +83,11 @@ async function listPanes(): Promise<RawPane[]> {
           window: parseInt(window ?? "0", 10),
           pane: parseInt(pane ?? "0", 10),
           active: active?.trim() === "1",
+          cwd: cwd?.trim() ?? "",
+          left: parseInt(left ?? "0", 10),
+          top: parseInt(top ?? "0", 10),
+          width: parseInt(width ?? "0", 10),
+          height: parseInt(height ?? "0", 10),
         };
       });
   } catch {

@@ -21,6 +21,7 @@ const AGENTS_FILE = join(ROOT, "agents.json");
 const ROOMS_FILE = join(ROOT, "rooms.json");
 const ROOM_JSONL = join(ROOT, "room.jsonl"); // default "general" channel
 const ROOMS_DIR = join(ROOT, "rooms");
+const INBOX_DIR = join(ROOT, "inbox");
 
 // Disk shape from agent-coord-mcp store
 interface DiskAgent {
@@ -149,6 +150,37 @@ async function snapshotMessages(): Promise<MessageSnapshot[]> {
     }
   } catch {
     // rooms dir may not exist yet
+  }
+
+  // DMs from inbox files — each file is named <recipientId>.jsonl
+  try {
+    const files = await readdir(INBOX_DIR);
+    for (const f of files.filter((n) => n.endsWith(".jsonl"))) {
+      const recipientId = f.replace(/\.jsonl$/, "");
+      const raw = await readFile(join(INBOX_DIR, f), "utf8").catch(() => "");
+      const dmMsgs = raw
+        .split("\n")
+        .filter(Boolean)
+        .map((line, i) => {
+          try {
+            const obj = JSON.parse(line) as Record<string, unknown>;
+            return {
+              id: (obj["id"] as string | undefined) ?? `inbox:${f}:${i}`,
+              from: (obj["from"] as string | undefined) ?? "",
+              to: (obj["to"] as string | undefined) ?? recipientId,
+              isDM: true,
+              body: (obj["msg"] ?? obj["body"] ?? obj["text"] ?? "") as string,
+              timestamp: (obj["ts"] ?? obj["timestamp"] ?? 0) as number,
+            } as MessageSnapshot;
+          } catch {
+            return undefined;
+          }
+        })
+        .filter((m): m is MessageSnapshot => m != null);
+      msgs.push(...dmMsgs);
+    }
+  } catch {
+    // inbox dir may not exist yet
   }
 
   return msgs;
