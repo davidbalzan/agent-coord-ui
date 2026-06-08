@@ -1,0 +1,76 @@
+# ForgeKit - Cursor Rules
+
+This file provides guidance to Cursor AI when working with code in this repository.
+
+## Project Overview
+
+**ForgeKit** — An agentic engineering toolkit template with documentation-driven development, persistent AI knowledge capture, and phase-based planning.
+
+## Development Methodology
+
+This project uses **ForgeKit** — a documentation-driven approach:
+
+1. **Read `docs/PRODUCTION_ROADMAP.md` first** — Single source of truth (Current Focus section at top)
+2. **Check phase tasks** — `docs/phases/phaseN/PHASEN_TASKS.md` for detailed checkboxes
+3. **Log decisions** — Add ADRs to `docs/DECISIONS.md` for significant choices
+4. **Update progress** — Check boxes as tasks complete
+
+### Key Documents
+- `docs/CURRENT_FOCUS.md` — Active work context
+- `docs/PRODUCTION_ROADMAP.md` — Single source of truth (Current Focus at top)
+- `docs/DECISIONS.md` — Architectural Decision Records
+- `docs/TECH_STACK.md` — Technology choices & versions
+- `docs/ARCHITECTURE_GUIDE.md` — System design rationale
+- `docs/COMMANDS.md` — AI commands reference
+
+## Monorepo Structure
+
+```
+forgekit/
+├── apps/
+│   ├── web/                    # React 19 + Vite + Tailwind 4
+│   └── api/                    # Hono API server
+├── packages/
+│   ├── shared/                 # Types, constants, utilities
+│   └── ui/                     # UI component library
+└── docs/                       # Documentation (roadmap, ADRs, phases)
+    ├── PRODUCTION_ROADMAP.md   # Single source of truth
+    ├── DECISIONS.md            # Architectural Decision Records
+    ├── TECH_STACK.md           # Technology choices
+    ├── ARCHITECTURE_GUIDE.md   # System design rationale
+    └── phases/                 # Phase-based task planning
+```
+
+## Tech Stack
+
+**Frontend:** React 19.x, TypeScript, Vite 6.x, Tailwind CSS 4.x
+**Backend:** Node.js 22+, Hono 4.x
+**Infrastructure:** pnpm workspaces, Turborepo
+
+## Commands
+
+```bash
+pnpm dev              # Run all packages
+pnpm build            # Build all
+pnpm lint             # Linting
+pnpm typecheck        # Type checking
+```
+
+## Coding Preferences
+
+- Clean architectures, modular approach
+- Tailwind for styling
+- Latest stable versions
+- Avoid unnecessary duplications
+- Keep consistency across the codebase
+
+## Available Prompts
+
+See `.cursor/prompts/` for reusable prompts:
+- `start-session.md` — Load project context at session start
+- `log-decision.md` — Create an ADR
+- `plan-phase.md` — Generate a new phase task document
+- `update-focus.md` — Update Current Focus section
+- `check-task.md` — Mark tasks as complete
+- `phase-status.md` — Show phase progress
+- `cleanup.md` — Reset to template state

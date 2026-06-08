@@ -1,0 +1,44 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+*.tsbuildinfo
+
+# Turbo
+.turbo/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Coverage
+coverage/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/settings.json
+*.swp
+*.swo
+
+# Logs
+*.log
+
+# Snapshots
+*.snap
+
+# Obsidian (user-specific vault state under docs/)
+docs/.obsidian/workspace.json
+docs/.obsidian/workspace-mobile.json
+docs/.obsidian/plugins/
+docs/.obsidian/themes/
+docs/.obsidian/hotkeys.json
+docs/.obsidian/core-plugins-migration.json
+
+# Ignore root .obsidian (vault is docs/, not root)
+/.obsidian/
