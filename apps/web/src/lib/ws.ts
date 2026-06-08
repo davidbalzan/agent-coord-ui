@@ -1,4 +1,4 @@
-import type { BusEvent } from '@coord-ui/shared';
+import type { BusEvent } from "@coord-ui/shared";
 
 type Handler = (event: BusEvent) => void;
 
@@ -38,5 +38,7 @@ class BusSocket {
   }
 }
 
-const WS_URL = import.meta.env.VITE_WS_URL ?? `ws://localhost:3001`;
+const WS_URL =
+  (import.meta.env["VITE_WS_URL"] as string | undefined) ??
+  `ws://localhost:3000`;
 export const busSocket = new BusSocket(WS_URL);

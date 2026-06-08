@@ -1,68 +1,193 @@
-import { useState } from 'react';
-import { useBusStore, roomMessages } from '../store/bus.js';
+import { useState, useEffect, useRef } from "react";
+import { useShallow } from "zustand/react/shallow";
+import { useBusStore, roomMessages } from "../store/bus.js";
 
 interface Props {
   roomId: string;
 }
 
 export function RoomPanel({ roomId }: Props) {
-  const [draft, setDraft] = useState('');
+  const [draft, setDraft] = useState("");
   const room = useBusStore((s) => s.rooms[roomId]);
   const agents = useBusStore((s) => s.agents);
   const sendMessage = useBusStore((s) => s.sendMessage);
-  const msgs = useBusStore((s) => roomMessages(s, roomId));
+  const msgs = useBusStore(useShallow((s) => roomMessages(s, roomId)));
+  const scrollRef = useRef<HTMLDivElement>(null);
 
-  if (!room) return <p className="text-slate-400 p-4">Room not found.</p>;
+  // Scroll to bottom when room opens or new messages arrive
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [msgs.length, roomId]);
+
+  if (!room)
+    return (
+      <p
+        style={{
+          fontFamily: "Share Tech Mono",
+          fontSize: "11px",
+          color: "rgba(0,212,255,0.4)",
+          padding: "16px",
+        }}
+      >
+        {"// ROOM NOT FOUND"}
+      </p>
+    );
 
   const send = () => {
     if (!draft.trim()) return;
     sendMessage(roomId, draft.trim(), false);
-    setDraft('');
+    setDraft("");
   };
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="px-4 py-3 border-b border-slate-700">
-        <p className="font-semibold text-slate-100"># {room.name}</p>
-        {room.topic && <p className="text-xs text-slate-400 mt-0.5">{room.topic}</p>}
-        <p className="text-xs text-slate-500 mt-1">{room.members.length} members</p>
+    <div className="flex flex-col h-full min-h-0">
+      {/* Room header */}
+      <div
+        className="px-4 py-3 flex-shrink-0"
+        style={{ borderBottom: "1px solid rgba(0,212,255,0.12)" }}
+      >
+        <div className="flex items-center gap-2">
+          <span
+            style={{
+              color: "#7b6fff",
+              textShadow: "0 0 8px #7b6fff",
+              fontSize: "12px",
+            }}
+          >
+            ◈
+          </span>
+          <span
+            style={{
+              fontFamily: "Orbitron, sans-serif",
+              fontWeight: 600,
+              fontSize: "12px",
+              color: "#8ecfff",
+              letterSpacing: "0.1em",
+            }}
+          >
+            {room.name.toUpperCase()}
+          </span>
+        </div>
+        {room.topic && (
+          <p
+            style={{
+              fontFamily: "Share Tech Mono",
+              fontSize: "10px",
+              color: "rgba(0,212,255,0.4)",
+              marginTop: "4px",
+              letterSpacing: "0.05em",
+            }}
+          >
+            {room.topic}
+          </p>
+        )}
+        <p
+          style={{
+            fontFamily: "Share Tech Mono",
+            fontSize: "9px",
+            color: "rgba(0,212,255,0.3)",
+            marginTop: "4px",
+            letterSpacing: "0.1em",
+          }}
+        >
+          MEMBERS: {room.members.length}
+        </p>
       </div>
 
-      {/* Member list */}
-      <div className="px-4 py-2 border-b border-slate-800 flex flex-wrap gap-1">
-        {room.members.map((id) => (
-          <span key={id} className="text-xs bg-slate-800 text-slate-300 rounded px-2 py-0.5">
+      {/* Member chips */}
+      <div
+        className="px-4 py-2 flex flex-wrap gap-1.5 flex-shrink-0"
+        style={{ borderBottom: "1px solid rgba(0,212,255,0.08)" }}
+      >
+        {room.members.map((id: string) => (
+          <span
+            key={id}
+            style={{
+              fontFamily: "Share Tech Mono",
+              fontSize: "9px",
+              letterSpacing: "0.08em",
+              color: "rgba(0,212,255,0.7)",
+              background: "rgba(0,212,255,0.06)",
+              border: "1px solid rgba(0,212,255,0.2)",
+              padding: "2px 8px",
+              clipPath:
+                "polygon(0 0, calc(100% - 4px) 0, 100% 4px, 100% 100%, 4px 100%, 0 calc(100% - 4px))",
+            }}
+          >
             {agents[id]?.name ?? id}
           </span>
         ))}
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
-        {msgs.length === 0 && <p className="text-slate-500 text-sm">No messages yet.</p>}
+      <div
+        ref={scrollRef}
+        className="flex-1 overflow-y-auto px-4 py-3 space-y-3 min-h-0"
+      >
+        {msgs.length === 0 && (
+          <p
+            style={{
+              fontFamily: "Share Tech Mono",
+              fontSize: "10px",
+              color: "rgba(0,212,255,0.25)",
+              letterSpacing: "0.1em",
+            }}
+          >
+            {"// NO TRANSMISSIONS LOGGED"}
+          </p>
+        )}
         {msgs.map((m) => (
-          <div key={m.id} className="text-sm">
-            <span className="text-slate-400 text-xs">{agents[m.from]?.name ?? m.from}</span>
-            <p className="text-slate-200 mt-0.5">{m.body}</p>
+          <div
+            key={m.id}
+            style={{
+              borderLeft: "2px solid rgba(123,111,255,0.3)",
+              paddingLeft: "10px",
+            }}
+          >
+            <div
+              style={{
+                fontFamily: "Share Tech Mono",
+                fontSize: "9px",
+                color: "#7b6fff",
+                letterSpacing: "0.1em",
+                marginBottom: "2px",
+              }}
+            >
+              {agents[m.from]?.name?.toUpperCase() ?? m.from}
+            </div>
+            <p
+              style={{
+                fontFamily: "Exo 2, sans-serif",
+                fontSize: "12px",
+                color: "#8ecfff",
+                margin: 0,
+              }}
+            >
+              {m.body}
+            </p>
           </div>
         ))}
       </div>
 
       {/* Compose */}
-      <div className="px-4 py-3 border-t border-slate-700 flex gap-2">
+      <div
+        className="px-4 py-3 flex gap-2 flex-shrink-0"
+        style={{
+          borderTop: "1px solid rgba(0,212,255,0.15)",
+          background: "rgba(0,212,255,0.02)",
+        }}
+      >
         <input
-          className="flex-1 bg-slate-800 text-slate-100 rounded px-3 py-1.5 text-sm outline-none focus:ring-1 focus:ring-indigo-500"
-          placeholder={`Post to #${room.name}…`}
+          className="holo-input flex-1"
+          placeholder={`TRANSMIT TO #${room.name.toUpperCase()}…`}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && send()}
+          onKeyDown={(e) => e.key === "Enter" && send()}
         />
-        <button
-          onClick={send}
-          className="bg-indigo-600 hover:bg-indigo-500 text-white text-sm px-3 py-1.5 rounded transition-colors"
-        >
-          Post
+        <button className="holo-btn" onClick={send}>
+          POST
         </button>
       </div>
     </div>

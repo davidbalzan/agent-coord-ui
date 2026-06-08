@@ -53,6 +53,8 @@ const server = serve({ fetch: app.fetch, port: env.API_PORT }, () => {
 
 // @ts-expect-error — serve() returns a node http.Server at runtime
 attachWss(server);
-busWatcher.start();
+busWatcher
+  .start()
+  .catch((err) => logger.error({ err }, "busWatcher.start error"));
 
 export default app;

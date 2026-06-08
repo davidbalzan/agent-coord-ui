@@ -4,8 +4,10 @@ export type {
   AgentSnapshot,
   RoomSnapshot,
   MessageSnapshot,
+  PaneSnapshot,
   BusEvent,
   SendMessagePayload,
+  PaneSendKeysPayload,
 } from "./bus.js";
 export type {
   ApiResponse,
