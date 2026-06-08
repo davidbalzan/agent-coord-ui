@@ -297,7 +297,7 @@ export function FloatingTerminal() {
               height: rect.h,
               zIndex: 90 + (behind.length - depth),
               borderRadius: 6,
-              background: "rgba(0, 4, 12, 0.68)",
+              background: "rgba(0, 4, 12, 0.22)",
               backdropFilter: "blur(16px)",
               WebkitBackdropFilter: "blur(16px)",
               border: "1px solid rgba(0,255,65,0.09)",
@@ -366,7 +366,7 @@ export function FloatingTerminal() {
           borderRadius: 6,
           overflow: "hidden",
           // Active card is deliberately more transparent — glass effect shines through
-          background: "rgba(0, 4, 12, 0.48)",
+          background: "rgba(0, 4, 12, 0.10)",
           backdropFilter: "blur(32px) saturate(180%)",
           WebkitBackdropFilter: "blur(32px) saturate(180%)",
           border: "1px solid rgba(0,255,65,0.28)",

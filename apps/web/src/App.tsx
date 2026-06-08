@@ -15,20 +15,19 @@ export function App() {
       }}
     >
       <HUD />
-      <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
-        <main
-          style={{
-            flex: 1,
-            position: "relative",
-            overflow: "hidden",
-            minWidth: 0,
-          }}
-        >
-          <Graph3D />
-          <FloatingTerminal />
-        </main>
+      {/* Graph fills all remaining space — panels float on top as fixed overlays */}
+      <main
+        style={{
+          flex: 1,
+          position: "relative",
+          overflow: "hidden",
+          minWidth: 0,
+        }}
+      >
+        <Graph3D />
+        <FloatingTerminal />
         <SidePanel />
-      </div>
+      </main>
     </div>
   );
 }

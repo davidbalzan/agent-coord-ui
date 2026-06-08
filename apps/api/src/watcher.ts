@@ -213,9 +213,18 @@ class BusWatcher {
         if (agents[memberId]) agents[memberId]!.rooms.push(room.id);
       }
     }
-    const recent = messages
-      .sort((a, b) => a.timestamp - b.timestamp)
-      .slice(-200);
+    // Keep last 100 per room so no channel is starved by a high-volume room
+    const byRoom = new Map<string, MessageSnapshot[]>();
+    for (const m of messages) {
+      const bucket = byRoom.get(m.to) ?? [];
+      bucket.push(m);
+      byRoom.set(m.to, bucket);
+    }
+    const recent = [...byRoom.values()]
+      .flatMap((bucket) =>
+        bucket.sort((a, b) => a.timestamp - b.timestamp).slice(-100)
+      )
+      .sort((a, b) => a.timestamp - b.timestamp);
     this.prev = { agents, rooms, messages: recent, panes };
     return {
       agents: Object.values(agents),

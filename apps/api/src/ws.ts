@@ -6,7 +6,7 @@ import type {
   PaneSendKeysPayload,
 } from "@coord-ui/shared";
 import { busWatcher } from "./watcher.js";
-import { sendKeys, capturePaneAnsi } from "./tmux.js";
+import { sendKeys, capturePane, tmuxWatcher } from "./tmux.js";
 import { logger } from "./logger.js";
 
 export function attachWss(server: import("node:http").Server) {
@@ -39,11 +39,14 @@ export function attachWss(server: import("node:http").Server) {
           );
         } else if (payload.type === "pane_request_output") {
           const paneId = payload["paneId"] as string;
-          capturePaneAnsi(paneId, 300)
-            .then((ansi) => {
-              send(ws, { type: "pane_output", paneId, ansi });
-            })
-            .catch(() => {});
+          const existing = tmuxWatcher.panes.find((p) => p.id === paneId);
+          if (existing) {
+            capturePane(paneId, 300)
+              .then((lines) => {
+                send(ws, { type: "pane_update", pane: { ...existing, lines } });
+              })
+              .catch(() => {});
+          }
         }
       } catch {
         // malformed — ignore

@@ -72,7 +72,7 @@ export const useBusStore = create<BusState>((set) => {
         set((s) => ({ rooms: { ...s.rooms, [event.room.id]: event.room } }));
         break;
       case "message":
-        set((s) => ({ messages: [...s.messages.slice(-200), event.msg] }));
+        set((s) => ({ messages: [...s.messages, event.msg] }));
         break;
       case "pane_update":
         set((s) => ({ panes: { ...s.panes, [event.pane.id]: event.pane } }));

@@ -68,7 +68,10 @@ async function listPanes(): Promise<RawPane[]> {
 }
 
 // Capture plain-text content of a pane (strips ANSI for the snapshot preview)
-async function capturePane(paneId: string, lines: number): Promise<string[]> {
+export async function capturePane(
+  paneId: string,
+  lines: number
+): Promise<string[]> {
   try {
     // -p: print to stdout, -S -N: start N lines from bottom, no ANSI (-e omitted)
     const { stdout } = await execAsync(

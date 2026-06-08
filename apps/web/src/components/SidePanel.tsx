@@ -37,10 +37,14 @@ export function SidePanel() {
 
   return (
     <aside
-      className="flex-shrink-0 flex flex-col h-full glass-surface"
+      className="flex flex-col glass-surface"
       style={{
+        position: "fixed",
+        top: 48,
+        right: 0,
+        bottom: 0,
         width,
-        position: "relative",
+        zIndex: 50,
       }}
     >
       {/* Left edge resize handle */}
