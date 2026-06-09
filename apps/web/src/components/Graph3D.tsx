@@ -748,22 +748,21 @@ export function Graph3D() {
       });
 
     // Strong repulsion keeps nodes from overlapping
-    graph.d3Force("charge")?.strength(-700);
+    graph.d3Force("charge")?.strength(-500);
     graph
       .d3Force("link")
       ?.distance((link: object) => {
         const l = link as GraphLink;
-        if (l.kind === "membership") return 150;
         if (l.kind === "dm") return 100;
         return 50;
       })
       .strength((link: object) => {
         const l = link as GraphLink;
-        if (l.kind === "membership") return 0.08;
-        if (l.kind === "dm") return 0.2;
-        return 0.4;
+        // membership = 0: purely visual, no spring force — prevents pileup
+        if (l.kind === "membership") return 0;
+        if (l.kind === "dm") return 0.3;
+        return 0.5;
       });
-    // No center force — boundOriginForce handles containment without collapsing
     graph.d3Force("center", null);
     // Constrain all nodes within ~200 units — prevents unlinked nodes flying
     // off under repulsion. Kicks in only beyond the threshold, leaving the
