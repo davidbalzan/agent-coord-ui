@@ -54,6 +54,24 @@ function graphLinkKey(l: GraphLink): string {
     : `room:${src}:${tgt}`;
 }
 
+// Shared ring texture for radio-wave sprites — created once, reused per pane
+let _ringTex: THREE.Texture | null = null;
+function getRingTexture(): THREE.Texture {
+  if (_ringTex) return _ringTex;
+  const SIZE = 128;
+  const cv = document.createElement("canvas");
+  cv.width = SIZE;
+  cv.height = SIZE;
+  const ctx = cv.getContext("2d")!;
+  ctx.beginPath();
+  ctx.arc(SIZE / 2, SIZE / 2, SIZE / 2 - 5, 0, Math.PI * 2);
+  ctx.strokeStyle = "white";
+  ctx.lineWidth = 6;
+  ctx.stroke();
+  _ringTex = new THREE.CanvasTexture(cv);
+  return _ringTex;
+}
+
 function buildGlowNode(
   hexColor: number,
   radius = 5,
@@ -120,6 +138,36 @@ function nodeId(n: string | GraphNode): string {
   return typeof n === "object" ? n.id : n;
 }
 
+function makeTextSprite(text: string, color: string, worldH = 8): THREE.Sprite {
+  const cv = document.createElement("canvas");
+  const ctx = cv.getContext("2d")!;
+  const fontSize = 22;
+  const font = `${fontSize}px "Share Tech Mono", monospace`;
+  ctx.font = font;
+  const pad = 10;
+  const W = Math.ceil(ctx.measureText(text).width) + pad * 2;
+  const H = fontSize + pad;
+  cv.width = W;
+  cv.height = H;
+  ctx.font = font;
+  ctx.fillStyle = color;
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 10;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(text, W / 2, H / 2);
+  const tex = new THREE.CanvasTexture(cv);
+  const mat = new THREE.SpriteMaterial({
+    map: tex,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+  });
+  const sprite = new THREE.Sprite(mat);
+  sprite.scale.set((W / H) * worldH, worldH, 1);
+  return sprite;
+}
+
 // Helpers: do two panes share horizontal or vertical overlap (for adjacency test)
 function overlapsH(a: PaneSnapshot, b: PaneSnapshot): boolean {
   return a.left < b.left + b.width && b.left < a.left + a.width;
@@ -149,6 +197,12 @@ export function Graph3D() {
   const paneActivitySetters = useRef<
     Map<string, (lastActivity: number) => void>
   >(new Map());
+  const agentLabelSetters = useRef<Map<string, (visible: boolean) => void>>(
+    new Map()
+  );
+  const paneWaveState = useRef<
+    Map<string, { color: number; period: number; visible: boolean }>
+  >(new Map());
 
   const agentsMap = useBusStore((s) => s.agents);
   const roomsMap = useBusStore((s) => s.rooms);
@@ -164,16 +218,28 @@ export function Graph3D() {
   const hoveredAgentId = useBusStore((s) => s.hoveredAgentId);
   const sidePanelWidth = useBusStore((s) => s.sidePanelWidth);
 
-  // Always-current ref so color updater doesn't need agentsMap as a dep
+  // Always-current refs so color updater doesn't need store values as deps
   const agentsMapRef = useRef(agentsMap);
   agentsMapRef.current = agentsMap;
+  const messagesRef = useRef(messages);
+  messagesRef.current = messages;
 
   const applyNodeColors = useCallback(() => {
+    // Build a per-agent latest-message timestamp map once per call
+    const lastMsgAt = new Map<string, number>();
+    for (const m of messagesRef.current) {
+      const prev = lastMsgAt.get(m.from) ?? 0;
+      if (m.timestamp > prev) lastMsgAt.set(m.from, m.timestamp);
+    }
+    const now = Date.now();
     for (const [id, setColor] of colorSetters.current) {
       const agent = agentsMapRef.current[id];
       if (!agent) continue;
-      const hex = STATUS_GLOW[agent.status] ?? STATUS_GLOW["unknown"]!;
-      setColor(hex, agent.status === "stale");
+      // Treat recent message activity (≤60 s) as active regardless of status
+      const recentMessage = (lastMsgAt.get(id) ?? 0) > now - 60_000;
+      const effectiveStatus = recentMessage ? "active" : agent.status;
+      const hex = STATUS_GLOW[effectiveStatus] ?? STATUS_GLOW["unknown"]!;
+      setColor(hex, effectiveStatus === "stale");
     }
   }, []);
 
@@ -257,12 +323,14 @@ export function Graph3D() {
         label: r.name,
         data: r,
       })),
-      ...panes.map((p) => ({
-        id: `pane:${p.id}`,
-        kind: "pane" as const,
-        label: `${p.session} ${p.command}`,
-        data: p,
-      })),
+      ...panes
+        .filter((p) => p.agentId && agentIds.has(p.agentId))
+        .map((p) => ({
+          id: `pane:${p.id}`,
+          kind: "pane" as const,
+          label: `${p.session} ${p.command}`,
+          data: p,
+        })),
     ];
     const links: GraphLink[] = [];
 
@@ -352,8 +420,13 @@ export function Graph3D() {
       .nodeLabel("label")
       .nodeThreeObject((n: object) => {
         const node = n as GraphNode;
-        if (node.kind === "room")
-          return buildGlowNode(ROOM_COLOR, 6, false, undefined, node.id);
+        if (node.kind === "room") {
+          const group = buildGlowNode(ROOM_COLOR, 6, false, undefined, node.id);
+          const label = makeTextSprite(`#${node.label}`, "#b090ff", 10);
+          label.position.set(0, 16, 0);
+          group.add(label);
+          return group;
+        }
         if (node.kind === "pane") {
           const pane = node.data as PaneSnapshot;
           const group = new THREE.Group();
@@ -439,64 +512,46 @@ export function Graph3D() {
             outer.userData.isSelected = selected;
           });
 
-          // Activity indicator dot — top-right corner of the icon
-          const dotMat = new THREE.MeshBasicMaterial({
-            color: 0x00ff41,
-            transparent: true,
-            opacity: 0,
-            blending: THREE.AdditiveBlending,
-            depthWrite: false,
-          });
-          const dotGlowMat = new THREE.MeshBasicMaterial({
-            color: 0x00ff41,
-            transparent: true,
-            opacity: 0,
-            blending: THREE.AdditiveBlending,
-            depthWrite: false,
-          });
-          const dot = new THREE.Mesh(
-            new THREE.SphereGeometry(0.7, 8, 8),
-            dotMat
-          );
-          const dotGlow = new THREE.Mesh(
-            new THREE.SphereGeometry(1.4, 8, 8),
-            dotGlowMat
-          );
-          dot.position.set(3.6, 3.6, 0.5);
-          dotGlow.position.set(3.6, 3.6, 0.5);
-          dotGlow.userData.paneActivityGlow = true;
-          group.add(dotGlow);
-          group.add(dot);
-
-          const dotLight = new THREE.PointLight(0x00ff41, 0, 5);
-          dotLight.position.set(3.6, 3.6, 1);
-          group.add(dotLight);
+          // Radio-wave rings — 3 camera-facing sprites, staggered phase
+          for (let i = 0; i < 3; i++) {
+            const mat = new THREE.SpriteMaterial({
+              map: getRingTexture(),
+              transparent: true,
+              opacity: 0,
+              color: new THREE.Color(0x00ff41),
+              blending: THREE.AdditiveBlending,
+              depthWrite: false,
+            });
+            const wave = new THREE.Sprite(mat);
+            wave.scale.set(8, 8, 1);
+            wave.userData.radioWave = true;
+            wave.userData.paneId = pane.id;
+            wave.userData.phaseOffset = i / 3; // 0, 0.33, 0.66
+            group.add(wave);
+          }
 
           paneActivitySetters.current.set(pane.id, (lastActivity: number) => {
             const ago = (Date.now() - lastActivity) / 1000;
-            const color = ago < 5 ? 0x00ff41 : ago < 30 ? 0xff8c00 : 0x334455;
-            const opacity = ago < 5 ? 1.0 : ago < 30 ? 0.8 : 0.3;
-            const c = new THREE.Color(color);
-            dotMat.color.set(c);
-            dotMat.opacity = opacity;
-            dotGlowMat.color.set(c);
-            dotGlowMat.opacity = ago < 5 ? 0.45 : ago < 30 ? 0.3 : 0.1;
-            dotLight.color.set(c);
-            dotLight.intensity = ago < 5 ? 2.0 : ago < 30 ? 1.0 : 0;
+            paneWaveState.current.set(
+              pane.id,
+              ago < 5
+                ? { color: 0x00ff41, period: 1.6, visible: true }
+                : ago < 30
+                  ? { color: 0xff8c00, period: 2.8, visible: true }
+                  : { color: 0x334455, period: 3.5, visible: false }
+            );
           });
 
-          // Seed with current activity
+          // Seed initial state
           const ago0 = (Date.now() - pane.lastActivity) / 1000;
-          const initColor =
-            ago0 < 5 ? 0x00ff41 : ago0 < 30 ? 0xff8c00 : 0x334455;
-          const initOpacity = ago0 < 5 ? 1.0 : ago0 < 30 ? 0.8 : 0.3;
-          const ic = new THREE.Color(initColor);
-          dotMat.color.set(ic);
-          dotMat.opacity = initOpacity;
-          dotGlowMat.color.set(ic);
-          dotGlowMat.opacity = ago0 < 5 ? 0.45 : ago0 < 30 ? 0.3 : 0.1;
-          dotLight.color.set(ic);
-          dotLight.intensity = ago0 < 5 ? 2.0 : ago0 < 30 ? 1.0 : 0;
+          paneWaveState.current.set(
+            pane.id,
+            ago0 < 5
+              ? { color: 0x00ff41, period: 1.6, visible: true }
+              : ago0 < 30
+                ? { color: 0xff8c00, period: 2.8, visible: true }
+                : { color: 0x334455, period: 3.5, visible: false }
+          );
 
           return group;
         }
@@ -515,6 +570,13 @@ export function Graph3D() {
             group.userData.setHighlight as (on: boolean) => void
           );
         }
+        const agentLabel = makeTextSprite(agent.name, "#33ff88", 7);
+        agentLabel.position.set(0, 12, 0);
+        agentLabel.visible = false;
+        group.add(agentLabel);
+        agentLabelSetters.current.set(agent.id, (v: boolean) => {
+          agentLabel.visible = v;
+        });
         return group;
       })
       .linkColor((l: object) => {
@@ -617,6 +679,28 @@ export function Graph3D() {
       if (l.kind === "dm") return 60;
       return 40;
     });
+    // Constrain all nodes within ~200 units — prevents unlinked nodes flying
+    // off under repulsion. Kicks in only beyond the threshold, leaving the
+    // linked cluster undisturbed.
+
+    const boundOriginForce = (alpha: number) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const nodes: any[] = (graph.graphData() as any).nodes ?? [];
+      for (const n of nodes) {
+        const dx = n.x ?? 0,
+          dy = n.y ?? 0,
+          dz = n.z ?? 0;
+        const dist = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1;
+        if (dist > 200) {
+          const pull = (alpha * 0.3 * (dist - 200)) / dist;
+          n.vx = (n.vx ?? 0) - dx * pull;
+          n.vy = (n.vy ?? 0) - dy * pull;
+          n.vz = (n.vz ?? 0) - dz * pull;
+        }
+      }
+    };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    graph.d3Force("boundOrigin", boundOriginForce as any);
 
     const scene = graph.scene();
     scene.add(new THREE.AmbientLight(0x001133, 0.5));
@@ -636,6 +720,18 @@ export function Graph3D() {
     const tick = () => {
       if (graphRef.current) {
         const elapsed = (performance.now() - t0) / 1000;
+
+        // Toggle agent labels based on camera proximity
+        const camera = graphRef.current.camera() as THREE.PerspectiveCamera;
+        const controls = graphRef.current.controls() as {
+          target: THREE.Vector3;
+        };
+        const camDist = camera.position.distanceTo(controls.target);
+        const showAgentLabels = camDist < 280;
+        for (const setter of agentLabelSetters.current.values()) {
+          setter(showAgentLabels);
+        }
+
         graphRef.current.scene().traverse((obj: THREE.Object3D) => {
           if (obj.userData?.pulseHalo) {
             (
@@ -667,17 +763,23 @@ export function Graph3D() {
             obj.rotation.z = elapsed * 1.4; // slow spin
             obj.rotation.x = Math.sin(elapsed * 0.7) * 0.4; // gentle tilt oscillation
           }
-          if (obj.userData?.paneActivityGlow) {
-            const mesh = obj as THREE.Mesh<
-              THREE.BufferGeometry,
-              THREE.MeshBasicMaterial
-            >;
-            // Pulse the glow only when recently active (green dot, < 5s)
-            const baseOpacity = mesh.material.opacity;
-            if (baseOpacity > 0.35) {
-              mesh.material.opacity =
-                0.3 + Math.abs(Math.sin(elapsed * Math.PI * 2)) * 0.2;
+          if (obj.userData?.radioWave) {
+            const wave = obj as THREE.Sprite;
+            const state = paneWaveState.current.get(
+              obj.userData.paneId as string
+            );
+            if (!state?.visible) {
+              wave.material.opacity = 0;
+              return;
             }
+            const phase =
+              ((elapsed + (obj.userData.phaseOffset as number) * state.period) %
+                state.period) /
+              state.period; // 0 → 1
+            const s = 8 + phase * 18; // expand 8 → 26 world units
+            wave.scale.set(s, s, 1);
+            wave.material.opacity = Math.max(0, (1 - phase) * 0.55);
+            wave.material.color.setHex(state.color);
           }
         });
       }
@@ -785,6 +887,11 @@ export function Graph3D() {
       .join(","),
   ].join("|");
   const topoSigRef = useRef("");
+
+  // Re-colour nodes when messages arrive (recent activity implies active status)
+  useEffect(() => {
+    applyNodeColors();
+  }, [messages.length, applyNodeColors]);
 
   // Rebuild graph only on structural changes — status changes skip this and go straight to applyNodeColors
   useEffect(() => {

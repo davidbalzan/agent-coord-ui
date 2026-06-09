@@ -1,5 +1,14 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
+import AnsiToHtml from "ansi-to-html";
 import { useBusStore } from "../store/bus.js";
+
+const ansiConverter = new AnsiToHtml({
+  fg: "#33ff66",
+  bg: "transparent",
+  newline: true,
+  escapeXML: true,
+  stream: false,
+});
 import type { PaneSnapshot } from "@coord-ui/shared";
 import { useResizeHandle, cornerHandle } from "../hooks/useResize.js";
 
@@ -175,6 +184,7 @@ export function FloatingTerminal() {
   const paneSelection = useBusStore((s) => s.paneSelection);
   const setPaneSelection = useBusStore((s) => s.setPaneSelection);
   const panesMap = useBusStore((s) => s.panes);
+  const paneAnsi = useBusStore((s) => s.paneAnsi);
   const sendPaneKeys = useBusStore((s) => s.sendPaneKeys);
   const requestOutput = useBusStore((s) => s.requestPaneOutput);
 
@@ -225,10 +235,17 @@ export function FloatingTerminal() {
     prevPaneRef.current = paneSelection;
   }, [paneSelection, requestOutput]);
 
+  // Poll for fresh ANSI output while a pane is open
+  useEffect(() => {
+    if (!paneSelection) return;
+    const id = setInterval(() => requestOutput(paneSelection), 2000);
+    return () => clearInterval(id);
+  }, [paneSelection, requestOutput]);
+
   useEffect(() => {
     if (outputRef.current)
       outputRef.current.scrollTop = outputRef.current.scrollHeight;
-  }, [activePane?.lines]);
+  }, [activePane?.lines, paneAnsi[paneSelection ?? ""]]);
 
   const handleSend = useCallback(() => {
     const text = input.trim();
@@ -512,9 +529,12 @@ export function FloatingTerminal() {
               wordBreak: "break-all",
               textShadow: "0 0 4px rgba(0,255,65,0.3)",
             }}
-          >
-            {activePane.lines.join("\n")}
-          </pre>
+            dangerouslySetInnerHTML={{
+              __html: paneAnsi[activePane.id]
+                ? ansiConverter.toHtml(paneAnsi[activePane.id]!)
+                : activePane.lines.join("\n"),
+            }}
+          />
         </div>
 
         {/* Input */}

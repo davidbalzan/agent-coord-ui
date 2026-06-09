@@ -19,6 +19,7 @@ interface BusState {
   rooms: Record<string, RoomSnapshot>;
   messages: MessageSnapshot[];
   panes: Record<string, PaneSnapshot>;
+  paneAnsi: Record<string, string>; // paneId → latest ANSI output
   selection: Selection | null; // agent / room panel (right side)
   paneSelection: string | null; // raw pane ID — independent of selection
   nameFilter: string;
@@ -84,9 +85,16 @@ export const useBusStore = create<BusState>((set) => {
       case "pane_remove":
         set((s) => {
           const panes = { ...s.panes };
+          const paneAnsi = { ...s.paneAnsi };
           delete panes[event.paneId];
-          return { panes };
+          delete paneAnsi[event.paneId];
+          return { panes, paneAnsi };
         });
+        break;
+      case "pane_output":
+        set((s) => ({
+          paneAnsi: { ...s.paneAnsi, [event.paneId]: event.ansi },
+        }));
         break;
     }
   });
@@ -98,6 +106,7 @@ export const useBusStore = create<BusState>((set) => {
     rooms: {},
     messages: [],
     panes: {},
+    paneAnsi: {},
     selection: null,
     paneSelection: null,
     nameFilter: "",

@@ -106,7 +106,27 @@ aliases: ["Roadmap", "PRODUCTION_ROADMAP"]
 
 ---
 
-### Phase 4 (v2): Networked & Multi-Operator
+### Phase 4: Full Interactive Terminal (xterm.js)
+
+**Goal**: Replace the ANSI-snapshot + send-keys terminal with a real PTY-backed xterm.js emulator — full cursor control, tab-completion, arrow keys, and Claude Code's interactive TUI work from the browser.
+**Duration**: TBD
+**Status**: ⚪ Not Started
+
+**Context**: The current terminal (Phase 3) captures ANSI snapshots and injects text via `tmux send-keys`. It renders colours correctly but has no PTY connection, so interactive features (arrow keys, tab-complete, Ctrl+C, Claude Code spinner/prompts) don't work.
+
+**Key Deliverables**:
+
+- [ ] Server-side PTY bridge — WebSocket endpoint that attaches to a tmux pane via `tmux attach-session -t <pane>` or a raw `node-pty` session and pipes stdin/stdout bidirectionally
+- [ ] xterm.js frontend — replace `<pre>` output + input box in `FloatingTerminal.tsx` with an `xterm.js` `Terminal` instance sized to the pane dimensions
+- [ ] Resize sync — `ResizeObserver` on the terminal container sends `tmux resize-pane` so the remote PTY matches the browser window
+- [ ] Input passthrough — all keystrokes (including escape sequences, arrow keys, Ctrl+\*) forwarded raw to the PTY; no special-casing
+- [ ] Graceful fallback — keep the ANSI snapshot path as a read-only preview when no PTY session is active
+
+**Key Risk**: xterm.js adds ~3 MB to the bundle; PTY WebSocket requires a persistent server-side connection per open pane.
+
+---
+
+### Phase 5 (v2): Networked & Multi-Operator
 
 **Goal**: Support remote teams; auth token; HTTP API mode for non-local MCP.
 **Duration**: TBD
@@ -128,7 +148,8 @@ aliases: ["Roadmap", "PRODUCTION_ROADMAP"]
 | Phase 1: Foundation | 🔴 Critical | All           | Low        | 1 week    | None                         |
 | Phase 2: Live Graph | 🔴 Critical | Phase 3+      | Medium     | 2 weeks   | WS event schema churn        |
 | Phase 3: Polish     | 🟡 High     | v2 perception | Medium     | 1–2 weeks | Three.js coupling complexity |
-| Phase 4: Networked  | 🟢 Medium   | —             | High       | TBD       | Auth scope creep             |
+| Phase 4: xterm.js   | 🟢 Medium   | Phase 3       | High       | TBD       | Bundle size, PTY lifecycle   |
+| Phase 5: Networked  | 🟢 Medium   | —             | High       | TBD       | Auth scope creep             |
 
 **Critical Path**: Phase 1 → Phase 2 → Phase 3 (sequential; Phase 4 is independent v2 work)
 
@@ -163,9 +184,10 @@ aliases: ["Roadmap", "PRODUCTION_ROADMAP"]
 
 ## 🔄 Revision History
 
-| Date       | Change                                 | Reason                                                       |
-| ---------- | -------------------------------------- | ------------------------------------------------------------ |
-| 2026-06-08 | Initial roadmap created from kickstart | Project bootstrapped; Phase 1 & 2 retrospectively documented |
+| Date       | Change                                        | Reason                                                                            |
+| ---------- | --------------------------------------------- | --------------------------------------------------------------------------------- |
+| 2026-06-08 | Initial roadmap created from kickstart        | Project bootstrapped; Phase 1 & 2 retrospectively documented                      |
+| 2026-06-08 | Added Phase 4 (xterm.js interactive terminal) | ANSI snapshot approach can't support cursor keys / tab-complete / Claude Code TUI |
 
 ---
 

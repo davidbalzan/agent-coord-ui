@@ -10,7 +10,7 @@ import type {
   PaneSendKeysPayload,
 } from "@coord-ui/shared";
 import { busWatcher } from "./watcher.js";
-import { sendKeys, capturePane, tmuxWatcher } from "./tmux.js";
+import { sendKeys, capturePane, capturePaneAnsi, tmuxWatcher } from "./tmux.js";
 import { logger } from "./logger.js";
 
 const ROOT =
@@ -50,9 +50,13 @@ export function attachWss(server: import("node:http").Server) {
           const paneId = payload["paneId"] as string;
           const existing = tmuxWatcher.panes.find((p) => p.id === paneId);
           if (existing) {
-            capturePane(paneId, 300)
-              .then((lines) => {
+            Promise.all([
+              capturePane(paneId, 300),
+              capturePaneAnsi(paneId, 300),
+            ])
+              .then(([lines, ansi]) => {
                 send(ws, { type: "pane_update", pane: { ...existing, lines } });
+                send(ws, { type: "pane_output", paneId, ansi });
               })
               .catch(() => {});
           }

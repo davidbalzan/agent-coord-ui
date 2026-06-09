@@ -1,7 +1,47 @@
 import { exec } from "node:child_process";
+import { readFile, readdir } from "node:fs/promises";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { promisify } from "node:util";
 import type { PaneSnapshot, BusEvent } from "@coord-ui/shared";
 import { logger } from "./logger.js";
+
+const TRANSPORT_DIR = join(
+  process.env.AGENT_COORD_DIR ??
+    process.env.CLAUDE_COORD_DIR ??
+    join(homedir(), "agent-coord"),
+  "transports"
+);
+
+// Reads ~/agent-coord/transports/*.json and returns a map of tmuxTarget → agentId.
+// This is the authoritative source — each agent writes its own pane target on attach.
+async function loadTransportMap(): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  try {
+    const files = await readdir(TRANSPORT_DIR);
+    await Promise.all(
+      files
+        .filter((f) => f.endsWith(".json"))
+        .map(async (f) => {
+          try {
+            const raw = JSON.parse(
+              await readFile(join(TRANSPORT_DIR, f), "utf8")
+            ) as {
+              agentId?: string;
+              tmuxTarget?: string;
+            };
+            if (raw.agentId && raw.tmuxTarget)
+              map.set(raw.tmuxTarget, raw.agentId);
+          } catch {
+            // malformed — skip
+          }
+        })
+    );
+  } catch {
+    // transports dir doesn't exist yet
+  }
+  return map;
+}
 
 const execAsync = promisify(exec);
 
@@ -171,14 +211,19 @@ export class TmuxWatcher {
   }
 
   // Match a pane to a registered agent.
+  // Strategy 0: transport file (agent-reported tmuxTarget — authoritative, no false positives)
   // Strategy 1: pane title (set by Claude Code / agent tooling — fast, reliable)
   // Strategy 2: scan scrollback content (catches anything printed at startup)
-  // Longest ID first to avoid "agent-1" matching before "agent-10".
+  // Longest ID first on strategies 1+2 to avoid "agent-1" matching before "agent-10".
   private matchAgent(
+    paneId: string,
     title: string,
     lines: string[],
-    agentIds: string[]
+    agentIds: string[],
+    transportMap: Map<string, string>
   ): string | undefined {
+    const fromTransport = transportMap.get(paneId);
+    if (fromTransport && agentIds.includes(fromTransport)) return fromTransport;
     const sorted = [...agentIds].sort((a, b) => b.length - a.length);
     const titleMatch = sorted.find((id) => title.includes(id));
     if (titleMatch) return titleMatch;
@@ -188,7 +233,10 @@ export class TmuxWatcher {
 
   async snapshot(agentIds?: string[]): Promise<PaneSnapshot[]> {
     if (!this.available) return [];
-    const raws = await listPanes();
+    const [raws, transportMap] = await Promise.all([
+      listPanes(),
+      loadTransportMap(),
+    ]);
     const panes: PaneSnapshot[] = [];
     for (const raw of raws) {
       const lines = await capturePane(raw.id, CAPTURE_LINES);
@@ -196,7 +244,7 @@ export class TmuxWatcher {
         ...raw,
         lastActivity: this.prev.get(raw.id)?.lastActivity ?? Date.now(),
         agentId: agentIds
-          ? this.matchAgent(raw.title, lines, agentIds)
+          ? this.matchAgent(raw.id, raw.title, lines, agentIds, transportMap)
           : undefined,
         lines,
       });
@@ -206,7 +254,10 @@ export class TmuxWatcher {
 
   async diff(agentIds?: string[]): Promise<void> {
     if (!this.available) return;
-    const raws = await listPanes();
+    const [raws, transportMap] = await Promise.all([
+      listPanes(),
+      loadTransportMap(),
+    ]);
     const next = new Map<string, PaneSnapshot>();
 
     for (const raw of raws) {
@@ -217,7 +268,7 @@ export class TmuxWatcher {
         : true;
 
       const agentId = agentIds
-        ? this.matchAgent(raw.title, lines, agentIds)
+        ? this.matchAgent(raw.id, raw.title, lines, agentIds, transportMap)
         : undefined;
 
       const snap: PaneSnapshot = {
