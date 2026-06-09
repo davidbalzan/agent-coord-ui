@@ -450,53 +450,32 @@ export function Graph3D() {
       }
     }
 
-    return { nodes, links };
+    // Guard: drop any link whose endpoints aren't both present as nodes.
+    // Pane nodes are filtered (only panes matched to a live agent are added),
+    // but pane-adjacency links are generated for every pane in a window — so a
+    // sibling pane that was filtered out leaves a dangling link. d3's link
+    // force THROWS on a missing node id, which aborts the whole simulation tick
+    // and freezes the layout collapsed at the origin (the "pileup"). Filtering
+    // here guarantees a consistent graph no matter how links were generated.
+    const nodeIds = new Set(nodes.map((n) => n.id));
+    const safeLinks = links.filter(
+      (l) => nodeIds.has(nodeId(l.source)) && nodeIds.has(nodeId(l.target))
+    );
+
+    return { nodes, links: safeLinks };
   }, [agents, rooms, panes, messages]);
 
-  // Applies d3 force parameters to a graph instance. Called both at init and
-  // after each graphData() call because 3d-force-graph reheats the simulation
-  // on data updates and may restore defaults.
+  // Keep the default d3 forces (they lay out cleanly and settle) and only widen
+  // the spacing: the glow spheres have halos ~20 units across, so the default
+  // ~30-unit link distance packs them into one overlapping blob. Stronger charge
+  // + longer links give each node breathing room. The camera is auto-fitted on
+  // load (see init effect) so the absolute world size doesn't matter.
   const applyForceConfig = useCallback((graph: ForceGraph3DInstance) => {
-    // Moderate repulsion — enough to separate the glowing nodes without
-    // launching them off-screen.
-    graph.d3Force("charge")?.strength(-220);
-    graph
-      .d3Force("link")
-      ?.distance((link: object) => {
-        const l = link as GraphLink;
-        if (l.kind === "dm") return 70;
-        return 45;
-      })
-      .strength((link: object) => {
-        const l = link as GraphLink;
-        // Membership links pull agents toward their rooms so clusters stay
-        // cohesive instead of drifting apart.
-        if (l.kind === "membership") return 0.5;
-        if (l.kind === "dm") return 0.2;
-        return 0.4;
-      });
-    // Keep the default centering force so the whole graph stays gathered
-    // around the origin rather than flying outward under repulsion.
-
-    // Gentle radial gravity toward the origin (like d3 forceX/Y/Z(0)). The
-    // built-in center force only recenters the centroid — it does nothing to
-    // an unlinked node, which would otherwise drift off forever under charge
-    // repulsion. This pulls every node toward 0 proportional to its distance,
-    // so linked clusters stay put (link tension balances it) while stragglers
-    // get reeled back in.
-    const STRENGTH = 0.008;
-    const centerGravity = (alpha: number) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const nodes: any[] = (graph.graphData() as any).nodes ?? [];
-      const k = alpha * STRENGTH;
-      for (const n of nodes) {
-        n.vx = (n.vx ?? 0) - (n.x ?? 0) * k;
-        n.vy = (n.vy ?? 0) - (n.y ?? 0) * k;
-        n.vz = (n.vz ?? 0) - (n.z ?? 0) * k;
-      }
-    };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    graph.d3Force("centerGravity", centerGravity as any);
+    graph.d3Force("charge")?.strength(-340);
+    graph.d3Force("link")?.distance((link: object) => {
+      const l = link as GraphLink;
+      return l.kind === "dm" ? 90 : 70;
+    });
   }, []);
 
   // Init graph once
@@ -842,6 +821,19 @@ export function Graph3D() {
     refreshLinksRef.current = () => {
       graph.linkColor(graph.linkColor());
     };
+
+    // Auto-fit the camera the first time the layout settles, so the graph is
+    // always framed on load regardless of its world size. Guarded so it fires
+    // only once and never yanks the camera while the user is navigating.
+    let didInitialFit = false;
+    graph.onEngineStop(() => {
+      if (didInitialFit) return;
+      const nodeCount = (graph.graphData() as unknown as { nodes: GraphNode[] })
+        .nodes.length;
+      if (nodeCount === 0) return;
+      didInitialFit = true;
+      graph.zoomToFit(700, 80);
+    });
 
     graphRef.current = graph;
     return () => {
