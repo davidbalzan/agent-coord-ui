@@ -143,38 +143,45 @@ export function JarvisOverlay() {
         <circle cx="450" cy="450" r="450" fill="url(#ringFade)" />
       </svg>
 
-      {/* Radar sweep — CSS rotating div with conic gradient */}
+      {/* Radar sweep — single wrapper centered with ring SVG */}
       <div
         style={{
           position: "absolute",
           top: "50%",
           left: "50%",
-          width: "620px",
-          height: "620px",
-          marginLeft: "-310px",
-          marginTop: "-340px",
-          borderRadius: "50%",
-          animation: "jarvis-radar 10s linear infinite",
-          background:
-            "conic-gradient(from 0deg, transparent 0deg, rgba(0,212,255,0.07) 40deg, rgba(0,212,255,0.03) 70deg, transparent 90deg)",
+          width: 0,
+          height: 0,
+          transform: "translate(0, -36px)", // match SVG's -54% of 900px vertical offset
         }}
-      />
-
-      {/* Radar sweep leading edge line */}
-      <div
-        style={{
-          position: "absolute",
-          top: "50%",
-          left: "50%",
-          width: "310px",
-          height: "1px",
-          marginTop: "-340px",
-          transformOrigin: "0% 50%",
-          animation: "jarvis-radar 10s linear infinite",
-          background:
-            "linear-gradient(to right, rgba(0,212,255,0.6), transparent)",
-        }}
-      />
+      >
+        {/* Conic sweep fill */}
+        <div
+          style={{
+            position: "absolute",
+            width: "620px",
+            height: "620px",
+            marginLeft: "-310px",
+            marginTop: "-310px",
+            borderRadius: "50%",
+            animation: "jarvis-radar 10s linear infinite",
+            background:
+              "conic-gradient(from 0deg, transparent 0deg, rgba(0,212,255,0.07) 40deg, rgba(0,212,255,0.03) 70deg, transparent 90deg)",
+          }}
+        />
+        {/* Leading edge line — starts at center, rotates around it */}
+        <div
+          style={{
+            position: "absolute",
+            width: "310px",
+            height: "1px",
+            marginTop: "-0.5px",
+            transformOrigin: "0% 50%",
+            animation: "jarvis-radar 10s linear infinite",
+            background:
+              "linear-gradient(to right, rgba(0,212,255,0.7), transparent)",
+          }}
+        />
+      </div>
 
       <style>{`
         @keyframes jarvis-radar {
