@@ -1094,44 +1094,94 @@ export function Graph3D() {
   return (
     <>
       <div ref={containerRef} style={{ position: "absolute", inset: 0 }} />
-      <button
-        onClick={fitToScreen}
-        title="Fit all to screen"
+      {/* Circular icon row — JARVIS-style action buttons */}
+      <div
         style={{
           position: "absolute",
           bottom: "52px",
-          right: `${sidePanelWidth + 20}px`,
-          width: "36px",
-          height: "36px",
-          background: "rgba(0,8,20,0.85)",
-          border: "1px solid rgba(0,212,255,0.35)",
-          borderRadius: "6px",
-          cursor: "pointer",
+          right: `${sidePanelWidth + 16}px`,
           display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          color: "rgba(0,212,255,0.75)",
-          fontSize: "16px",
-          boxShadow: "0 0 12px rgba(0,212,255,0.15)",
-          transition: "border-color 0.15s, color 0.15s, box-shadow 0.15s",
+          flexDirection: "column",
+          gap: "10px",
           zIndex: 10,
-          backdropFilter: "blur(4px)",
-        }}
-        onMouseEnter={(e) => {
-          const b = e.currentTarget;
-          b.style.borderColor = "rgba(0,212,255,0.8)";
-          b.style.color = "#00d4ff";
-          b.style.boxShadow = "0 0 16px rgba(0,212,255,0.4)";
-        }}
-        onMouseLeave={(e) => {
-          const b = e.currentTarget;
-          b.style.borderColor = "rgba(0,212,255,0.35)";
-          b.style.color = "rgba(0,212,255,0.75)";
-          b.style.boxShadow = "0 0 12px rgba(0,212,255,0.15)";
         }}
       >
-        ⊡
-      </button>
+        <CircleBtn onClick={fitToScreen} title="Fit to screen" icon="⊡" />
+        <CircleBtn
+          onClick={() => {
+            if (!graphRef.current) return;
+            graphRef.current.cameraPosition(
+              { x: 0, y: 0, z: 300 },
+              { x: 0, y: 0, z: 0 },
+              800
+            );
+          }}
+          title="Reset camera"
+          icon="◎"
+        />
+        <CircleBtn
+          onClick={() => {
+            if (!graphRef.current) return;
+            // Release any active focus lock
+            focusedNodeRef.current = null;
+            for (const setDimmed of nodeDimSetters.current.values())
+              setDimmed(false);
+            refreshLinksRef.current();
+          }}
+          title="Clear focus"
+          icon="✕"
+        />
+      </div>
     </>
+  );
+}
+
+function CircleBtn({
+  onClick,
+  title,
+  icon,
+}: {
+  onClick: () => void;
+  title: string;
+  icon: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      style={{
+        width: "38px",
+        height: "38px",
+        borderRadius: "50%",
+        background: "rgba(0,8,20,0.85)",
+        border: "1px solid rgba(0,212,255,0.35)",
+        boxShadow:
+          "0 0 10px rgba(0,212,255,0.12), inset 0 0 8px rgba(0,212,255,0.04)",
+        cursor: "pointer",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        color: "rgba(0,212,255,0.7)",
+        fontSize: "15px",
+        backdropFilter: "blur(6px)",
+        transition: "border-color 0.15s, box-shadow 0.15s, color 0.15s",
+      }}
+      onMouseEnter={(e) => {
+        const b = e.currentTarget;
+        b.style.borderColor = "rgba(0,212,255,0.85)";
+        b.style.boxShadow =
+          "0 0 18px rgba(0,212,255,0.45), inset 0 0 10px rgba(0,212,255,0.1)";
+        b.style.color = "#00d4ff";
+      }}
+      onMouseLeave={(e) => {
+        const b = e.currentTarget;
+        b.style.borderColor = "rgba(0,212,255,0.35)";
+        b.style.boxShadow =
+          "0 0 10px rgba(0,212,255,0.12), inset 0 0 8px rgba(0,212,255,0.04)";
+        b.style.color = "rgba(0,212,255,0.7)";
+      }}
+    >
+      {icon}
+    </button>
   );
 }

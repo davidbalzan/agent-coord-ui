@@ -3,6 +3,7 @@ import { SidePanel } from "./components/SidePanel.js";
 import { HUD } from "./components/HUD.js";
 import { FloatingTerminal } from "./components/FloatingTerminal.js";
 import { StatusTicker } from "./components/StatusTicker.js";
+import { JarvisOverlay } from "./components/JarvisOverlay.js";
 
 export function App() {
   return (
@@ -25,6 +26,7 @@ export function App() {
           minWidth: 0,
         }}
       >
+        <JarvisOverlay />
         <Graph3D />
         <FloatingTerminal />
         <SidePanel />
