@@ -214,6 +214,7 @@ export function Graph3D() {
     new Map()
   );
   const focusedNodeRef = useRef<string | null>(null);
+  const refreshLinksRef = useRef<() => void>(() => {});
   const paneWaveState = useRef<
     Map<string, { color: number; period: number; visible: boolean }>
   >(new Map());
@@ -632,14 +633,26 @@ export function Graph3D() {
         return group;
       })
       .linkColor((l: object) => {
-        const kind = (l as GraphLink).kind;
+        const link = l as GraphLink;
+        const focused = focusedNodeRef.current;
+        if (focused) {
+          const src = nodeId(link.source as string | GraphNode);
+          const tgt = nodeId(link.target as string | GraphNode);
+          if (src !== focused && tgt !== focused)
+            return "rgba(255,255,255,0.04)";
+          // Connected edge — boost color
+          if (link.kind === "dm") return "rgba(176,144,255,1.0)";
+          if (link.kind === "pane-agent") return "rgba(0,255,65,1.0)";
+          return "rgba(0,212,255,0.9)";
+        }
+        const kind = link.kind;
         if (kind === "dm") return "rgba(123,111,255,0.5)";
         if (kind === "pane-agent") return "rgba(0,255,65,0.6)";
         if (kind === "pane-h") return "rgba(0,255,65,0.25)";
         if (kind === "pane-v") return "rgba(0,200,50,0.18)";
         return "rgba(0,212,255,0.25)";
       })
-      .linkOpacity(0.7)
+      .linkOpacity(1.0)
       .linkWidth((l: object) => {
         const kind = (l as GraphLink).kind;
         if (kind === "dm") return 0.8;
@@ -700,11 +713,12 @@ export function Graph3D() {
             { x: nx, y: ny, z: nz },
             1200
           );
-          // Focus lock — dim all other nodes
+          // Focus lock — dim all other nodes + highlight direct edges
           focusedNodeRef.current = node.id;
           for (const [id, setDimmed] of nodeDimSetters.current) {
             setDimmed(id !== node.id);
           }
+          refreshLinksRef.current();
         } else {
           lastClickRef.current = { id: node.id, time: now };
           if (node.kind === "pane") {
@@ -730,6 +744,7 @@ export function Graph3D() {
         focusedNodeRef.current = null;
         for (const setDimmed of nodeDimSetters.current.values())
           setDimmed(false);
+        refreshLinksRef.current();
       });
 
     // Strong repulsion keeps nodes from overlapping
@@ -793,6 +808,11 @@ export function Graph3D() {
     (gridFine.material as THREE.Material).opacity = 0.2;
     scene.add(gridFine);
 
+    // Store refresh fn — re-passes linkColor to trigger a link re-render pass
+    refreshLinksRef.current = () => {
+      graph.linkColor(graph.linkColor());
+    };
+
     graphRef.current = graph;
     return () => {
       graph._destructor?.();
@@ -806,6 +826,7 @@ export function Graph3D() {
       if (e.key !== "Escape" || focusedNodeRef.current === null) return;
       focusedNodeRef.current = null;
       for (const setDimmed of nodeDimSetters.current.values()) setDimmed(false);
+      refreshLinksRef.current();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
