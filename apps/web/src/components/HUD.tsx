@@ -134,8 +134,8 @@ export function HUD() {
             label="STALE"
             value={stale}
             total={total}
-            color="#ff3344"
-            glowColor="rgba(255,51,68,0.6)"
+            color="#ff8c00"
+            glowColor="rgba(255,140,0,0.4)"
           />
           <ArcGauge
             label="ROOMS"

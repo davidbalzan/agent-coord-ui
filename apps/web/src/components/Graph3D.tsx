@@ -30,7 +30,7 @@ interface GraphLink {
 const STATUS_GLOW: Record<string, number> = {
   active: 0x00ff88,
   idle: 0xff8c00,
-  stale: 0xff3333,
+  stale: 0xff8c00, // stale = effectively idle — same colour, no alarm
   unknown: 0x334466,
 };
 
@@ -853,21 +853,11 @@ export function Graph3D() {
 
         graphRef.current.scene().traverse((obj: THREE.Object3D) => {
           if (obj.userData?.pulseHalo) {
-            // Urgent double-pulse: two beats per cycle with a rest gap
-            const t = (elapsed * 2.2) % 1;
-            const beat =
-              t < 0.18
-                ? Math.sin((t / 0.18) * Math.PI)
-                : t < 0.36
-                  ? Math.sin(((t - 0.18) / 0.18) * Math.PI) * 0.6
-                  : 0;
-            const mesh = obj as THREE.Mesh<
-              THREE.BufferGeometry,
-              THREE.MeshBasicMaterial
-            >;
-            mesh.material.opacity = 0.06 + beat * 0.55;
-            const s = 1 + beat * 0.35;
-            mesh.scale.setScalar(s);
+            // Gentle slow fade — stale is idle, not an alarm
+            (
+              obj as THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>
+            ).material.opacity =
+              0.06 + Math.abs(Math.sin(elapsed * Math.PI * 0.5)) * 0.14;
           }
           if (obj.userData?.activityHalo) {
             const lastTs = roomActivityRef.current.get(
@@ -1109,7 +1099,7 @@ export function Graph3D() {
         title="Fit all to screen"
         style={{
           position: "absolute",
-          bottom: "20px",
+          bottom: "52px",
           right: `${sidePanelWidth + 20}px`,
           width: "36px",
           height: "36px",
