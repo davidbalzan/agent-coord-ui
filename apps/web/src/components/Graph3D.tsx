@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback } from "react";
-import ForceGraph3D from "3d-force-graph";
+import ForceGraph3D, { type ForceGraph3DInstance } from "3d-force-graph";
 import * as THREE from "three";
 import { useBusStore } from "../store/bus.js";
 import type {
@@ -30,7 +30,7 @@ interface GraphLink {
 const STATUS_GLOW: Record<string, number> = {
   active: 0x00ff88,
   idle: 0xff8c00,
-  stale: 0xff3333,
+  stale: 0xff8c00, // stale = effectively idle — same colour, no alarm
   unknown: 0x334466,
 };
 
@@ -113,6 +113,14 @@ function buildGlowNode(
   const light = new THREE.PointLight(hexColor, 1.5, radius * 8);
   group.add(light);
 
+  group.userData.setDimmed = (on: boolean) => {
+    coreMat.transparent = on;
+    coreMat.opacity = on ? 0.1 : 1.0;
+    halo1Mat.opacity = on ? 0.03 : 0.28;
+    halo2Mat.opacity = on ? 0.02 : 0.12;
+    light.intensity = on ? 0.0 : 1.5;
+  };
+
   if (agentId) {
     group.userData.agentId = agentId;
     group.userData.setColor = (hex: number, isPulse: boolean) => {
@@ -138,7 +146,12 @@ function nodeId(n: string | GraphNode): string {
   return typeof n === "object" ? n.id : n;
 }
 
-function makeTextSprite(text: string, color: string, worldH = 8): THREE.Sprite {
+function makeTextSprite(
+  text: string,
+  color: string,
+  worldH = 8,
+  opacity = 1
+): THREE.Sprite {
   const cv = document.createElement("canvas");
   const ctx = cv.getContext("2d")!;
   const fontSize = 22;
@@ -160,6 +173,7 @@ function makeTextSprite(text: string, color: string, worldH = 8): THREE.Sprite {
   const mat = new THREE.SpriteMaterial({
     map: tex,
     transparent: true,
+    opacity,
     depthWrite: false,
     blending: THREE.AdditiveBlending,
   });
@@ -184,6 +198,8 @@ export function Graph3D() {
   const lastMsgTimeRef = useRef<Map<string, number>>(new Map());
   // unix ms of last message per room id — drives halo ripple
   const roomActivityRef = useRef<Map<string, number>>(new Map());
+  // unix ms of last message per agent id — drives burst rings
+  const agentMsgTimestampRef = useRef<Map<string, number>>(new Map());
   const prevMsgLenRef = useRef(0);
   const colorSetters = useRef<
     Map<string, (hex: number, pulse: boolean) => void>
@@ -200,6 +216,15 @@ export function Graph3D() {
   const agentLabelSetters = useRef<Map<string, (visible: boolean) => void>>(
     new Map()
   );
+  const nodeDimSetters = useRef<Map<string, (dimmed: boolean) => void>>(
+    new Map()
+  );
+  const focusedNodeRef = useRef<string | null>(null);
+  const refreshLinksRef = useRef<() => void>(() => {});
+  // Persistent node-object cache keyed by id. d3-force stores layout state
+  // (x/y/z/vx/vy/vz) directly on the node objects, so we MUST hand it the same
+  // object across rebuilds or every update resets all positions to the origin.
+  const nodeCacheRef = useRef<Map<string, GraphNode>>(new Map());
   const paneWaveState = useRef<
     Map<string, { color: number; period: number; visible: boolean }>
   >(new Map());
@@ -288,6 +313,8 @@ export function Graph3D() {
     for (const msg of fresh) {
       lastMsgTimeRef.current.set(linkKey(msg), now);
       if (!msg.isDM) roomActivityRef.current.set(msg.to, now);
+      agentMsgTimestampRef.current.set(msg.from, now);
+      if (msg.isDM && msg.to) agentMsgTimestampRef.current.set(msg.to, now);
     }
     requestAnimationFrame(() => {
       if (!graphRef.current) return;
@@ -310,28 +337,43 @@ export function Graph3D() {
 
   const buildGraphData = useCallback(() => {
     const agentIds = new Set(agents.map((a) => a.id));
+
+    // Reuse the cached node object for an id if it exists so d3 keeps its
+    // simulation state; only mutate the fields that can change.
+    const cache = nodeCacheRef.current;
+    const upsert = (
+      id: string,
+      kind: NodeType,
+      label: string,
+      data: GraphNode["data"]
+    ): GraphNode => {
+      const existing = cache.get(id);
+      if (existing) {
+        existing.label = label;
+        existing.data = data;
+        return existing;
+      }
+      const fresh: GraphNode = { id, kind, label, data };
+      cache.set(id, fresh);
+      return fresh;
+    };
+
     const nodes: GraphNode[] = [
-      ...agents.map((a) => ({
-        id: a.id,
-        kind: "agent" as const,
-        label: a.name,
-        data: a,
-      })),
-      ...rooms.map((r) => ({
-        id: r.id,
-        kind: "room" as const,
-        label: r.name,
-        data: r,
-      })),
+      ...agents.map((a) => upsert(a.id, "agent", a.name, a)),
+      ...rooms.map((r) => upsert(r.id, "room", r.name, r)),
       ...panes
         .filter((p) => p.agentId && agentIds.has(p.agentId))
-        .map((p) => ({
-          id: `pane:${p.id}`,
-          kind: "pane" as const,
-          label: `${p.session} ${p.command}`,
-          data: p,
-        })),
+        .map((p) =>
+          upsert(`pane:${p.id}`, "pane", `${p.session} ${p.command}`, p)
+        ),
     ];
+
+    // Drop cached objects for ids no longer present so the cache can't grow
+    // unbounded as agents/panes come and go.
+    const liveIds = new Set(nodes.map((n) => n.id));
+    for (const id of cache.keys()) {
+      if (!liveIds.has(id)) cache.delete(id);
+    }
     const links: GraphLink[] = [];
 
     for (const room of rooms) {
@@ -411,6 +453,52 @@ export function Graph3D() {
     return { nodes, links };
   }, [agents, rooms, panes, messages]);
 
+  // Applies d3 force parameters to a graph instance. Called both at init and
+  // after each graphData() call because 3d-force-graph reheats the simulation
+  // on data updates and may restore defaults.
+  const applyForceConfig = useCallback((graph: ForceGraph3DInstance) => {
+    // Moderate repulsion — enough to separate the glowing nodes without
+    // launching them off-screen.
+    graph.d3Force("charge")?.strength(-220);
+    graph
+      .d3Force("link")
+      ?.distance((link: object) => {
+        const l = link as GraphLink;
+        if (l.kind === "dm") return 70;
+        return 45;
+      })
+      .strength((link: object) => {
+        const l = link as GraphLink;
+        // Membership links pull agents toward their rooms so clusters stay
+        // cohesive instead of drifting apart.
+        if (l.kind === "membership") return 0.5;
+        if (l.kind === "dm") return 0.2;
+        return 0.4;
+      });
+    // Keep the default centering force so the whole graph stays gathered
+    // around the origin rather than flying outward under repulsion.
+
+    // Gentle radial gravity toward the origin (like d3 forceX/Y/Z(0)). The
+    // built-in center force only recenters the centroid — it does nothing to
+    // an unlinked node, which would otherwise drift off forever under charge
+    // repulsion. This pulls every node toward 0 proportional to its distance,
+    // so linked clusters stay put (link tension balances it) while stragglers
+    // get reeled back in.
+    const STRENGTH = 0.008;
+    const centerGravity = (alpha: number) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const nodes: any[] = (graph.graphData() as any).nodes ?? [];
+      const k = alpha * STRENGTH;
+      for (const n of nodes) {
+        n.vx = (n.vx ?? 0) - (n.x ?? 0) * k;
+        n.vy = (n.vy ?? 0) - (n.y ?? 0) * k;
+        n.vz = (n.vz ?? 0) - (n.z ?? 0) * k;
+      }
+    };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    graph.d3Force("centerGravity", centerGravity as any);
+  }, []);
+
   // Init graph once
   useEffect(() => {
     if (!containerRef.current) return;
@@ -425,6 +513,10 @@ export function Graph3D() {
           const label = makeTextSprite(`#${node.label}`, "#b090ff", 10);
           label.position.set(0, 16, 0);
           group.add(label);
+          nodeDimSetters.current.set(
+            node.id,
+            group.userData.setDimmed as (d: boolean) => void
+          );
           return group;
         }
         if (node.kind === "pane") {
@@ -530,6 +622,15 @@ export function Graph3D() {
             group.add(wave);
           }
 
+          // Dim setter for pane nodes — dims the icon sprite
+          nodeDimSetters.current.set(`pane:${pane.id}`, (dimmed: boolean) => {
+            group.traverse((child) => {
+              if (child instanceof THREE.Sprite && !child.userData.radioWave) {
+                child.material.opacity = dimmed ? 0.08 : 1.0;
+              }
+            });
+          });
+
           paneActivitySetters.current.set(pane.id, (lastActivity: number) => {
             const ago = (Date.now() - lastActivity) / 1000;
             paneWaveState.current.set(
@@ -570,24 +671,59 @@ export function Graph3D() {
             group.userData.setHighlight as (on: boolean) => void
           );
         }
-        const agentLabel = makeTextSprite(agent.name, "#33ff88", 7);
-        agentLabel.position.set(0, 12, 0);
-        agentLabel.visible = false;
+        nodeDimSetters.current.set(
+          agent.id,
+          group.userData.setDimmed as (d: boolean) => void
+        );
+        // Subtle agent label — smaller and dimmer than channel names
+        const agentLabel = makeTextSprite(agent.name, "#8fffc4", 5, 0.6);
+        agentLabel.position.set(0, 10, 0);
         group.add(agentLabel);
         agentLabelSetters.current.set(agent.id, (v: boolean) => {
           agentLabel.visible = v;
         });
+
+        // Burst rings — 3 expanding ring sprites, triggered by message activity
+        for (let i = 0; i < 3; i++) {
+          const mat = new THREE.SpriteMaterial({
+            map: getRingTexture(),
+            transparent: true,
+            opacity: 0,
+            color: new THREE.Color(hex),
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+          });
+          const ring = new THREE.Sprite(mat);
+          ring.scale.set(10, 10, 1);
+          ring.userData.agentRingWave = true;
+          ring.userData.agentId = agent.id;
+          ring.userData.phaseOffset = i / 3;
+          group.add(ring);
+        }
+
         return group;
       })
       .linkColor((l: object) => {
-        const kind = (l as GraphLink).kind;
+        const link = l as GraphLink;
+        const focused = focusedNodeRef.current;
+        if (focused) {
+          const src = nodeId(link.source as string | GraphNode);
+          const tgt = nodeId(link.target as string | GraphNode);
+          if (src !== focused && tgt !== focused)
+            return "rgba(255,255,255,0.04)";
+          // Connected edge — boost color
+          if (link.kind === "dm") return "rgba(176,144,255,1.0)";
+          if (link.kind === "pane-agent") return "rgba(0,255,65,1.0)";
+          return "rgba(0,212,255,0.9)";
+        }
+        const kind = link.kind;
         if (kind === "dm") return "rgba(123,111,255,0.5)";
         if (kind === "pane-agent") return "rgba(0,255,65,0.6)";
         if (kind === "pane-h") return "rgba(0,255,65,0.25)";
         if (kind === "pane-v") return "rgba(0,200,50,0.18)";
         return "rgba(0,212,255,0.25)";
       })
-      .linkOpacity(0.7)
+      .linkOpacity(1.0)
       .linkWidth((l: object) => {
         const kind = (l as GraphLink).kind;
         if (kind === "dm") return 0.8;
@@ -602,9 +738,8 @@ export function Graph3D() {
         const key = graphLinkKey(link);
         const lastTs = lastMsgTimeRef.current.get(key);
         const isActive = !!lastTs && Date.now() - lastTs < 30_000;
-        if (link.kind === "dm") return isActive ? 6 : 1;
-        // membership: ambient 1 particle, burst on activity
-        return isActive ? 4 : 1;
+        if (link.kind === "dm") return isActive ? 6 : 0;
+        return isActive ? 4 : 0;
       })
       .linkDirectionalParticleWidth((l: object) => {
         const kind = (l as GraphLink).kind;
@@ -649,6 +784,12 @@ export function Graph3D() {
             { x: nx, y: ny, z: nz },
             1200
           );
+          // Focus lock — dim all other nodes + highlight direct edges
+          focusedNodeRef.current = node.id;
+          for (const [id, setDimmed] of nodeDimSetters.current) {
+            setDimmed(id !== node.id);
+          }
+          refreshLinksRef.current();
         } else {
           lastClickRef.current = { id: node.id, time: now };
           if (node.kind === "pane") {
@@ -668,49 +809,57 @@ export function Graph3D() {
         } else if (link.kind === "dm") {
           setSelection({ kind: "agent", id: nodeId(link.source) });
         }
+      })
+      .onBackgroundClick(() => {
+        if (focusedNodeRef.current === null) return;
+        focusedNodeRef.current = null;
+        for (const setDimmed of nodeDimSetters.current.values())
+          setDimmed(false);
+        refreshLinksRef.current();
       });
 
-    // Stronger repulsion so nodes spread out and don't overlap
-    graph.d3Force("charge")?.strength(-300);
-    // Shorter link rest length so connected nodes stay in view
-    graph.d3Force("link")?.distance((link: object) => {
-      const l = link as GraphLink;
-      if (l.kind === "membership") return 80;
-      if (l.kind === "dm") return 60;
-      return 40;
-    });
-    // Constrain all nodes within ~200 units — prevents unlinked nodes flying
-    // off under repulsion. Kicks in only beyond the threshold, leaving the
-    // linked cluster undisturbed.
-
-    const boundOriginForce = (alpha: number) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const nodes: any[] = (graph.graphData() as any).nodes ?? [];
-      for (const n of nodes) {
-        const dx = n.x ?? 0,
-          dy = n.y ?? 0,
-          dz = n.z ?? 0;
-        const dist = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1;
-        if (dist > 200) {
-          const pull = (alpha * 0.3 * (dist - 200)) / dist;
-          n.vx = (n.vx ?? 0) - dx * pull;
-          n.vy = (n.vy ?? 0) - dy * pull;
-          n.vz = (n.vz ?? 0) - dz * pull;
-        }
-      }
-    };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    graph.d3Force("boundOrigin", boundOriginForce as any);
+    applyForceConfig(graph);
 
     const scene = graph.scene();
     scene.add(new THREE.AmbientLight(0x001133, 0.5));
     scene.add(new THREE.HemisphereLight(0x002244, 0x000913, 0.4));
+
+    // Holographic grid floor — faint cyan wireframe plane
+    const grid = new THREE.GridHelper(800, 32, 0x003344, 0x001a2a);
+    grid.position.y = -120;
+    (grid.material as THREE.Material).transparent = true;
+    (grid.material as THREE.Material).opacity = 0.35;
+    scene.add(grid);
+
+    // Second finer grid for depth
+    const gridFine = new THREE.GridHelper(800, 80, 0x001a33, 0x000d1a);
+    gridFine.position.y = -120;
+    (gridFine.material as THREE.Material).transparent = true;
+    (gridFine.material as THREE.Material).opacity = 0.2;
+    scene.add(gridFine);
+
+    // Store refresh fn — re-passes linkColor to trigger a link re-render pass
+    refreshLinksRef.current = () => {
+      graph.linkColor(graph.linkColor());
+    };
 
     graphRef.current = graph;
     return () => {
       graph._destructor?.();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [applyForceConfig]);
+
+  // Escape releases focus lock
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || focusedNodeRef.current === null) return;
+      focusedNodeRef.current = null;
+      for (const setDimmed of nodeDimSetters.current.values()) setDimmed(false);
+      refreshLinksRef.current();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   }, []);
 
   // Stale node pulse
@@ -727,17 +876,18 @@ export function Graph3D() {
           target: THREE.Vector3;
         };
         const camDist = camera.position.distanceTo(controls.target);
-        const showAgentLabels = camDist < 280;
+        const showAgentLabels = camDist < 650;
         for (const setter of agentLabelSetters.current.values()) {
           setter(showAgentLabels);
         }
 
         graphRef.current.scene().traverse((obj: THREE.Object3D) => {
           if (obj.userData?.pulseHalo) {
+            // Gentle slow fade — stale is idle, not an alarm
             (
               obj as THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>
             ).material.opacity =
-              0.04 + Math.abs(Math.sin(elapsed * Math.PI * 1.5)) * 0.22;
+              0.06 + Math.abs(Math.sin(elapsed * Math.PI * 0.2)) * 0.14;
           }
           if (obj.userData?.activityHalo) {
             const lastTs = roomActivityRef.current.get(
@@ -762,6 +912,30 @@ export function Graph3D() {
           if (obj.userData?.selectionRing && obj.userData?.isSelected) {
             obj.rotation.z = elapsed * 1.4; // slow spin
             obj.rotation.x = Math.sin(elapsed * 0.7) * 0.4; // gentle tilt oscillation
+          }
+          if (obj.userData?.agentRingWave) {
+            const wave = obj as THREE.Sprite;
+            const lastTs = agentMsgTimestampRef.current.get(
+              obj.userData.agentId as string
+            );
+            const BURST_DURATION = 2.5; // seconds a burst lasts
+            const PERIOD = 1.2;
+            if (
+              !lastTs ||
+              (performance.now() - lastTs) / 1000 > BURST_DURATION
+            ) {
+              wave.material.opacity = 0;
+            } else {
+              const secAgo = (performance.now() - lastTs) / 1000;
+              const phase =
+                ((secAgo + (obj.userData.phaseOffset as number) * PERIOD) %
+                  PERIOD) /
+                PERIOD;
+              const s = 10 + phase * 28;
+              wave.scale.set(s, s, 1);
+              const envelope = Math.max(0, 1 - secAgo / BURST_DURATION);
+              wave.material.opacity = Math.max(0, (1 - phase) * 0.6 * envelope);
+            }
           }
           if (obj.userData?.radioWave) {
             const wave = obj as THREE.Sprite;
@@ -866,43 +1040,36 @@ export function Graph3D() {
       });
   }, [nameFilter, rooms, panes]);
 
-  // Topology signature — only the structure that determines nodes/links, not status
-  const topoSig = [
-    agents
-      .map((a) => a.id)
-      .sort()
-      .join(","),
-    rooms
-      .map((r) => `${r.id}:${[...r.members].sort().join("+")}`)
-      .sort()
-      .join(","),
-    panes
-      .map((p) => `${p.id}:${p.agentId ?? ""}`)
-      .sort()
-      .join(","),
-    messages
-      .filter((m) => m.isDM)
-      .map((m) => `${m.from}→${m.to}`)
-      .sort()
-      .join(","),
-  ].join("|");
-  const topoSigRef = useRef("");
-
   // Re-colour nodes when messages arrive (recent activity implies active status)
   useEffect(() => {
     applyNodeColors();
   }, [messages.length, applyNodeColors]);
 
-  // Rebuild graph only on structural changes — status changes skip this and go straight to applyNodeColors
+  // Push graph data only when the STRUCTURE changes (nodes/edges added or
+  // removed). buildGraphData re-runs on every message (DM edges depend on
+  // messages), and each graphData() call reheats the d3 simulation to full
+  // alpha. Reheating on every chat message never lets the layout cool, so it
+  // drifts apart or collapses over time. Gating on a structural signature lets
+  // the simulation settle and stay put during pure chat activity.
+  const structSigRef = useRef("");
   useEffect(() => {
-    if (topoSig === topoSigRef.current) {
-      applyNodeColors();
-      return;
+    const data = buildGraphData();
+    const sig =
+      data.nodes
+        .map((n) => n.id)
+        .sort()
+        .join(",") +
+      "|" +
+      data.links
+        .map((l) => graphLinkKey(l))
+        .sort()
+        .join(",");
+    if (sig !== structSigRef.current) {
+      structSigRef.current = sig;
+      graphRef.current?.graphData(data);
     }
-    topoSigRef.current = topoSig;
-    graphRef.current?.graphData(buildGraphData());
     requestAnimationFrame(applyNodeColors);
-  }, [topoSig, buildGraphData, applyNodeColors]);
+  }, [buildGraphData, applyNodeColors]);
 
   const sidePanelWidthRef = useRef(sidePanelWidth);
   sidePanelWidthRef.current = sidePanelWidth;
@@ -950,44 +1117,94 @@ export function Graph3D() {
   return (
     <>
       <div ref={containerRef} style={{ position: "absolute", inset: 0 }} />
-      <button
-        onClick={fitToScreen}
-        title="Fit all to screen"
+      {/* Circular icon row — JARVIS-style action buttons */}
+      <div
         style={{
           position: "absolute",
-          bottom: "20px",
-          right: `${sidePanelWidth + 20}px`,
-          width: "36px",
-          height: "36px",
-          background: "rgba(0,8,20,0.85)",
-          border: "1px solid rgba(0,212,255,0.35)",
-          borderRadius: "6px",
-          cursor: "pointer",
+          bottom: "52px",
+          right: `${sidePanelWidth + 16}px`,
           display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          color: "rgba(0,212,255,0.75)",
-          fontSize: "16px",
-          boxShadow: "0 0 12px rgba(0,212,255,0.15)",
-          transition: "border-color 0.15s, color 0.15s, box-shadow 0.15s",
+          flexDirection: "column",
+          gap: "10px",
           zIndex: 10,
-          backdropFilter: "blur(4px)",
-        }}
-        onMouseEnter={(e) => {
-          const b = e.currentTarget;
-          b.style.borderColor = "rgba(0,212,255,0.8)";
-          b.style.color = "#00d4ff";
-          b.style.boxShadow = "0 0 16px rgba(0,212,255,0.4)";
-        }}
-        onMouseLeave={(e) => {
-          const b = e.currentTarget;
-          b.style.borderColor = "rgba(0,212,255,0.35)";
-          b.style.color = "rgba(0,212,255,0.75)";
-          b.style.boxShadow = "0 0 12px rgba(0,212,255,0.15)";
         }}
       >
-        ⊡
-      </button>
+        <CircleBtn onClick={fitToScreen} title="Fit to screen" icon="⊡" />
+        <CircleBtn
+          onClick={() => {
+            if (!graphRef.current) return;
+            graphRef.current.cameraPosition(
+              { x: 0, y: 0, z: 300 },
+              { x: 0, y: 0, z: 0 },
+              800
+            );
+          }}
+          title="Reset camera"
+          icon="◎"
+        />
+        <CircleBtn
+          onClick={() => {
+            if (!graphRef.current) return;
+            // Release any active focus lock
+            focusedNodeRef.current = null;
+            for (const setDimmed of nodeDimSetters.current.values())
+              setDimmed(false);
+            refreshLinksRef.current();
+          }}
+          title="Clear focus"
+          icon="✕"
+        />
+      </div>
     </>
+  );
+}
+
+function CircleBtn({
+  onClick,
+  title,
+  icon,
+}: {
+  onClick: () => void;
+  title: string;
+  icon: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      style={{
+        width: "38px",
+        height: "38px",
+        borderRadius: "50%",
+        background: "rgba(0,8,20,0.85)",
+        border: "1px solid rgba(0,212,255,0.35)",
+        boxShadow:
+          "0 0 10px rgba(0,212,255,0.12), inset 0 0 8px rgba(0,212,255,0.04)",
+        cursor: "pointer",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        color: "rgba(0,212,255,0.7)",
+        fontSize: "15px",
+        backdropFilter: "blur(6px)",
+        transition: "border-color 0.15s, box-shadow 0.15s, color 0.15s",
+      }}
+      onMouseEnter={(e) => {
+        const b = e.currentTarget;
+        b.style.borderColor = "rgba(0,212,255,0.85)";
+        b.style.boxShadow =
+          "0 0 18px rgba(0,212,255,0.45), inset 0 0 10px rgba(0,212,255,0.1)";
+        b.style.color = "#00d4ff";
+      }}
+      onMouseLeave={(e) => {
+        const b = e.currentTarget;
+        b.style.borderColor = "rgba(0,212,255,0.35)";
+        b.style.boxShadow =
+          "0 0 10px rgba(0,212,255,0.12), inset 0 0 8px rgba(0,212,255,0.04)";
+        b.style.color = "rgba(0,212,255,0.7)";
+      }}
+    >
+      {icon}
+    </button>
   );
 }
