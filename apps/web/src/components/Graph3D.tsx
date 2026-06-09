@@ -184,6 +184,8 @@ export function Graph3D() {
   const lastMsgTimeRef = useRef<Map<string, number>>(new Map());
   // unix ms of last message per room id — drives halo ripple
   const roomActivityRef = useRef<Map<string, number>>(new Map());
+  // unix ms of last message per agent id — drives burst rings
+  const agentMsgTimestampRef = useRef<Map<string, number>>(new Map());
   const prevMsgLenRef = useRef(0);
   const colorSetters = useRef<
     Map<string, (hex: number, pulse: boolean) => void>
@@ -288,6 +290,8 @@ export function Graph3D() {
     for (const msg of fresh) {
       lastMsgTimeRef.current.set(linkKey(msg), now);
       if (!msg.isDM) roomActivityRef.current.set(msg.to, now);
+      agentMsgTimestampRef.current.set(msg.from, now);
+      if (msg.isDM && msg.to) agentMsgTimestampRef.current.set(msg.to, now);
     }
     requestAnimationFrame(() => {
       if (!graphRef.current) return;
@@ -577,6 +581,25 @@ export function Graph3D() {
         agentLabelSetters.current.set(agent.id, (v: boolean) => {
           agentLabel.visible = v;
         });
+
+        // Burst rings — 3 expanding ring sprites, triggered by message activity
+        for (let i = 0; i < 3; i++) {
+          const mat = new THREE.SpriteMaterial({
+            map: getRingTexture(),
+            transparent: true,
+            opacity: 0,
+            color: new THREE.Color(hex),
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+          });
+          const ring = new THREE.Sprite(mat);
+          ring.scale.set(10, 10, 1);
+          ring.userData.agentRingWave = true;
+          ring.userData.agentId = agent.id;
+          ring.userData.phaseOffset = i / 3;
+          group.add(ring);
+        }
+
         return group;
       })
       .linkColor((l: object) => {
@@ -602,9 +625,8 @@ export function Graph3D() {
         const key = graphLinkKey(link);
         const lastTs = lastMsgTimeRef.current.get(key);
         const isActive = !!lastTs && Date.now() - lastTs < 30_000;
-        if (link.kind === "dm") return isActive ? 6 : 1;
-        // membership: ambient 1 particle, burst on activity
-        return isActive ? 4 : 1;
+        if (link.kind === "dm") return isActive ? 6 : 0;
+        return isActive ? 4 : 0;
       })
       .linkDirectionalParticleWidth((l: object) => {
         const kind = (l as GraphLink).kind;
@@ -670,15 +692,26 @@ export function Graph3D() {
         }
       });
 
-    // Stronger repulsion so nodes spread out and don't overlap
-    graph.d3Force("charge")?.strength(-300);
-    // Shorter link rest length so connected nodes stay in view
-    graph.d3Force("link")?.distance((link: object) => {
-      const l = link as GraphLink;
-      if (l.kind === "membership") return 80;
-      if (l.kind === "dm") return 60;
-      return 40;
-    });
+    // Strong repulsion keeps nodes from overlapping
+    graph.d3Force("charge")?.strength(-400);
+    // Weaken link spring so many edges don't collapse the graph
+    graph
+      .d3Force("link")
+      ?.distance((link: object) => {
+        const l = link as GraphLink;
+        if (l.kind === "membership") return 120;
+        if (l.kind === "dm") return 80;
+        return 50;
+      })
+      .strength((link: object) => {
+        const l = link as GraphLink;
+        // membership links are weak — let repulsion keep agents spread out
+        if (l.kind === "membership") return 0.15;
+        if (l.kind === "dm") return 0.3;
+        return 0.5;
+      });
+    // Weak center force — just enough to keep unlinked nodes from flying away
+    graph.d3Force("center")?.strength(0.02);
     // Constrain all nodes within ~200 units — prevents unlinked nodes flying
     // off under repulsion. Kicks in only beyond the threshold, leaving the
     // linked cluster undisturbed.
@@ -705,6 +738,20 @@ export function Graph3D() {
     const scene = graph.scene();
     scene.add(new THREE.AmbientLight(0x001133, 0.5));
     scene.add(new THREE.HemisphereLight(0x002244, 0x000913, 0.4));
+
+    // Holographic grid floor — faint cyan wireframe plane
+    const grid = new THREE.GridHelper(800, 32, 0x003344, 0x001a2a);
+    grid.position.y = -120;
+    (grid.material as THREE.Material).transparent = true;
+    (grid.material as THREE.Material).opacity = 0.35;
+    scene.add(grid);
+
+    // Second finer grid for depth
+    const gridFine = new THREE.GridHelper(800, 80, 0x001a33, 0x000d1a);
+    gridFine.position.y = -120;
+    (gridFine.material as THREE.Material).transparent = true;
+    (gridFine.material as THREE.Material).opacity = 0.2;
+    scene.add(gridFine);
 
     graphRef.current = graph;
     return () => {
@@ -762,6 +809,30 @@ export function Graph3D() {
           if (obj.userData?.selectionRing && obj.userData?.isSelected) {
             obj.rotation.z = elapsed * 1.4; // slow spin
             obj.rotation.x = Math.sin(elapsed * 0.7) * 0.4; // gentle tilt oscillation
+          }
+          if (obj.userData?.agentRingWave) {
+            const wave = obj as THREE.Sprite;
+            const lastTs = agentMsgTimestampRef.current.get(
+              obj.userData.agentId as string
+            );
+            const BURST_DURATION = 2.5; // seconds a burst lasts
+            const PERIOD = 1.2;
+            if (
+              !lastTs ||
+              (performance.now() - lastTs) / 1000 > BURST_DURATION
+            ) {
+              wave.material.opacity = 0;
+            } else {
+              const secAgo = (performance.now() - lastTs) / 1000;
+              const phase =
+                ((secAgo + (obj.userData.phaseOffset as number) * PERIOD) %
+                  PERIOD) /
+                PERIOD;
+              const s = 10 + phase * 28;
+              wave.scale.set(s, s, 1);
+              const envelope = Math.max(0, 1 - secAgo / BURST_DURATION);
+              wave.material.opacity = Math.max(0, (1 - phase) * 0.6 * envelope);
+            }
           }
           if (obj.userData?.radioWave) {
             const wave = obj as THREE.Sprite;

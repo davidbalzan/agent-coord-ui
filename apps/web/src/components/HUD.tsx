@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useBusStore } from "../store/bus.js";
 
 export function HUD() {
@@ -11,6 +11,7 @@ export function HUD() {
   const active = agents.filter((a) => a.status === "active").length;
   const idle = agents.filter((a) => a.status === "idle").length;
   const stale = agents.filter((a) => a.status === "stale").length;
+  const total = agents.length || 1;
 
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -19,7 +20,6 @@ export function HUD() {
     ? rooms.filter((r) => r.id.toLowerCase().includes(nameFilter.toLowerCase()))
     : rooms;
 
-  // Close on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
@@ -34,7 +34,7 @@ export function HUD() {
     <header
       className="flex-shrink-0 relative"
       style={{
-        height: "48px",
+        height: "56px",
         background:
           "linear-gradient(90deg, rgba(0,8,20,0.98) 0%, rgba(0,15,35,0.95) 100%)",
         borderBottom: "1px solid rgba(0,212,255,0.3)",
@@ -108,31 +108,48 @@ export function HUD() {
         <div
           style={{
             width: "1px",
-            height: "24px",
+            height: "32px",
             background: "rgba(0,212,255,0.2)",
             flexShrink: 0,
           }}
         />
 
-        {/* Stats */}
-        <div className="flex items-center gap-5 flex-shrink-0">
-          <StatChip label="ACTIVE" value={active} color="#00ff88" />
-          {idle > 0 && <StatChip label="IDLE" value={idle} color="#ff8c00" />}
-          {stale > 0 && (
-            <StatChip label="STALE" value={stale} color="#ff3333" />
-          )}
-          <StatChip
+        {/* Arc gauges */}
+        <div className="flex items-center gap-4 flex-shrink-0">
+          <ArcGauge
+            label="ACTIVE"
+            value={active}
+            total={total}
+            color="#00ff88"
+            glowColor="rgba(0,255,136,0.6)"
+          />
+          <ArcGauge
+            label="IDLE"
+            value={idle}
+            total={total}
+            color="#ff8c00"
+            glowColor="rgba(255,140,0,0.6)"
+          />
+          <ArcGauge
+            label="STALE"
+            value={stale}
+            total={total}
+            color="#ff3344"
+            glowColor="rgba(255,51,68,0.6)"
+          />
+          <ArcGauge
             label="ROOMS"
             value={rooms.length}
+            total={Math.max(rooms.length, 1)}
             color="#7b6fff"
-            icon="◈"
+            glowColor="rgba(123,111,255,0.6)"
           />
         </div>
 
         <div
           style={{
             width: "1px",
-            height: "24px",
+            height: "32px",
             background: "rgba(0,212,255,0.2)",
             flexShrink: 0,
           }}
@@ -208,7 +225,6 @@ export function HUD() {
               </span>
             )}
 
-            {/* Holo dropdown */}
             {open && suggestions.length > 0 && (
               <div
                 style={{
@@ -224,7 +240,6 @@ export function HUD() {
                   overflow: "hidden",
                 }}
               >
-                {/* top accent line */}
                 <div
                   style={{
                     height: "1px",
@@ -313,44 +328,160 @@ export function HUD() {
   );
 }
 
-function StatChip({
+// Arc gauge — 270° sweep, tick marks, glowing dot at tip
+function ArcGauge({
   label,
   value,
+  total,
   color,
-  icon,
+  glowColor,
 }: {
   label: string;
   value: number;
+  total: number;
   color: string;
-  icon?: string;
+  glowColor: string;
 }) {
+  const size = 44;
+  const cx = size / 2;
+  const cy = size / 2;
+  const r = 17;
+  const strokeW = 3;
+
+  // 270° arc: starts at 135° (bottom-left), sweeps clockwise to 45° (bottom-right)
+  const startAngle = 135;
+  const sweepAngle = 270;
+  const ratio = Math.min(value / total, 1);
+  const filledAngle = sweepAngle * ratio;
+
+  const filterId = useMemo(() => `glow-${label.toLowerCase()}`, [label]);
+
+  function polarToXY(angleDeg: number, radius: number) {
+    const rad = ((angleDeg - 90) * Math.PI) / 180;
+    return { x: cx + radius * Math.cos(rad), y: cy + radius * Math.sin(rad) };
+  }
+
+  function describeArc(start: number, sweep: number, radius: number) {
+    if (sweep <= 0) return "";
+    const clamped = Math.min(sweep, 359.99);
+    const end = start + clamped;
+    const s = polarToXY(start, radius);
+    const e = polarToXY(end, radius);
+    const large = clamped > 180 ? 1 : 0;
+    return `M ${s.x} ${s.y} A ${radius} ${radius} 0 ${large} 1 ${e.x} ${e.y}`;
+  }
+
+  // Tick marks: 8 evenly spaced around the 270° arc
+  const ticks = useMemo(() => {
+    const n = 8;
+    return Array.from({ length: n + 1 }, (_, i) => {
+      const angle = startAngle + (sweepAngle / n) * i;
+      const inner = polarToXY(angle, r - 5);
+      const outer = polarToXY(angle, r - 2);
+      return { inner, outer, angle };
+    });
+  }, []);
+
+  const tipPos =
+    filledAngle > 2 ? polarToXY(startAngle + filledAngle, r) : null;
+
   return (
-    <div className="flex items-center gap-1.5">
-      <span style={{ color, textShadow: `0 0 6px ${color}`, fontSize: "8px" }}>
-        {icon ?? "●"}
-      </span>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: "1px",
+      }}
+    >
+      <svg width={size} height={size} style={{ overflow: "visible" }}>
+        <defs>
+          <filter id={filterId} x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="2" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        </defs>
+
+        {/* Track */}
+        <path
+          d={describeArc(startAngle, sweepAngle, r)}
+          fill="none"
+          stroke="rgba(0,212,255,0.1)"
+          strokeWidth={strokeW}
+          strokeLinecap="round"
+        />
+
+        {/* Tick marks */}
+        {ticks.map((t, i) => (
+          <line
+            key={i}
+            x1={t.inner.x}
+            y1={t.inner.y}
+            x2={t.outer.x}
+            y2={t.outer.y}
+            stroke="rgba(0,212,255,0.2)"
+            strokeWidth={1}
+          />
+        ))}
+
+        {/* Fill arc */}
+        {filledAngle > 0.5 && (
+          <path
+            d={describeArc(startAngle, filledAngle, r)}
+            fill="none"
+            stroke={color}
+            strokeWidth={strokeW}
+            strokeLinecap="round"
+            filter={`url(#${filterId})`}
+            style={{ opacity: 0.9 }}
+          />
+        )}
+
+        {/* Glowing dot at tip */}
+        {tipPos && (
+          <>
+            <circle
+              cx={tipPos.x}
+              cy={tipPos.y}
+              r={4}
+              fill={glowColor}
+              style={{ filter: `drop-shadow(0 0 4px ${color})` }}
+            />
+            <circle cx={tipPos.x} cy={tipPos.y} r={2} fill={color} />
+          </>
+        )}
+
+        {/* Center value */}
+        <text
+          x={cx}
+          y={cy + 1}
+          textAnchor="middle"
+          dominantBaseline="middle"
+          style={{
+            fontFamily: "Orbitron, sans-serif",
+            fontSize: "11px",
+            fontWeight: 700,
+            fill: color,
+            filter: `drop-shadow(0 0 6px ${color})`,
+          }}
+        >
+          {value}
+        </text>
+      </svg>
+
       <span
         style={{
           fontFamily: "Share Tech Mono",
-          fontSize: "11px",
-          color: "rgba(142,207,255,0.7)",
-          letterSpacing: "0.05em",
+          fontSize: "8px",
+          letterSpacing: "0.18em",
+          color: "rgba(0,212,255,0.4)",
+          lineHeight: 1,
         }}
       >
-        <span
-          style={{ color, textShadow: `0 0 8px ${color}`, fontWeight: 600 }}
-        >
-          {value}
-        </span>{" "}
-        <span
-          style={{
-            fontSize: "9px",
-            letterSpacing: "0.15em",
-            color: "rgba(0,212,255,0.4)",
-          }}
-        >
-          {label}
-        </span>
+        {label}
       </span>
     </div>
   );
