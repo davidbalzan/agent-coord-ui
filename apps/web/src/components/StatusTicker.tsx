@@ -97,10 +97,13 @@ export function StatusTicker() {
         height: 28,
         zIndex: 200,
         overflow: "hidden",
-        background: "rgba(0, 4, 16, 0.92)",
-        borderTop: "1px solid rgba(0, 212, 255, 0.18)",
-        backdropFilter: "blur(8px)",
-        WebkitBackdropFilter: "blur(8px)",
+        background:
+          "linear-gradient(to bottom, rgba(8, 24, 48, 0.45), rgba(0, 8, 22, 0.35))",
+        borderTop: "1px solid rgba(0, 212, 255, 0.22)",
+        boxShadow:
+          "inset 0 1px 0 rgba(255,255,255,0.06), 0 -4px 24px rgba(0,0,0,0.35)",
+        backdropFilter: "blur(16px) saturate(150%)",
+        WebkitBackdropFilter: "blur(16px) saturate(150%)",
       }}
     >
       <div
@@ -110,7 +113,7 @@ export function StatusTicker() {
           pointerEvents: "none",
           zIndex: 1,
           background:
-            "linear-gradient(to right, rgba(0,4,16,0.95) 0%, transparent 5%, transparent 95%, rgba(0,4,16,0.95) 100%)",
+            "linear-gradient(to right, rgba(0,8,22,0.55) 0%, transparent 6%, transparent 94%, rgba(0,8,22,0.55) 100%)",
         }}
       />
       <span
