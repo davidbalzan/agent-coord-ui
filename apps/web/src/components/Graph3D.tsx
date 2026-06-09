@@ -857,7 +857,7 @@ export function Graph3D() {
             (
               obj as THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>
             ).material.opacity =
-              0.06 + Math.abs(Math.sin(elapsed * Math.PI * 0.5)) * 0.14;
+              0.06 + Math.abs(Math.sin(elapsed * Math.PI * 0.2)) * 0.14;
           }
           if (obj.userData?.activityHalo) {
             const lastTs = roomActivityRef.current.get(
