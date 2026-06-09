@@ -1041,7 +1041,36 @@ export function Graph3D() {
       return;
     }
     topoSigRef.current = topoSig;
-    graphRef.current?.graphData(buildGraphData());
+
+    // Carry existing node positions forward so d3 doesn't reset everything to
+    // the origin on each topology rebuild — the root cause of the pileup.
+    const newData = buildGraphData();
+    if (graphRef.current) {
+      const prevNodes: GraphNode[] =
+        (graphRef.current.graphData() as { nodes: GraphNode[] }).nodes ?? [];
+      const prevPos = new Map(
+        prevNodes
+          .filter((n) => n.x != null)
+          .map((n) => [n.id, { x: n.x!, y: n.y ?? 0, z: n.z ?? 0 }])
+      );
+      for (const node of newData.nodes) {
+        const p = prevPos.get(node.id);
+        if (p) {
+          node.x = p.x;
+          node.y = p.y;
+          node.z = p.z;
+        } else {
+          // New node — scatter it randomly so it doesn't pile at the origin
+          const r = 80 + Math.random() * 80;
+          const theta = Math.random() * Math.PI * 2;
+          const phi = Math.acos(2 * Math.random() - 1);
+          node.x = r * Math.sin(phi) * Math.cos(theta);
+          node.y = r * Math.sin(phi) * Math.sin(theta);
+          node.z = r * Math.cos(phi);
+        }
+      }
+      graphRef.current.graphData(newData);
+    }
     requestAnimationFrame(applyNodeColors);
   }, [topoSig, buildGraphData, applyNodeColors]);
 
