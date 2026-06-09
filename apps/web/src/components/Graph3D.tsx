@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback } from "react";
-import ForceGraph3D from "3d-force-graph";
+import ForceGraph3D, { type ForceGraph3DInstance } from "3d-force-graph";
 import * as THREE from "three";
 import { useBusStore } from "../store/bus.js";
 import type {
@@ -146,7 +146,12 @@ function nodeId(n: string | GraphNode): string {
   return typeof n === "object" ? n.id : n;
 }
 
-function makeTextSprite(text: string, color: string, worldH = 8): THREE.Sprite {
+function makeTextSprite(
+  text: string,
+  color: string,
+  worldH = 8,
+  opacity = 1
+): THREE.Sprite {
   const cv = document.createElement("canvas");
   const ctx = cv.getContext("2d")!;
   const fontSize = 22;
@@ -168,6 +173,7 @@ function makeTextSprite(text: string, color: string, worldH = 8): THREE.Sprite {
   const mat = new THREE.SpriteMaterial({
     map: tex,
     transparent: true,
+    opacity,
     depthWrite: false,
     blending: THREE.AdditiveBlending,
   });
@@ -215,6 +221,10 @@ export function Graph3D() {
   );
   const focusedNodeRef = useRef<string | null>(null);
   const refreshLinksRef = useRef<() => void>(() => {});
+  // Persistent node-object cache keyed by id. d3-force stores layout state
+  // (x/y/z/vx/vy/vz) directly on the node objects, so we MUST hand it the same
+  // object across rebuilds or every update resets all positions to the origin.
+  const nodeCacheRef = useRef<Map<string, GraphNode>>(new Map());
   const paneWaveState = useRef<
     Map<string, { color: number; period: number; visible: boolean }>
   >(new Map());
@@ -327,28 +337,43 @@ export function Graph3D() {
 
   const buildGraphData = useCallback(() => {
     const agentIds = new Set(agents.map((a) => a.id));
+
+    // Reuse the cached node object for an id if it exists so d3 keeps its
+    // simulation state; only mutate the fields that can change.
+    const cache = nodeCacheRef.current;
+    const upsert = (
+      id: string,
+      kind: NodeType,
+      label: string,
+      data: GraphNode["data"]
+    ): GraphNode => {
+      const existing = cache.get(id);
+      if (existing) {
+        existing.label = label;
+        existing.data = data;
+        return existing;
+      }
+      const fresh: GraphNode = { id, kind, label, data };
+      cache.set(id, fresh);
+      return fresh;
+    };
+
     const nodes: GraphNode[] = [
-      ...agents.map((a) => ({
-        id: a.id,
-        kind: "agent" as const,
-        label: a.name,
-        data: a,
-      })),
-      ...rooms.map((r) => ({
-        id: r.id,
-        kind: "room" as const,
-        label: r.name,
-        data: r,
-      })),
+      ...agents.map((a) => upsert(a.id, "agent", a.name, a)),
+      ...rooms.map((r) => upsert(r.id, "room", r.name, r)),
       ...panes
         .filter((p) => p.agentId && agentIds.has(p.agentId))
-        .map((p) => ({
-          id: `pane:${p.id}`,
-          kind: "pane" as const,
-          label: `${p.session} ${p.command}`,
-          data: p,
-        })),
+        .map((p) =>
+          upsert(`pane:${p.id}`, "pane", `${p.session} ${p.command}`, p)
+        ),
     ];
+
+    // Drop cached objects for ids no longer present so the cache can't grow
+    // unbounded as agents/panes come and go.
+    const liveIds = new Set(nodes.map((n) => n.id));
+    for (const id of cache.keys()) {
+      if (!liveIds.has(id)) cache.delete(id);
+    }
     const links: GraphLink[] = [];
 
     for (const room of rooms) {
@@ -427,6 +452,52 @@ export function Graph3D() {
 
     return { nodes, links };
   }, [agents, rooms, panes, messages]);
+
+  // Applies d3 force parameters to a graph instance. Called both at init and
+  // after each graphData() call because 3d-force-graph reheats the simulation
+  // on data updates and may restore defaults.
+  const applyForceConfig = useCallback((graph: ForceGraph3DInstance) => {
+    // Moderate repulsion — enough to separate the glowing nodes without
+    // launching them off-screen.
+    graph.d3Force("charge")?.strength(-220);
+    graph
+      .d3Force("link")
+      ?.distance((link: object) => {
+        const l = link as GraphLink;
+        if (l.kind === "dm") return 70;
+        return 45;
+      })
+      .strength((link: object) => {
+        const l = link as GraphLink;
+        // Membership links pull agents toward their rooms so clusters stay
+        // cohesive instead of drifting apart.
+        if (l.kind === "membership") return 0.5;
+        if (l.kind === "dm") return 0.2;
+        return 0.4;
+      });
+    // Keep the default centering force so the whole graph stays gathered
+    // around the origin rather than flying outward under repulsion.
+
+    // Gentle radial gravity toward the origin (like d3 forceX/Y/Z(0)). The
+    // built-in center force only recenters the centroid — it does nothing to
+    // an unlinked node, which would otherwise drift off forever under charge
+    // repulsion. This pulls every node toward 0 proportional to its distance,
+    // so linked clusters stay put (link tension balances it) while stragglers
+    // get reeled back in.
+    const STRENGTH = 0.008;
+    const centerGravity = (alpha: number) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const nodes: any[] = (graph.graphData() as any).nodes ?? [];
+      const k = alpha * STRENGTH;
+      for (const n of nodes) {
+        n.vx = (n.vx ?? 0) - (n.x ?? 0) * k;
+        n.vy = (n.vy ?? 0) - (n.y ?? 0) * k;
+        n.vz = (n.vz ?? 0) - (n.z ?? 0) * k;
+      }
+    };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    graph.d3Force("centerGravity", centerGravity as any);
+  }, []);
 
   // Init graph once
   useEffect(() => {
@@ -604,9 +675,9 @@ export function Graph3D() {
           agent.id,
           group.userData.setDimmed as (d: boolean) => void
         );
-        const agentLabel = makeTextSprite(agent.name, "#33ff88", 7);
-        agentLabel.position.set(0, 12, 0);
-        agentLabel.visible = false;
+        // Subtle agent label — smaller and dimmer than channel names
+        const agentLabel = makeTextSprite(agent.name, "#8fffc4", 5, 0.6);
+        agentLabel.position.set(0, 10, 0);
         group.add(agentLabel);
         agentLabelSetters.current.set(agent.id, (v: boolean) => {
           agentLabel.visible = v;
@@ -747,46 +818,7 @@ export function Graph3D() {
         refreshLinksRef.current();
       });
 
-    graph.d3Force("charge")?.strength(-1500);
-    graph
-      .d3Force("link")
-      ?.distance((link: object) => {
-        const l = link as GraphLink;
-        if (l.kind === "dm") return 100;
-        return 50;
-      })
-      .strength((link: object) => {
-        const l = link as GraphLink;
-        if (l.kind === "membership") return 0;
-        if (l.kind === "dm") return 0.2;
-        return 0.4;
-      });
-    graph.d3Force("center", null);
-    // Slow alpha decay so repulsion has time to spread nodes before cooling
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (graph as any).d3AlphaDecay(0.01);
-    // Constrain all nodes within ~200 units — prevents unlinked nodes flying
-    // off under repulsion. Kicks in only beyond the threshold, leaving the
-    // linked cluster undisturbed.
-
-    const boundOriginForce = (alpha: number) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const nodes: any[] = (graph.graphData() as any).nodes ?? [];
-      for (const n of nodes) {
-        const dx = n.x ?? 0,
-          dy = n.y ?? 0,
-          dz = n.z ?? 0;
-        const dist = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1;
-        if (dist > 200) {
-          const pull = (alpha * 0.3 * (dist - 200)) / dist;
-          n.vx = (n.vx ?? 0) - dx * pull;
-          n.vy = (n.vy ?? 0) - dy * pull;
-          n.vz = (n.vz ?? 0) - dz * pull;
-        }
-      }
-    };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    graph.d3Force("boundOrigin", boundOriginForce as any);
+    applyForceConfig(graph);
 
     const scene = graph.scene();
     scene.add(new THREE.AmbientLight(0x001133, 0.5));
@@ -816,7 +848,7 @@ export function Graph3D() {
       graph._destructor?.();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [applyForceConfig]);
 
   // Escape releases focus lock
   useEffect(() => {
@@ -844,7 +876,7 @@ export function Graph3D() {
           target: THREE.Vector3;
         };
         const camDist = camera.position.distanceTo(controls.target);
-        const showAgentLabels = camDist < 280;
+        const showAgentLabels = camDist < 650;
         for (const setter of agentLabelSetters.current.values()) {
           setter(showAgentLabels);
         }
@@ -1008,78 +1040,36 @@ export function Graph3D() {
       });
   }, [nameFilter, rooms, panes]);
 
-  // Topology signature — only the structure that determines nodes/links, not status
-  const topoSig = [
-    agents
-      .map((a) => a.id)
-      .sort()
-      .join(","),
-    rooms
-      .map((r) => `${r.id}:${[...r.members].sort().join("+")}`)
-      .sort()
-      .join(","),
-    panes
-      .map((p) => `${p.id}:${p.agentId ?? ""}`)
-      .sort()
-      .join(","),
-    messages
-      .filter((m) => m.isDM)
-      .map((m) => `${m.from}→${m.to}`)
-      .sort()
-      .join(","),
-  ].join("|");
-  const topoSigRef = useRef("");
-
   // Re-colour nodes when messages arrive (recent activity implies active status)
   useEffect(() => {
     applyNodeColors();
   }, [messages.length, applyNodeColors]);
 
-  // Rebuild graph only on structural changes — status changes skip this and go straight to applyNodeColors
+  // Push graph data only when the STRUCTURE changes (nodes/edges added or
+  // removed). buildGraphData re-runs on every message (DM edges depend on
+  // messages), and each graphData() call reheats the d3 simulation to full
+  // alpha. Reheating on every chat message never lets the layout cool, so it
+  // drifts apart or collapses over time. Gating on a structural signature lets
+  // the simulation settle and stay put during pure chat activity.
+  const structSigRef = useRef("");
   useEffect(() => {
-    if (topoSig === topoSigRef.current) {
-      applyNodeColors();
-      return;
-    }
-    topoSigRef.current = topoSig;
-
-    // Carry existing node positions forward so d3 doesn't reset everything to
-    // the origin on each topology rebuild — the root cause of the pileup.
-    const newData = buildGraphData();
-    if (graphRef.current) {
-      const prevNodes: GraphNode[] =
-        (graphRef.current.graphData() as { nodes: GraphNode[] }).nodes ?? [];
-      const prevPos = new Map(
-        prevNodes
-          .filter((n) => n.x != null)
-          .map((n) => [n.id, { x: n.x!, y: n.y ?? 0, z: n.z ?? 0 }])
-      );
-      for (const node of newData.nodes) {
-        const p = prevPos.get(node.id);
-        if (p) {
-          node.x = p.x;
-          node.y = p.y;
-          node.z = p.z;
-        } else {
-          // New node — scatter it randomly so it doesn't pile at the origin
-          const r = 80 + Math.random() * 80;
-          const theta = Math.random() * Math.PI * 2;
-          const phi = Math.acos(2 * Math.random() - 1);
-          node.x = r * Math.sin(phi) * Math.cos(theta);
-          node.y = r * Math.sin(phi) * Math.sin(theta);
-          node.z = r * Math.cos(phi);
-        }
-      }
-      graphRef.current.graphData(newData);
-      // After nodes have had time to repel, cool the simulation so it doesn't
-      // keep running and attracting nodes via DM springs
-      setTimeout(() => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (graphRef.current as any)?.d3AlphaTarget(0);
-      }, 3000);
+    const data = buildGraphData();
+    const sig =
+      data.nodes
+        .map((n) => n.id)
+        .sort()
+        .join(",") +
+      "|" +
+      data.links
+        .map((l) => graphLinkKey(l))
+        .sort()
+        .join(",");
+    if (sig !== structSigRef.current) {
+      structSigRef.current = sig;
+      graphRef.current?.graphData(data);
     }
     requestAnimationFrame(applyNodeColors);
-  }, [topoSig, buildGraphData, applyNodeColors]);
+  }, [buildGraphData, applyNodeColors]);
 
   const sidePanelWidthRef = useRef(sidePanelWidth);
   sidePanelWidthRef.current = sidePanelWidth;
