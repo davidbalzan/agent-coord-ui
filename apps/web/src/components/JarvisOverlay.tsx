@@ -10,40 +10,40 @@ export function JarvisOverlay() {
       }}
     >
       {/* Plasma glow blobs — slow drift, very subtle */}
-      <div style={{ position: "absolute", inset: 0, opacity: 0.18 }}>
+      <div style={{ position: "absolute", inset: 0, opacity: 0.55 }}>
         <div
           style={{
             ...blob,
-            width: 700,
-            height: 500,
-            top: "20%",
-            left: "25%",
+            width: 800,
+            height: 600,
+            top: "15%",
+            left: "20%",
             background:
-              "radial-gradient(ellipse, rgba(0,180,255,0.5) 0%, transparent 70%)",
+              "radial-gradient(ellipse, rgba(0,180,255,0.7) 0%, transparent 65%)",
             animation: "plasma-a 18s ease-in-out infinite",
           }}
         />
         <div
           style={{
             ...blob,
-            width: 500,
-            height: 400,
-            top: "40%",
-            left: "50%",
+            width: 600,
+            height: 500,
+            top: "35%",
+            left: "45%",
             background:
-              "radial-gradient(ellipse, rgba(0,100,220,0.45) 0%, transparent 70%)",
+              "radial-gradient(ellipse, rgba(0,80,220,0.65) 0%, transparent 65%)",
             animation: "plasma-b 22s ease-in-out infinite",
           }}
         />
         <div
           style={{
             ...blob,
-            width: 400,
-            height: 600,
-            top: "10%",
-            left: "55%",
+            width: 500,
+            height: 700,
+            top: "5%",
+            left: "50%",
             background:
-              "radial-gradient(ellipse, rgba(60,0,180,0.3) 0%, transparent 70%)",
+              "radial-gradient(ellipse, rgba(80,0,220,0.5) 0%, transparent 65%)",
             animation: "plasma-c 26s ease-in-out infinite",
           }}
         />
