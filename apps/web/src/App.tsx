@@ -2,6 +2,7 @@ import { Graph3D } from "./components/Graph3D.js";
 import { SidePanel } from "./components/SidePanel.js";
 import { HUD } from "./components/HUD.js";
 import { FloatingTerminal } from "./components/FloatingTerminal.js";
+import { StatusTicker } from "./components/StatusTicker.js";
 
 export function App() {
   return (
@@ -28,6 +29,7 @@ export function App() {
         <FloatingTerminal />
         <SidePanel />
       </main>
+      <StatusTicker />
     </div>
   );
 }
