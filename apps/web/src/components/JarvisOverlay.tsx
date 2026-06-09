@@ -167,18 +167,23 @@ export function JarvisOverlay() {
 
       <style>{`
         @keyframes plasma-a {
-          0%,100% { transform: translate(0,0) scale(1); }
-          33%      { transform: translate(-60px, 40px) scale(1.08); }
-          66%      { transform: translate(40px, -30px) scale(0.94); }
+          0%   { transform: translate(0px,   0px)   scale(1.0); opacity: 0.8; }
+          25%  { transform: translate(-120px, 80px) scale(1.15); opacity: 1.0; }
+          50%  { transform: translate(80px,  -60px) scale(0.9);  opacity: 0.7; }
+          75%  { transform: translate(-40px, -100px) scale(1.1); opacity: 0.95; }
+          100% { transform: translate(0px,   0px)   scale(1.0); opacity: 0.8; }
         }
         @keyframes plasma-b {
-          0%,100% { transform: translate(0,0) scale(1); }
-          40%      { transform: translate(50px, -50px) scale(1.12); }
-          70%      { transform: translate(-40px, 30px) scale(0.96); }
+          0%   { transform: translate(0px,   0px)  scale(1.0); opacity: 0.75; }
+          30%  { transform: translate(100px, -80px) scale(1.2); opacity: 1.0; }
+          60%  { transform: translate(-80px,  60px) scale(0.85); opacity: 0.65; }
+          100% { transform: translate(0px,   0px)  scale(1.0); opacity: 0.75; }
         }
         @keyframes plasma-c {
-          0%,100% { transform: translate(0,0) scale(1); }
-          50%      { transform: translate(-30px, 60px) scale(1.06); }
+          0%   { transform: translate(0px,   0px)   scale(1.0);  opacity: 0.7; }
+          40%  { transform: translate(-60px,  120px) scale(1.18); opacity: 1.0; }
+          70%  { transform: translate(90px,  -40px)  scale(0.88); opacity: 0.6; }
+          100% { transform: translate(0px,   0px)   scale(1.0);  opacity: 0.7; }
         }
       `}</style>
     </div>
@@ -187,6 +192,7 @@ export function JarvisOverlay() {
 
 const blob: React.CSSProperties = {
   position: "absolute",
-  filter: "blur(80px)",
-  borderRadius: "50%",
+  filter: "blur(90px)",
+  // No borderRadius — radial-gradient handles the fade; borderRadius was
+  // creating a visible circular clip edge on the div boundary.
 };
