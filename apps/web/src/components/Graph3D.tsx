@@ -747,8 +747,7 @@ export function Graph3D() {
         refreshLinksRef.current();
       });
 
-    // Strong repulsion keeps nodes from overlapping
-    graph.d3Force("charge")?.strength(-500);
+    graph.d3Force("charge")?.strength(-1500);
     graph
       .d3Force("link")
       ?.distance((link: object) => {
@@ -758,12 +757,14 @@ export function Graph3D() {
       })
       .strength((link: object) => {
         const l = link as GraphLink;
-        // membership = 0: purely visual, no spring force — prevents pileup
         if (l.kind === "membership") return 0;
-        if (l.kind === "dm") return 0.3;
-        return 0.5;
+        if (l.kind === "dm") return 0.2;
+        return 0.4;
       });
     graph.d3Force("center", null);
+    // Slow alpha decay so repulsion has time to spread nodes before cooling
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (graph as any).d3AlphaDecay(0.01);
     // Constrain all nodes within ~200 units — prevents unlinked nodes flying
     // off under repulsion. Kicks in only beyond the threshold, leaving the
     // linked cluster undisturbed.
@@ -1070,6 +1071,12 @@ export function Graph3D() {
         }
       }
       graphRef.current.graphData(newData);
+      // After nodes have had time to repel, cool the simulation so it doesn't
+      // keep running and attracting nodes via DM springs
+      setTimeout(() => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (graphRef.current as any)?.d3AlphaTarget(0);
+      }, 3000);
     }
     requestAnimationFrame(applyNodeColors);
   }, [topoSig, buildGraphData, applyNodeColors]);
