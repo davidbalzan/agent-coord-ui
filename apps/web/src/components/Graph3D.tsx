@@ -113,6 +113,14 @@ function buildGlowNode(
   const light = new THREE.PointLight(hexColor, 1.5, radius * 8);
   group.add(light);
 
+  group.userData.setDimmed = (on: boolean) => {
+    coreMat.transparent = on;
+    coreMat.opacity = on ? 0.1 : 1.0;
+    halo1Mat.opacity = on ? 0.03 : 0.28;
+    halo2Mat.opacity = on ? 0.02 : 0.12;
+    light.intensity = on ? 0.0 : 1.5;
+  };
+
   if (agentId) {
     group.userData.agentId = agentId;
     group.userData.setColor = (hex: number, isPulse: boolean) => {
@@ -202,6 +210,10 @@ export function Graph3D() {
   const agentLabelSetters = useRef<Map<string, (visible: boolean) => void>>(
     new Map()
   );
+  const nodeDimSetters = useRef<Map<string, (dimmed: boolean) => void>>(
+    new Map()
+  );
+  const focusedNodeRef = useRef<string | null>(null);
   const paneWaveState = useRef<
     Map<string, { color: number; period: number; visible: boolean }>
   >(new Map());
@@ -429,6 +441,10 @@ export function Graph3D() {
           const label = makeTextSprite(`#${node.label}`, "#b090ff", 10);
           label.position.set(0, 16, 0);
           group.add(label);
+          nodeDimSetters.current.set(
+            node.id,
+            group.userData.setDimmed as (d: boolean) => void
+          );
           return group;
         }
         if (node.kind === "pane") {
@@ -534,6 +550,15 @@ export function Graph3D() {
             group.add(wave);
           }
 
+          // Dim setter for pane nodes — dims the icon sprite
+          nodeDimSetters.current.set(`pane:${pane.id}`, (dimmed: boolean) => {
+            group.traverse((child) => {
+              if (child instanceof THREE.Sprite && !child.userData.radioWave) {
+                child.material.opacity = dimmed ? 0.08 : 1.0;
+              }
+            });
+          });
+
           paneActivitySetters.current.set(pane.id, (lastActivity: number) => {
             const ago = (Date.now() - lastActivity) / 1000;
             paneWaveState.current.set(
@@ -574,6 +599,10 @@ export function Graph3D() {
             group.userData.setHighlight as (on: boolean) => void
           );
         }
+        nodeDimSetters.current.set(
+          agent.id,
+          group.userData.setDimmed as (d: boolean) => void
+        );
         const agentLabel = makeTextSprite(agent.name, "#33ff88", 7);
         agentLabel.position.set(0, 12, 0);
         agentLabel.visible = false;
@@ -671,6 +700,11 @@ export function Graph3D() {
             { x: nx, y: ny, z: nz },
             1200
           );
+          // Focus lock — dim all other nodes
+          focusedNodeRef.current = node.id;
+          for (const [id, setDimmed] of nodeDimSetters.current) {
+            setDimmed(id !== node.id);
+          }
         } else {
           lastClickRef.current = { id: node.id, time: now };
           if (node.kind === "pane") {
@@ -690,6 +724,12 @@ export function Graph3D() {
         } else if (link.kind === "dm") {
           setSelection({ kind: "agent", id: nodeId(link.source) });
         }
+      })
+      .onBackgroundClick(() => {
+        if (focusedNodeRef.current === null) return;
+        focusedNodeRef.current = null;
+        for (const setDimmed of nodeDimSetters.current.values())
+          setDimmed(false);
       });
 
     // Strong repulsion keeps nodes from overlapping
@@ -760,6 +800,17 @@ export function Graph3D() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Escape releases focus lock
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || focusedNodeRef.current === null) return;
+      focusedNodeRef.current = null;
+      for (const setDimmed of nodeDimSetters.current.values()) setDimmed(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   // Stale node pulse
   useEffect(() => {
     const t0 = performance.now();
@@ -781,10 +832,21 @@ export function Graph3D() {
 
         graphRef.current.scene().traverse((obj: THREE.Object3D) => {
           if (obj.userData?.pulseHalo) {
-            (
-              obj as THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>
-            ).material.opacity =
-              0.04 + Math.abs(Math.sin(elapsed * Math.PI * 1.5)) * 0.22;
+            // Urgent double-pulse: two beats per cycle with a rest gap
+            const t = (elapsed * 2.2) % 1;
+            const beat =
+              t < 0.18
+                ? Math.sin((t / 0.18) * Math.PI)
+                : t < 0.36
+                  ? Math.sin(((t - 0.18) / 0.18) * Math.PI) * 0.6
+                  : 0;
+            const mesh = obj as THREE.Mesh<
+              THREE.BufferGeometry,
+              THREE.MeshBasicMaterial
+            >;
+            mesh.material.opacity = 0.06 + beat * 0.55;
+            const s = 1 + beat * 0.35;
+            mesh.scale.setScalar(s);
           }
           if (obj.userData?.activityHalo) {
             const lastTs = roomActivityRef.current.get(
