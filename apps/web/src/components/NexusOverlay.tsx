@@ -1,4 +1,4 @@
-export function JarvisOverlay() {
+export function NexusOverlay() {
   return (
     <div
       style={{

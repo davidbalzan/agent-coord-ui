@@ -260,7 +260,7 @@ The UI is an operator tool for monitoring AI agents — it benefits from a visua
 
 Adopt a holographic HUD aesthetic: near-black deep navy background (`#000913`), electric cyan (`#00d4ff`) as the system glow accent, amber/green/red for agent status semantics. Fonts: Orbitron (display), Share Tech Mono (data), Exo 2 (body). Angular clip-path components, scanline CRT overlay, additive-blended node halos.
 
-All branded references (e.g., "JARVIS") removed. System name: **NEXUS**.
+All third-party branded code-name references removed. System name: **NEXUS**.
 
 ### Consequences
 

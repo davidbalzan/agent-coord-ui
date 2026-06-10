@@ -38,7 +38,7 @@ export function StatusTicker() {
   const lastMsg = messages.at(-1);
 
   const parts: Array<{ text: string; color?: string }> = [
-    { text: `JARVIS  ${formatTs(now)}` },
+    { text: `NEXUS  ${formatTs(now)}` },
     { text: `AGENTS  ${agents.length}` },
     { text: `ACTIVE  ${active}`, color: active > 0 ? "#00ff88" : undefined },
     { text: `IDLE  ${idle}`, color: idle > 0 ? "#ff8c00" : undefined },

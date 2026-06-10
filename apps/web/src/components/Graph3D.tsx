@@ -1135,7 +1135,7 @@ export function Graph3D() {
   return (
     <>
       <div ref={containerRef} style={{ position: "absolute", inset: 0 }} />
-      {/* Circular icon row — JARVIS-style action buttons */}
+      {/* Circular icon row — action buttons */}
       <div
         style={{
           position: "absolute",
