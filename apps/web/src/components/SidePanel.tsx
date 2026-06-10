@@ -50,7 +50,8 @@ export function SidePanel() {
         position: "fixed",
         top: 48,
         right: 0,
-        bottom: 0,
+        // Stop above the 28px status ticker so the compose/POST row isn't covered
+        bottom: 28,
         width,
         zIndex: 50,
       }}
