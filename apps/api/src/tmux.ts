@@ -13,6 +13,14 @@ const TRANSPORT_DIR = join(
   "transports"
 );
 
+/**
+ * The tmux session used as the default spawn target when no paneTarget is
+ * specified for split-window / new-window. Overridable via env so operators
+ * running multiple coord instances can isolate their spawns.
+ */
+export const HOME_SESSION =
+  process.env.AGENT_COORD_HOME_SESSION ?? "agent-coord-ui";
+
 // Reads ~/agent-coord/transports/*.json and returns a map of tmuxTarget → agentId.
 // This is the authoritative source — each agent writes its own pane target on attach.
 async function loadTransportMap(): Promise<Map<string, string>> {
@@ -201,19 +209,44 @@ export interface CreatePaneOpts {
 }
 
 /**
+ * Ensure the named tmux session exists, creating it detached if not.
+ * Used to guarantee the home session is present before splitting into it.
+ */
+export async function ensureHomeSession(
+  name: string = HOME_SESSION
+): Promise<void> {
+  try {
+    await execAsync(`tmux has-session -t '${shellEscape(name)}'`);
+  } catch {
+    // Session absent — create detached
+    await execAsync(`tmux new-session -d -s '${shellEscape(name)}'`);
+  }
+}
+
+/**
  * Create a tmux pane and return its pane id (e.g. "%12").
  * Injection-safe: target and cwd are single-quote-escaped before interpolation.
+ *
+ * For split-window / new-window: if no target is given, defaults to HOME_SESSION
+ * (creating it if absent) so spawns never inherit the operator's active session.
  */
 export async function createPane(opts: CreatePaneOpts): Promise<string> {
-  const { kind, target, cwd } = opts;
+  const { kind, cwd } = opts;
+  let { target } = opts;
   const cwdFlag = cwd ? ` -c '${shellEscape(cwd)}'` : "";
   let cmd: string;
   if (kind === "split-window") {
-    const targetFlag = target ? ` -t '${shellEscape(target)}'` : "";
-    cmd = `tmux split-window${targetFlag}${cwdFlag} -P -F '#{pane_id}'`;
+    if (!target) {
+      await ensureHomeSession();
+      target = HOME_SESSION;
+    }
+    cmd = `tmux split-window -t '${shellEscape(target)}'${cwdFlag} -P -F '#{pane_id}'`;
   } else if (kind === "new-window") {
-    const targetFlag = target ? ` -t '${shellEscape(target)}'` : "";
-    cmd = `tmux new-window${targetFlag}${cwdFlag} -P -F '#{pane_id}'`;
+    if (!target) {
+      await ensureHomeSession();
+      target = HOME_SESSION;
+    }
+    cmd = `tmux new-window -t '${shellEscape(target)}'${cwdFlag} -P -F '#{pane_id}'`;
   } else {
     // new-session: -d so it starts detached; target used as session name (-s)
     const sessionFlag = target ? ` -s '${shellEscape(target)}'` : "";
