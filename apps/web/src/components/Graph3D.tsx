@@ -1277,6 +1277,12 @@ export function Graph3D() {
     refreshLinksRef.current();
   }, []);
 
+  // Close menu but keep camera zoomed + dim state active.
+  // savedCameraRef stays intact so background click / Escape can still restore.
+  const isolateAndClose = useCallback(() => {
+    setContextMenu(null);
+  }, []);
+
   return (
     <>
       <div
@@ -1290,6 +1296,7 @@ export function Graph3D() {
           node3D={contextMenu.node3D}
           graphRef={graphRef}
           onClose={closeMenuAndRestore}
+          onIsolate={isolateAndClose}
         />
       )}
       {/* Circular icon row — action buttons */}

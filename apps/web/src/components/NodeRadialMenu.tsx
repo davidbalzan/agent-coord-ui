@@ -8,6 +8,8 @@ interface Props {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   graphRef: React.RefObject<any>;
   onClose: () => void;
+  // Closes menu but keeps camera + dim state — click background to restore
+  onIsolate: () => void;
 }
 
 interface ScreenPos {
@@ -148,6 +150,7 @@ export function NodeRadialMenu({
   node3D,
   graphRef,
   onClose,
+  onIsolate,
 }: Props) {
   const [pos, setPos] = useState<ScreenPos | null>(null);
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
@@ -228,14 +231,16 @@ export function NodeRadialMenu({
         setLauncherOpen(true);
         onClose();
       } else {
-        onClose();
+        // ISOLATE FOCUS — keep camera + dim, just close the menu
+        onIsolate();
       }
     } else {
       if (s.label.startsWith("OPEN")) {
         setSelection({ kind: "room", id: nodeId });
         onClose();
       } else {
-        onClose();
+        // ISOLATE FOCUS — keep camera + dim, just close the menu
+        onIsolate();
       }
     }
   };
