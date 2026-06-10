@@ -831,17 +831,28 @@ export function Graph3D() {
     scene.add(new THREE.AmbientLight(0x001133, 0.5));
     scene.add(new THREE.HemisphereLight(0x002244, 0x000913, 0.4));
 
-    // Holographic grid floor — faint cyan wireframe plane
+    // Holographic grid floor — faint cyan wireframe plane. Rendered behind the
+    // nodes (renderOrder -1, depth test/write off) so it reads as a background
+    // plane instead of slicing through the node cluster, which spans the grid's
+    // y level.
+    const sendToBack = (g: THREE.GridHelper) => {
+      const m = g.material as THREE.Material;
+      m.transparent = true;
+      m.depthTest = false;
+      m.depthWrite = false;
+      g.renderOrder = -1;
+    };
+
     const grid = new THREE.GridHelper(800, 32, 0x003344, 0x001a2a);
     grid.position.y = -120;
-    (grid.material as THREE.Material).transparent = true;
+    sendToBack(grid);
     (grid.material as THREE.Material).opacity = 0.35;
     scene.add(grid);
 
     // Second finer grid for depth
     const gridFine = new THREE.GridHelper(800, 80, 0x001a33, 0x000d1a);
     gridFine.position.y = -120;
-    (gridFine.material as THREE.Material).transparent = true;
+    sendToBack(gridFine);
     (gridFine.material as THREE.Material).opacity = 0.2;
     scene.add(gridFine);
 
