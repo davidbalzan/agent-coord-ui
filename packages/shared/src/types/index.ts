@@ -7,6 +7,8 @@ export type {
   PaneSnapshot,
   BusEvent,
   SendMessagePayload,
+  SpawnAgentPayload,
+  TeardownAgentPayload,
   PaneSendKeysPayload,
 } from "./bus.js";
 export type {

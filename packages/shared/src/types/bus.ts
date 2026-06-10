@@ -61,12 +61,41 @@ export type BusEvent =
   | { type: "message"; msg: MessageSnapshot }
   | { type: "pane_update"; pane: PaneSnapshot }
   | { type: "pane_remove"; paneId: string }
-  | { type: "pane_output"; paneId: string; ansi: string };
+  | { type: "pane_output"; paneId: string; ansi: string }
+  | {
+      type: "spawn_progress";
+      agentId: string;
+      step:
+        | "creating"
+        | "launching"
+        | "configuring"
+        | "joining"
+        | "confirming"
+        | "done"
+        | "error";
+      paneId?: string;
+      message?: string;
+      error?: string;
+    };
 
 export interface SendMessagePayload {
   to: string;
   body: string;
   isDM: boolean;
+}
+
+export interface SpawnAgentPayload {
+  type: "spawn_agent";
+  presetId: string;
+  agentId: string;
+  paneKind?: "split-window" | "new-window" | "new-session";
+  paneTarget?: string;
+}
+
+export interface TeardownAgentPayload {
+  type: "teardown_agent";
+  agentId: string;
+  paneId: string;
 }
 
 export interface PaneSendKeysPayload {
