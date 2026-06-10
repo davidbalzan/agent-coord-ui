@@ -16,10 +16,10 @@ interface ScreenPos {
 }
 
 // Geometry — INNER_R must contain the rendered 3D node sphere on screen
-const INNER_R = 52; // hole radius around node
-const OUTER_R = 108; // outer edge of sectors
+const INNER_R = 50; // hole radius around node
+const OUTER_R = 145; // outer edge — must be large vs INNER_R to look like petals not ring
 const GAP_DEG = 10; // angular gap between sectors
-const PAD = 16; // extra space around wheel
+const PAD = 18; // extra space around wheel
 const HALF = OUTER_R + PAD;
 const SIZE = HALF * 2;
 
@@ -117,7 +117,9 @@ export function NodeRadialMenu({
   const setLauncherOpen = useBusStore((s) => s.setLauncherOpen);
   const setLauncherPrefill = useBusStore((s) => s.setLauncherPrefill);
 
-  // RAF: track node screen coords as camera animates
+  // RAF: track node screen coords as camera animates.
+  // graph2ScreenCoords returns coords relative to the canvas element, not the
+  // viewport — add canvas getBoundingClientRect() to get correct fixed position.
   useEffect(() => {
     let raf: number;
     const tick = () => {
@@ -129,7 +131,12 @@ export function NodeRadialMenu({
             node3D.y ?? 0,
             node3D.z ?? 0
           ) as { x: number; y: number };
-          setPos(sc);
+          const canvas = g.renderer?.()?.domElement as HTMLElement | undefined;
+          const rect = canvas?.getBoundingClientRect();
+          setPos({
+            x: (rect?.left ?? 0) + sc.x,
+            y: (rect?.top ?? 0) + sc.y,
+          });
         } catch {
           /* not yet mounted */
         }
