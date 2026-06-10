@@ -16,9 +16,9 @@ interface ScreenPos {
 }
 
 // Geometry — INNER_R must contain the rendered 3D node sphere on screen
-const INNER_R = 42; // hole radius around node
-const OUTER_R = 98; // outer edge of sectors
-const GAP_DEG = 3; // angular gap between sectors
+const INNER_R = 52; // hole radius around node
+const OUTER_R = 108; // outer edge of sectors
+const GAP_DEG = 10; // angular gap between sectors
 const PAD = 16; // extra space around wheel
 const HALF = OUTER_R + PAD;
 const SIZE = HALF * 2;
@@ -229,6 +229,11 @@ export function NodeRadialMenu({
          * SVG elements do not support it in any browser.
          * inset: PAD aligns this div exactly with the outer SVG circle.
          */}
+        {/*
+         * Donut-shaped glass backdrop — mask cuts transparent hole so the
+         * Three.js node sphere shows through the center unobstructed.
+         * backdrop-filter only works on HTML elements, not SVG.
+         */}
         <div
           style={{
             position: "absolute",
@@ -239,6 +244,9 @@ export function NodeRadialMenu({
             background: "rgba(4,10,28,0.62)",
             border: `1px solid rgba(${accentRgb},0.18)`,
             boxShadow: `0 0 40px rgba(${accentRgb},0.08), inset 0 0 20px rgba(0,0,0,0.4)`,
+            // punch transparent hole: INNER_R px from center of this div
+            mask: `radial-gradient(circle at center, transparent ${INNER_R}px, black ${INNER_R + 1}px)`,
+            WebkitMask: `radial-gradient(circle at center, transparent ${INNER_R}px, black ${INNER_R + 1}px)`,
           }}
         />
 
@@ -346,14 +354,14 @@ export function NodeRadialMenu({
             strokeWidth="1"
           />
 
-          {/* Inner hole — dark fill so node sits visibly inside it */}
+          {/* Inner ring border — no fill so Three.js node shows through */}
           <circle
             cx={HALF}
             cy={HALF}
             r={INNER_R}
-            fill="rgba(2,7,20,0.55)"
-            stroke={`rgba(${accentRgb},0.35)`}
-            strokeWidth="1"
+            fill="none"
+            stroke={`rgba(${accentRgb},0.45)`}
+            strokeWidth="1.5"
           />
           {/* Subtle inner accent ring */}
           <circle
