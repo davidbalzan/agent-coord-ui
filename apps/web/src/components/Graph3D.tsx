@@ -699,6 +699,20 @@ export function Graph3D() {
                 : { color: 0x334455, period: 3.5, visible: false }
           );
 
+          // Session group label — shows which tmux session this pane belongs to.
+          // Positioned below the icon; hidden until camera is close enough (the
+          // agentLabelSetters proximity check in the animation loop also drives
+          // this one via the same visible flag stored in userData).
+          const sessionLabel = makeTextSprite(
+            `[${pane.session}:${pane.window}]`,
+            "#44cc88",
+            4,
+            0.55
+          );
+          sessionLabel.position.set(0, -13, 0);
+          sessionLabel.userData.groupLabel = true;
+          group.add(sessionLabel);
+
           return group;
         }
         const agent = node.data as AgentSnapshot;
@@ -939,7 +953,7 @@ export function Graph3D() {
       if (graphRef.current) {
         const elapsed = (performance.now() - t0) / 1000;
 
-        // Toggle agent labels based on camera proximity
+        // Toggle agent labels + pane group labels based on camera proximity
         const camera = graphRef.current.camera() as THREE.PerspectiveCamera;
         const controls = graphRef.current.controls() as {
           target: THREE.Vector3;
@@ -949,6 +963,13 @@ export function Graph3D() {
         for (const setter of agentLabelSetters.current.values()) {
           setter(showAgentLabels);
         }
+        // Show session group labels only when fairly close (zoomed in)
+        const showGroupLabels = camDist < 400;
+        graphRef.current.scene().traverse((obj: THREE.Object3D) => {
+          if (obj.userData?.groupLabel) {
+            obj.visible = showGroupLabels;
+          }
+        });
 
         graphRef.current.scene().traverse((obj: THREE.Object3D) => {
           // Decaying activity glow — brightest right after a message, fading

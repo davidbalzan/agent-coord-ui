@@ -45,9 +45,31 @@ const presetSchema = z.object({
     .string()
     .regex(/^[\w.-]+$/, "model must be alphanumeric/dot/hyphen only"),
   role: z.enum(["coordinator", "worker"]),
-  lane: z.string().optional(),
-  rooms: z.array(z.string().min(1).max(64)).optional(),
-  repoPath: z.string().optional(),
+  lane: z
+    .string()
+    .max(64)
+    .regex(/^[\w-]*$/, "lane must be alphanumeric/underscore/hyphen only")
+    .optional(),
+  rooms: z
+    .array(
+      z
+        .string()
+        .min(1)
+        .max(64)
+        .regex(
+          /^[\w-]+$/,
+          "room name must be alphanumeric/underscore/hyphen only"
+        )
+    )
+    .optional(),
+  repoPath: z
+    .string()
+    .max(512)
+    .refine(
+      (v) => NO_SHELL_META.test(v),
+      "repoPath contains shell metacharacters"
+    )
+    .optional(),
   launchCmd: z
     .string()
     .min(1)
