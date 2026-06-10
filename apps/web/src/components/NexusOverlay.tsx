@@ -6,7 +6,9 @@ export function NexusOverlay() {
         inset: 0,
         pointerEvents: "none",
         overflow: "hidden",
-        zIndex: 1,
+        // Behind the (now transparent) graph canvas so it reads as a background,
+        // not an overlay covering the nodes.
+        zIndex: 0,
       }}
     >
       {/* Plasma glow blobs — slow drift, very subtle */}

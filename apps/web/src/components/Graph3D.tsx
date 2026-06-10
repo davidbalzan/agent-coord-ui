@@ -509,7 +509,9 @@ export function Graph3D() {
     if (!containerRef.current) return;
 
     const graph = new ForceGraph3D(containerRef.current)
-      .backgroundColor("#000913")
+      // Transparent so the NexusOverlay rings/plasma show THROUGH from behind;
+      // the app root provides the dark #000913 backdrop.
+      .backgroundColor("rgba(0,0,0,0)")
       .nodeLabel("label")
       .nodeThreeObject((n: object) => {
         const node = n as GraphNode;
@@ -1134,7 +1136,10 @@ export function Graph3D() {
 
   return (
     <>
-      <div ref={containerRef} style={{ position: "absolute", inset: 0 }} />
+      <div
+        ref={containerRef}
+        style={{ position: "absolute", inset: 0, zIndex: 1 }}
+      />
       {/* Circular icon row — action buttons */}
       <div
         style={{
