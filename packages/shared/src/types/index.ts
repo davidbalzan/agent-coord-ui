@@ -16,3 +16,10 @@ export type {
   PaginatedResponse,
   HealthResponse,
 } from "./api.js";
+export type {
+  AgentRole,
+  AgentPreset,
+  SpawnAgentRequest,
+  SpawnStep,
+  SpawnProgressEvent,
+} from "./provisioner.js";
