@@ -163,6 +163,7 @@ export function NodeRadialMenu({
   const teardownAgent = useBusStore((s) => s.teardownAgent);
   const setLauncherOpen = useBusStore((s) => s.setLauncherOpen);
   const setLauncherPrefill = useBusStore((s) => s.setLauncherPrefill);
+  const setNameFilter = useBusStore((s) => s.setNameFilter);
 
   // RAF: track node screen coords as camera animates.
   // graph2ScreenCoords returns coords relative to the canvas element, not the
@@ -239,8 +240,9 @@ export function NodeRadialMenu({
         setSelection({ kind: "room", id: nodeId });
         onClose();
       } else {
-        // ISOLATE FOCUS — keep camera + dim, just close the menu
-        onIsolate();
+        // ISOLATE FOCUS for room — set top filter to this room, zoom back out
+        setNameFilter(nodeId);
+        onClose();
       }
     }
   };
