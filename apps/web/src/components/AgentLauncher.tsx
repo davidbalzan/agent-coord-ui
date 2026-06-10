@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useBusStore } from "../store/bus.js";
+import type { LauncherPrefill } from "../store/bus.js";
 import { PresetEditor } from "./PresetEditor.js";
 
 const AGENT_ID_RE = /^[\w-]{1,64}$/;
@@ -27,9 +28,10 @@ const STEP_LABELS: Record<string, string> = {
 
 interface Props {
   onClose: () => void;
+  prefill?: LauncherPrefill | null;
 }
 
-export function AgentLauncher({ onClose }: Props) {
+export function AgentLauncher({ onClose, prefill }: Props) {
   const presets = useBusStore((s) => s.presets);
   const agents = useBusStore((s) => s.agents);
   const spawnProgress = useBusStore((s) => s.spawnProgress);
@@ -55,13 +57,19 @@ export function AgentLauncher({ onClose }: Props) {
     }));
   }, [panesMap]);
 
-  const [selectedPresetId, setSelectedPresetId] = useState("");
+  const [selectedPresetId, setSelectedPresetId] = useState(
+    prefill?.presetId ?? ""
+  );
   const [agentId, setAgentId] = useState("");
   const [paneKind, setPaneKind] = useState<
     "split-window" | "new-window" | "new-session"
-  >("split-window");
-  const [paneTarget, setPaneTarget] = useState("");
-  const [sessionName, setSessionName] = useState("");
+  >(prefill?.paneKind ?? "split-window");
+  const [paneTarget, setPaneTarget] = useState(
+    prefill?.paneKind !== "new-session" ? (prefill?.paneTarget ?? "") : ""
+  );
+  const [sessionName, setSessionName] = useState(
+    prefill?.paneKind === "new-session" ? (prefill?.paneTarget ?? "") : ""
+  );
   const [showPresetEditor, setShowPresetEditor] = useState(false);
   const [teardownConfirm, setTeardownConfirm] = useState<string | null>(null);
 

@@ -16,6 +16,12 @@ export interface Selection {
   id: string; // agentId, roomId, or "agentA:agentB"
 }
 
+export interface LauncherPrefill {
+  paneKind: "split-window" | "new-window" | "new-session";
+  paneTarget?: string;
+  presetId?: string;
+}
+
 export interface SpawnProgressRecord {
   agentId: string;
   step: string;
@@ -37,11 +43,15 @@ interface BusState {
   sidePanelWidth: number; // 0 when closed
   presets: AgentPreset[];
   spawnProgress: Record<string, SpawnProgressRecord>; // keyed by agentId
+  launcherOpen: boolean;
+  launcherPrefill: LauncherPrefill | null;
   setSelection: (s: Selection | null) => void;
   setPaneSelection: (id: string | null) => void;
   setNameFilter: (f: string) => void;
   setHoveredAgentId: (id: string | null) => void;
   setSidePanelWidth: (w: number) => void;
+  setLauncherOpen: (v: boolean) => void;
+  setLauncherPrefill: (v: LauncherPrefill | null) => void;
   sendMessage: (to: string, body: string, isDM: boolean) => void;
   sendPaneKeys: (paneId: string, keys: string) => void;
   requestPaneOutput: (paneId: string) => void;
@@ -149,11 +159,15 @@ export const useBusStore = create<BusState>((set) => {
     sidePanelWidth: 0,
     presets: [],
     spawnProgress: {},
+    launcherOpen: false,
+    launcherPrefill: null,
     setSelection: (selection) => set({ selection }),
     setPaneSelection: (paneSelection) => set({ paneSelection }),
     setNameFilter: (nameFilter) => set({ nameFilter }),
     setHoveredAgentId: (hoveredAgentId) => set({ hoveredAgentId }),
     setSidePanelWidth: (sidePanelWidth) => set({ sidePanelWidth }),
+    setLauncherOpen: (launcherOpen) => set({ launcherOpen }),
+    setLauncherPrefill: (launcherPrefill) => set({ launcherPrefill }),
     sendMessage: (to, body, isDM) => {
       busSocket.send({ type: "send_message", to, body, isDM });
     },

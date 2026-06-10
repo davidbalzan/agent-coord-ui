@@ -321,19 +321,19 @@ export class TmuxWatcher {
       listPanes(),
       loadTransportMap(),
     ]);
-    const panes: PaneSnapshot[] = [];
-    for (const raw of raws) {
-      const lines = await capturePane(raw.id, CAPTURE_LINES);
-      panes.push({
-        ...raw,
-        lastActivity: this.prev.get(raw.id)?.lastActivity ?? Date.now(),
-        agentId: agentIds
-          ? this.matchAgent(raw.id, raw.title, lines, agentIds, transportMap)
-          : undefined,
-        lines,
-      });
-    }
-    return panes;
+    return Promise.all(
+      raws.map(async (raw) => {
+        const lines = await capturePane(raw.id, CAPTURE_LINES);
+        return {
+          ...raw,
+          lastActivity: this.prev.get(raw.id)?.lastActivity ?? Date.now(),
+          agentId: agentIds
+            ? this.matchAgent(raw.id, raw.title, lines, agentIds, transportMap)
+            : undefined,
+          lines,
+        };
+      })
+    );
   }
 
   async diff(agentIds?: string[]): Promise<void> {
@@ -344,34 +344,39 @@ export class TmuxWatcher {
     ]);
     const next = new Map<string, PaneSnapshot>();
 
-    for (const raw of raws) {
-      const prev = this.prev.get(raw.id);
-      const lines = await capturePane(raw.id, CAPTURE_LINES);
-      const contentChanged = prev
-        ? lines.join("\n") !== prev.lines.join("\n")
-        : true;
+    const snaps = await Promise.all(
+      raws.map(async (raw) => {
+        const prev = this.prev.get(raw.id);
+        const lines = await capturePane(raw.id, CAPTURE_LINES);
+        const contentChanged = prev
+          ? lines.join("\n") !== prev.lines.join("\n")
+          : true;
+        const agentId = agentIds
+          ? this.matchAgent(raw.id, raw.title, lines, agentIds, transportMap)
+          : undefined;
+        return {
+          snap: {
+            ...raw,
+            lastActivity: contentChanged
+              ? Date.now()
+              : (prev?.lastActivity ?? Date.now()),
+            agentId,
+            lines,
+          } as PaneSnapshot,
+          prev,
+          contentChanged,
+        };
+      })
+    );
 
-      const agentId = agentIds
-        ? this.matchAgent(raw.id, raw.title, lines, agentIds, transportMap)
-        : undefined;
-
-      const snap: PaneSnapshot = {
-        ...raw,
-        lastActivity: contentChanged
-          ? Date.now()
-          : (prev?.lastActivity ?? Date.now()),
-        agentId,
-        lines,
-      };
-      next.set(raw.id, snap);
-
+    for (const { snap, prev, contentChanged } of snaps) {
+      next.set(snap.id, snap);
       const hasChanged =
         !prev ||
         contentChanged ||
         prev.active !== snap.active ||
         prev.command !== snap.command ||
         prev.agentId !== snap.agentId;
-
       if (hasChanged) {
         this.emit({ type: "pane_update", pane: snap });
       }
