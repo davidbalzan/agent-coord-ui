@@ -6,6 +6,7 @@ import { env } from "./env.js";
 import { logger, logFilePath } from "./logger.js";
 import { healthRoutes } from "./routes/health.js";
 import { logRoutes } from "./routes/logs.js";
+import { agentRoutes } from "./routes/agents.js";
 import { busWatcher } from "./watcher.js";
 import { attachWss } from "./ws.js";
 
@@ -43,6 +44,7 @@ app.notFound((c) => {
 
 app.route("/api", healthRoutes);
 app.route("/api", logRoutes);
+app.route("/api", agentRoutes);
 
 const server = serve({ fetch: app.fetch, port: env.API_PORT }, () => {
   logger.info(

@@ -8,10 +8,23 @@ import type {
   BusEvent,
   SendMessagePayload,
   PaneSendKeysPayload,
+  SpawnAgentPayload,
+  TeardownAgentPayload,
 } from "@coord-ui/shared";
 import { busWatcher } from "./watcher.js";
 import { sendKeys, capturePane, capturePaneAnsi, tmuxWatcher } from "./tmux.js";
+import { spawnAgent, teardownAgent } from "./provisioner.js";
+import { loadPresets } from "./presets.js";
+import { isLoopback } from "./routes/agents.js";
 import { logger } from "./logger.js";
+
+// ─── Validation ───────────────────────────────────────────────────────────────
+
+const AGENT_ID_RE = /^[\w-]{1,64}$/;
+
+export function isValidAgentId(id: string | undefined): id is string {
+  return typeof id === "string" && AGENT_ID_RE.test(id);
+}
 
 const ROOT =
   process.env.AGENT_COORD_DIR ??
@@ -21,8 +34,9 @@ const ROOT =
 export function attachWss(server: import("node:http").Server) {
   const wss = new WebSocketServer({ server });
 
-  wss.on("connection", async (ws: WebSocket, _req: IncomingMessage) => {
-    logger.info("ws client connected");
+  wss.on("connection", async (ws: WebSocket, req: IncomingMessage) => {
+    const clientIsLoopback = isLoopback(req.socket.remoteAddress);
+    logger.info({ loopback: clientIsLoopback }, "ws client connected");
 
     // Send full state on connect
     const state = await busWatcher.fullState();
@@ -45,6 +59,73 @@ export function attachWss(server: import("node:http").Server) {
           const p = payload as unknown as PaneSendKeysPayload;
           sendKeys(p.paneId, p.keys).catch((err) =>
             logger.error({ err, paneId: p.paneId }, "pane_send_keys error")
+          );
+        } else if (payload.type === "spawn_agent") {
+          if (!clientIsLoopback) {
+            send(ws, {
+              type: "spawn_progress",
+              agentId: "",
+              step: "error",
+              error: "spawn_agent: local connection required",
+            });
+            return;
+          }
+          const p = payload as unknown as SpawnAgentPayload;
+          if (!isValidAgentId(p.agentId)) {
+            send(ws, {
+              type: "spawn_progress",
+              agentId: p.agentId ?? "",
+              step: "error",
+              error: "spawn_agent: invalid agentId — use [\\w-] only",
+            });
+            return;
+          }
+          loadPresets()
+            .then((presets) => {
+              const preset = presets.find((pr) => pr.id === p.presetId);
+              if (!preset) {
+                send(ws, {
+                  type: "spawn_progress",
+                  agentId: p.agentId,
+                  step: "error",
+                  error: `preset "${p.presetId}" not found`,
+                });
+                return;
+              }
+              return spawnAgent(
+                preset,
+                {
+                  presetId: p.presetId,
+                  agentId: p.agentId,
+                  paneKind: p.paneKind,
+                  paneTarget: p.paneTarget,
+                },
+                (event) => send(ws, event)
+              );
+            })
+            .catch((err) => logger.error({ err }, "spawn_agent error"));
+        } else if (payload.type === "teardown_agent") {
+          if (!clientIsLoopback) {
+            send(ws, {
+              type: "spawn_progress",
+              agentId: "",
+              step: "error",
+              error: "teardown_agent: local connection required",
+            });
+            return;
+          }
+          const p = payload as unknown as TeardownAgentPayload;
+          if (!isValidAgentId(p.agentId)) {
+            send(ws, {
+              type: "spawn_progress",
+              agentId: p.agentId ?? "",
+              step: "error",
+              error: "teardown_agent: invalid agentId — use [\\w-] only",
+            });
+            return;
+          }
+          teardownAgent(p.agentId, p.paneId, (event) => send(ws, event)).catch(
+            (err) => logger.error({ err }, "teardown_agent error")
           );
         } else if (payload.type === "pane_request_output") {
           const paneId = payload["paneId"] as string;
