@@ -8,6 +8,8 @@ interface Props {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   graphRef: React.RefObject<any>;
   onClose: () => void;
+  // Closes menu but keeps camera + dim state — click background to restore
+  onIsolate: () => void;
 }
 
 interface ScreenPos {
@@ -15,24 +17,20 @@ interface ScreenPos {
   y: number;
 }
 
-// Geometry
-const INNER_R = 28; // hole radius around node
-const OUTER_R = 90; // outer edge of sectors
-const GAP_DEG = 4; // angular gap between sectors
-const PAD = 14; // extra padding around wheel
+const INNER_R = 50;
+const OUTER_R = 148;
+const GAP_DEG = 16;
+const CORNER_R = 10; // petal corner rounding radius
+const PAD = 20;
 const HALF = OUTER_R + PAD;
 const SIZE = HALF * 2;
-
-const ACCENT = "#00d4ff";
-const ROOM_ACCENT = "#b090ff";
-
-// ─── SVG helpers ─────────────────────────────────────────────────────────────
 
 function toRad(deg: number) {
   return (deg * Math.PI) / 180;
 }
 
-function sectorPath(
+// Arc sector path with bezier-rounded corners
+function roundedSectorPath(
   cx: number,
   cy: number,
   r1: number,
@@ -44,27 +42,69 @@ function sectorPath(
   const e = endDeg - GAP_DEG / 2;
   const sr = toRad(s);
   const er = toRad(e);
+  const cr = CORNER_R;
+
+  // The 4 sharp corners of the wedge
+  const os = { x: cx + r2 * Math.cos(sr), y: cy + r2 * Math.sin(sr) };
+  const oe = { x: cx + r2 * Math.cos(er), y: cy + r2 * Math.sin(er) };
+  const ie = { x: cx + r1 * Math.cos(er), y: cy + r1 * Math.sin(er) };
+  const is_ = { x: cx + r1 * Math.cos(sr), y: cy + r1 * Math.sin(sr) };
+
+  // Inset points — stepping back cr along each adjacent edge before each corner
+  const acr2 = cr / r2; // angular offset at outer radius
+  const acr1 = cr / r1; // angular offset at inner radius
+
+  const os_r = {
+    x: cx + (r2 - cr) * Math.cos(sr),
+    y: cy + (r2 - cr) * Math.sin(sr),
+  };
+  const os_a = {
+    x: cx + r2 * Math.cos(sr + acr2),
+    y: cy + r2 * Math.sin(sr + acr2),
+  };
+
+  const oe_a = {
+    x: cx + r2 * Math.cos(er - acr2),
+    y: cy + r2 * Math.sin(er - acr2),
+  };
+  const oe_r = {
+    x: cx + (r2 - cr) * Math.cos(er),
+    y: cy + (r2 - cr) * Math.sin(er),
+  };
+
+  const ie_r = {
+    x: cx + (r1 + cr) * Math.cos(er),
+    y: cy + (r1 + cr) * Math.sin(er),
+  };
+  const ie_a = {
+    x: cx + r1 * Math.cos(er - acr1),
+    y: cy + r1 * Math.sin(er - acr1),
+  };
+
+  const is_a = {
+    x: cx + r1 * Math.cos(sr + acr1),
+    y: cy + r1 * Math.sin(sr + acr1),
+  };
+  const is_r = {
+    x: cx + (r1 + cr) * Math.cos(sr),
+    y: cy + (r1 + cr) * Math.sin(sr),
+  };
+
   const largeArc = e - s > 180 ? 1 : 0;
 
-  const x1 = cx + r2 * Math.cos(sr);
-  const y1 = cy + r2 * Math.sin(sr);
-  const x2 = cx + r2 * Math.cos(er);
-  const y2 = cy + r2 * Math.sin(er);
-  const x3 = cx + r1 * Math.cos(er);
-  const y3 = cy + r1 * Math.sin(er);
-  const x4 = cx + r1 * Math.cos(sr);
-  const y4 = cy + r1 * Math.sin(sr);
-
   return [
-    `M ${x1} ${y1}`,
-    `A ${r2} ${r2} 0 ${largeArc} 1 ${x2} ${y2}`,
-    `L ${x3} ${y3}`,
-    `A ${r1} ${r1} 0 ${largeArc} 0 ${x4} ${y4}`,
+    `M ${os_r.x} ${os_r.y}`,
+    `Q ${os.x} ${os.y} ${os_a.x} ${os_a.y}`,
+    `A ${r2} ${r2} 0 ${largeArc} 1 ${oe_a.x} ${oe_a.y}`,
+    `Q ${oe.x} ${oe.y} ${oe_r.x} ${oe_r.y}`,
+    `L ${ie_r.x} ${ie_r.y}`,
+    `Q ${ie.x} ${ie.y} ${ie_a.x} ${ie_a.y}`,
+    `A ${r1} ${r1} 0 ${largeArc} 0 ${is_a.x} ${is_a.y}`,
+    `Q ${is_.x} ${is_.y} ${is_r.x} ${is_r.y}`,
     "Z",
   ].join(" ");
 }
 
-/** Center point of a sector in polar → cartesian */
 function sectorCenter(
   cx: number,
   cy: number,
@@ -72,13 +112,11 @@ function sectorCenter(
   r2: number,
   startDeg: number,
   endDeg: number
-): { x: number; y: number } {
+) {
   const mid = toRad((startDeg + endDeg) / 2);
-  const r = (r1 + r2) / 2;
+  const r = r1 + (r2 - r1) * 0.56;
   return { x: cx + r * Math.cos(mid), y: cy + r * Math.sin(mid) };
 }
-
-// ─── Button definitions ───────────────────────────────────────────────────────
 
 interface SectorDef {
   label: string;
@@ -88,7 +126,6 @@ interface SectorDef {
   destructive?: boolean;
 }
 
-// 4-way agent wheel: top / right / bottom / left
 const AGENT_SECTORS: SectorDef[] = [
   { label: "SPAWN\nCOMPANION", icon: "⊕", startDeg: -135, endDeg: -45 },
   { label: "OPEN DM", icon: "✉", startDeg: -45, endDeg: 45 },
@@ -102,13 +139,10 @@ const AGENT_SECTORS: SectorDef[] = [
   },
 ];
 
-// 2-way room wheel: left / right
 const ROOM_SECTORS: SectorDef[] = [
   { label: "OPEN\nROOM", icon: "◈", startDeg: -180, endDeg: 0 },
   { label: "ISOLATE\nFOCUS", icon: "◎", startDeg: 0, endDeg: 180 },
 ];
-
-// ─── Component ───────────────────────────────────────────────────────────────
 
 export function NodeRadialMenu({
   nodeId,
@@ -116,6 +150,7 @@ export function NodeRadialMenu({
   node3D,
   graphRef,
   onClose,
+  onIsolate,
 }: Props) {
   const [pos, setPos] = useState<ScreenPos | null>(null);
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
@@ -128,11 +163,14 @@ export function NodeRadialMenu({
   const teardownAgent = useBusStore((s) => s.teardownAgent);
   const setLauncherOpen = useBusStore((s) => s.setLauncherOpen);
   const setLauncherPrefill = useBusStore((s) => s.setLauncherPrefill);
+  const setNameFilter = useBusStore((s) => s.setNameFilter);
 
-  // RAF loop — track node's screen position as camera animates
+  // RAF: track node screen coords as camera animates.
+  // graph2ScreenCoords returns coords relative to the canvas element, not the
+  // viewport — add canvas getBoundingClientRect() to get correct fixed position.
   useEffect(() => {
-    let rafId: number;
-    const update = () => {
+    let raf: number;
+    const tick = () => {
       const g = graphRef.current;
       if (g) {
         try {
@@ -141,18 +179,22 @@ export function NodeRadialMenu({
             node3D.y ?? 0,
             node3D.z ?? 0
           ) as { x: number; y: number };
-          setPos(sc);
+          const canvas = g.renderer?.()?.domElement as HTMLElement | undefined;
+          const rect = canvas?.getBoundingClientRect();
+          setPos({
+            x: (rect?.left ?? 0) + sc.x,
+            y: (rect?.top ?? 0) + sc.y,
+          });
         } catch {
-          // ignore
+          /* not yet mounted */
         }
       }
-      rafId = requestAnimationFrame(update);
+      raf = requestAnimationFrame(tick);
     };
-    rafId = requestAnimationFrame(update);
-    return () => cancelAnimationFrame(rafId);
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
   }, [graphRef, node3D]);
 
-  // Click-outside: delay so the opening double-click doesn't immediately close
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
@@ -169,41 +211,44 @@ export function NodeRadialMenu({
     };
   }, [onClose]);
 
-  const findPaneForAgent = (id: string) =>
+  const findPane = (id: string) =>
     Object.values(panes).find((p) => p.agentId === id);
 
-  const handleSector = (sector: SectorDef) => {
-    if (sector.destructive) {
+  const handleSector = (s: SectorDef) => {
+    if (s.destructive) {
       setTeardownConfirm(true);
       return;
     }
     if (kind === "agent") {
-      if (sector.label.startsWith("OPEN")) {
+      if (s.label.startsWith("OPEN")) {
         setSelection({ kind: "agent", id: nodeId });
         onClose();
-      } else if (sector.label.startsWith("ISOLATE")) {
-        onClose();
-      } else if (sector.label.startsWith("SPAWN")) {
-        const pane = findPaneForAgent(nodeId);
+      } else if (s.label.startsWith("SPAWN")) {
+        const pane = findPane(nodeId);
         setLauncherPrefill({
           paneKind: "new-window",
           paneTarget: pane?.session,
         });
         setLauncherOpen(true);
         onClose();
+      } else {
+        // ISOLATE FOCUS — keep camera + dim, just close the menu
+        onIsolate();
       }
     } else {
-      if (sector.label.startsWith("OPEN")) {
+      if (s.label.startsWith("OPEN")) {
         setSelection({ kind: "room", id: nodeId });
         onClose();
       } else {
-        onClose(); // ISOLATE: focus-lock already active
+        // ISOLATE FOCUS for room — set top filter to this room, zoom back out
+        setNameFilter(nodeId);
+        onClose();
       }
     }
   };
 
-  const handleTeardownConfirm = () => {
-    const pane = findPaneForAgent(nodeId);
+  const handleTeardown = () => {
+    const pane = findPane(nodeId);
     if (pane && agents[nodeId]) teardownAgent(nodeId, pane.id);
     onClose();
   };
@@ -211,7 +256,7 @@ export function NodeRadialMenu({
   if (!pos) return null;
 
   const sectors = kind === "agent" ? AGENT_SECTORS : ROOM_SECTORS;
-  const accent = kind === "agent" ? ACCENT : ROOM_ACCENT;
+  const accentRgb = kind === "agent" ? "0,212,255" : "176,144,255";
 
   return (
     <div
@@ -226,7 +271,6 @@ export function NodeRadialMenu({
         pointerEvents: "none",
       }}
     >
-      {/* Wheel — centered on node */}
       <div
         style={{
           position: "absolute",
@@ -236,53 +280,60 @@ export function NodeRadialMenu({
           pointerEvents: "all",
         }}
       >
+        {/*
+         * One HTML div per petal — backdrop-filter only works on HTML elements.
+         * Each div is clipped to the rounded wedge shape so it gets an
+         * independent frosted-glass look. pointer-events:none here; SVG above handles events.
+         */}
+        {sectors.map((sector, i) => {
+          const destr = !!sector.destructive;
+          const hovered = hoveredIdx === i;
+          const path = roundedSectorPath(
+            HALF,
+            HALF,
+            INNER_R,
+            OUTER_R,
+            sector.startDeg,
+            sector.endDeg
+          );
+          const midDeg = (sector.startDeg + sector.endDeg) / 2;
+          const nudge = hovered ? 5 : 0;
+          const nx = Math.cos(toRad(midDeg)) * nudge;
+          const ny = Math.sin(toRad(midDeg)) * nudge;
+
+          return (
+            <div
+              key={`glass-${sector.label}`}
+              style={{
+                position: "absolute",
+                width: SIZE,
+                height: SIZE,
+                transform: `translate(${nx}px, ${ny}px)`,
+                backdropFilter: "blur(14px) saturate(1.6)",
+                WebkitBackdropFilter: "blur(14px) saturate(1.6)",
+                background: destr
+                  ? `rgba(50,6,6,${hovered ? 0.72 : 0.52})`
+                  : `rgba(4,14,36,${hovered ? 0.68 : 0.48})`,
+                clipPath: `path("${path}")`,
+                transition: "background 0.15s, transform 0.15s",
+                pointerEvents: "none",
+              }}
+            />
+          );
+        })}
+
+        {/* SVG — strokes, glow borders, text/icons, inner ring. No fills (handled above). */}
         <svg
           width={SIZE}
           height={SIZE}
           viewBox={`0 0 ${SIZE} ${SIZE}`}
-          style={{ overflow: "visible" }}
+          style={{ position: "absolute", inset: 0, overflow: "visible" }}
         >
-          <defs>
-            <filter
-              id="wheel-blur"
-              x="-20%"
-              y="-20%"
-              width="140%"
-              height="140%"
-            >
-              <feGaussianBlur in="SourceGraphic" stdDeviation="0.8" />
-            </filter>
-          </defs>
-
-          {/* Background disc (glassmorphism effect via fill opacity) */}
-          <circle
-            cx={HALF}
-            cy={HALF}
-            r={OUTER_R + 2}
-            fill="rgba(0,8,20,0.72)"
-            style={{ backdropFilter: "blur(12px)" }}
-          />
-
-          {/* Sectors */}
           {sectors.map((sector, i) => {
-            const isHovered = hoveredIdx === i;
-            const isDestructive = !!sector.destructive;
-            const fill = isDestructive
-              ? isHovered
-                ? "rgba(255,70,70,0.28)"
-                : "rgba(255,70,70,0.10)"
-              : isHovered
-                ? `rgba(${kind === "agent" ? "0,212,255" : "176,144,255"},0.22)`
-                : `rgba(${kind === "agent" ? "0,212,255" : "176,144,255"},0.07)`;
-            const stroke = isDestructive
-              ? isHovered
-                ? "rgba(255,70,70,0.7)"
-                : "rgba(255,70,70,0.25)"
-              : isHovered
-                ? `${accent}cc`
-                : `${accent}33`;
-
-            const path = sectorPath(
+            const hovered = hoveredIdx === i;
+            const destr = !!sector.destructive;
+            const rgb = destr ? "255,70,70" : accentRgb;
+            const path = roundedSectorPath(
               HALF,
               HALF,
               INNER_R,
@@ -298,77 +349,66 @@ export function NodeRadialMenu({
               sector.startDeg,
               sector.endDeg
             );
-            const midAngle = (sector.startDeg + sector.endDeg) / 2;
-            const nudge = isHovered ? 4 : 0;
-            const nudgeRad = toRad(midAngle);
-            const nx = Math.cos(nudgeRad) * nudge;
-            const ny = Math.sin(nudgeRad) * nudge;
-
+            const midDeg = (sector.startDeg + sector.endDeg) / 2;
+            const nudge = hovered ? 5 : 0;
+            const nx = Math.cos(toRad(midDeg)) * nudge;
+            const ny = Math.sin(toRad(midDeg)) * nudge;
             const lines = sector.label.split("\n");
 
             return (
               <g
                 key={sector.label}
-                style={{ cursor: "pointer" }}
                 transform={`translate(${nx},${ny})`}
+                style={{ cursor: "pointer" }}
                 onMouseEnter={() => setHoveredIdx(i)}
                 onMouseLeave={() => setHoveredIdx(null)}
                 onClick={() => handleSector(sector)}
               >
+                {/* Stroke border only — fill handled by glass HTML div */}
                 <path
                   d={path}
-                  fill={fill}
-                  stroke={stroke}
-                  strokeWidth={isHovered ? 1.5 : 1}
-                  style={{ transition: "fill 0.12s, stroke 0.12s" }}
+                  fill="none"
+                  stroke={`rgba(${rgb},${hovered ? 0.9 : 0.4})`}
+                  strokeWidth={hovered ? 1.5 : 0.8}
+                  style={{ transition: "stroke 0.15s" }}
                 />
+                {/* Hit area (transparent, wider than stroke for easy clicking) */}
+                <path d={path} fill="transparent" stroke="none" />
+
                 {/* Icon */}
                 <text
                   x={center.x}
-                  y={center.y - (lines.length > 1 ? 10 : 6)}
+                  y={center.y - (lines.length > 1 ? 15 : 7)}
                   textAnchor="middle"
                   dominantBaseline="middle"
-                  fontSize="16"
-                  fill={
-                    isDestructive
-                      ? isHovered
-                        ? "#ff7070"
-                        : "#ff504088"
-                      : isHovered
-                        ? accent
-                        : `${accent}99`
-                  }
+                  fontSize="20"
+                  fill={`rgba(${rgb},${hovered ? 1 : 0.75})`}
+                  fontFamily="Share Tech Mono, monospace"
                   style={{
-                    fontFamily: "Share Tech Mono, monospace",
                     pointerEvents: "none",
-                    transition: "fill 0.12s",
+                    transition: "fill 0.15s",
+                    userSelect: "none",
                   }}
                 >
                   {sector.icon}
                 </text>
-                {/* Label lines */}
+
+                {/* Label */}
                 {lines.map((line, li) => (
                   <text
                     key={li}
                     x={center.x}
-                    y={center.y + 4 + li * 11}
+                    y={center.y + 8 + li * 13}
                     textAnchor="middle"
                     dominantBaseline="middle"
-                    fontSize="8"
-                    letterSpacing="0.08em"
-                    fill={
-                      isDestructive
-                        ? isHovered
-                          ? "#ff7070"
-                          : "#ff504077"
-                        : isHovered
-                          ? accent
-                          : `${accent}77`
-                    }
+                    fontSize="10"
+                    letterSpacing="0.1em"
+                    fill={`rgba(${rgb},${hovered ? 1 : 0.65})`}
+                    fontFamily="Share Tech Mono, monospace"
                     style={{
-                      fontFamily: "Share Tech Mono, monospace",
                       pointerEvents: "none",
-                      transition: "fill 0.12s",
+                      transition: "fill 0.15s",
+                      userSelect: "none",
                     }}
                   >
                     {line}
@@ -378,60 +418,64 @@ export function NodeRadialMenu({
             );
           })}
 
-          {/* Center hole ring */}
+          {/* Inner ring — accent border around the node hole */}
           <circle
             cx={HALF}
             cy={HALF}
-            r={INNER_R - 1}
-            fill="rgba(0,6,16,0.90)"
-            stroke={`${accent}44`}
-            strokeWidth="1"
-          />
-          {/* Inner accent ring */}
-          <circle
-            cx={HALF}
-            cy={HALF}
-            r={INNER_R - 5}
+            r={INNER_R}
             fill="none"
-            stroke={`${accent}22`}
-            strokeWidth="2"
+            stroke={`rgba(${accentRgb},0.5)`}
+            strokeWidth="1.5"
+          />
+          <circle
+            cx={HALF}
+            cy={HALF}
+            r={INNER_R - 6}
+            fill="none"
+            stroke={`rgba(${accentRgb},0.15)`}
+            strokeWidth="1"
           />
         </svg>
 
-        {/* Teardown confirm overlay — replaces wheel when active */}
+        {/* Teardown confirm overlay */}
         {teardownConfirm && (
           <div
             style={{
               position: "absolute",
-              inset: 0,
+              left: HALF - OUTER_R,
+              top: HALF - OUTER_R,
+              width: OUTER_R * 2,
+              height: OUTER_R * 2,
+              borderRadius: "50%",
+              backdropFilter: "blur(20px)",
+              WebkitBackdropFilter: "blur(20px)",
+              background: "rgba(10,2,12,0.88)",
+              border: "1px solid rgba(255,70,70,0.4)",
               display: "flex",
               flexDirection: "column",
               alignItems: "center",
               justifyContent: "center",
-              gap: 8,
-              background: "rgba(0,6,16,0.88)",
-              borderRadius: "50%",
-              backdropFilter: "blur(10px)",
-              border: "1px solid rgba(255,70,70,0.4)",
+              gap: 12,
             }}
           >
             <div
               style={{
                 fontFamily: "Share Tech Mono",
-                fontSize: 9,
-                letterSpacing: "0.1em",
+                fontSize: 10,
+                letterSpacing: "0.12em",
                 color: "#ff7070",
                 textAlign: "center",
+                lineHeight: 1.8,
               }}
             >
               TEAR DOWN
               <br />
-              <span style={{ color: "rgba(255,112,112,0.6)", fontSize: 8 }}>
+              <span style={{ color: "rgba(255,112,112,0.55)", fontSize: 9 }}>
                 {nodeId}
               </span>
             </div>
-            <div style={{ display: "flex", gap: 6 }}>
-              <button onClick={handleTeardownConfirm} style={confirmStyle}>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={handleTeardown} style={confirmStyle}>
                 CONFIRM
               </button>
               <button
@@ -450,24 +494,22 @@ export function NodeRadialMenu({
 
 const confirmStyle: React.CSSProperties = {
   fontFamily: "Share Tech Mono, monospace",
-  fontSize: 8,
+  fontSize: 9,
   letterSpacing: "0.1em",
-  padding: "4px 10px",
+  padding: "5px 12px",
   cursor: "pointer",
-  border: "1px solid rgba(255,70,70,0.6)",
-  background: "rgba(255,70,70,0.18)",
+  border: "1px solid rgba(255,70,70,0.55)",
+  background: "rgba(255,70,70,0.15)",
   color: "#ff7070",
-  pointerEvents: "all",
 };
 
 const cancelStyle: React.CSSProperties = {
   fontFamily: "Share Tech Mono, monospace",
-  fontSize: 8,
+  fontSize: 9,
   letterSpacing: "0.1em",
-  padding: "4px 10px",
+  padding: "5px 12px",
   cursor: "pointer",
-  border: "1px solid rgba(0,212,255,0.3)",
-  background: "rgba(0,212,255,0.06)",
+  border: "1px solid rgba(0,212,255,0.28)",
+  background: "rgba(0,212,255,0.05)",
   color: "rgba(0,212,255,0.7)",
-  pointerEvents: "all",
 };

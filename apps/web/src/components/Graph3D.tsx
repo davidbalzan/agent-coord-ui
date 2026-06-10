@@ -849,7 +849,7 @@ export function Graph3D() {
             pos: { x: cam.position.x, y: cam.position.y, z: cam.position.z },
             target: { x: ctrl.target.x, y: ctrl.target.y, z: ctrl.target.z },
           };
-          const dist = 60;
+          const dist = 120;
           const nx = node.x ?? 0,
             ny = node.y ?? 0,
             nz = node.z ?? 0;
@@ -1277,6 +1277,12 @@ export function Graph3D() {
     refreshLinksRef.current();
   }, []);
 
+  // Close menu but keep camera zoomed + dim state active.
+  // savedCameraRef stays intact so background click / Escape can still restore.
+  const isolateAndClose = useCallback(() => {
+    setContextMenu(null);
+  }, []);
+
   return (
     <>
       <div
@@ -1290,6 +1296,7 @@ export function Graph3D() {
           node3D={contextMenu.node3D}
           graphRef={graphRef}
           onClose={closeMenuAndRestore}
+          onIsolate={isolateAndClose}
         />
       )}
       {/* Circular icon row — action buttons */}
