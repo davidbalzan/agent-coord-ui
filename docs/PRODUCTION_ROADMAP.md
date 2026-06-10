@@ -106,7 +106,30 @@ aliases: ["Roadmap", "PRODUCTION_ROADMAP"]
 
 ---
 
-### Phase 4: Full Interactive Terminal (xterm.js)
+### Phase 4: Agent Provisioning & Terminal Groups (from the UI)
+
+**Goal**: Spawn, configure, and register a fully set-up agent from the web UI — replacing the manual "split pane → launch → `/model` → join chat as `<name>`" ritual. Agents can be organized into named terminal groups (tmux windows/sessions) and torn down from the UI.
+**Duration**: 1–2 weeks
+**Status**: ⚪ Not Started
+
+**Context**: Today the operator hand-spawns every agent in tmux. The plumbing to automate this already exists — `apps/api/src/tmux.ts` has `sendKeys`, `capturePane`, and `listPanes` — so spawning is mostly sequencing existing primitives plus pane creation and **prompt-readiness detection** (the one hard part). Does not depend on the xterm.js work.
+
+**Key Deliverables**:
+
+- [ ] tmux pane lifecycle primitives — `split-window`/`new-window`/`new-session` returning a pane id, `kill-pane`
+- [ ] Prompt-readiness detection — `waitForPrompt` polling `capturePane` so steps never blind-fire
+- [ ] Agent presets — model, role/skill, lane, rooms, launch command (persisted to `~/agent-coord/presets.json`)
+- [ ] Sequenced provisioner — create → launch → `/model` → skill-invoke → confirm registered, with progress events
+- [ ] Launcher + preset-editor UI, per-agent teardown, named terminal groups
+- [ ] Loopback security gate (local-only until Phase 6 auth)
+
+**Detailed plan**: [Phase 4 Tasks](./phases/phase4/PHASE4_TASKS.md) · [Phase 4 README](./phases/phase4/README.md)
+
+**Key Risk**: readiness races — `send-keys` is fire-and-forget; every step must gate on captured-output readiness or it silently drops input and half-configures the agent.
+
+---
+
+### Phase 5: Full Interactive Terminal (xterm.js)
 
 **Goal**: Replace the ANSI-snapshot + send-keys terminal with a real PTY-backed xterm.js emulator — full cursor control, tab-completion, arrow keys, and Claude Code's interactive TUI work from the browser.
 **Duration**: TBD
@@ -126,7 +149,7 @@ aliases: ["Roadmap", "PRODUCTION_ROADMAP"]
 
 ---
 
-### Phase 5 (v2): Networked & Multi-Operator
+### Phase 6 (v2): Networked & Multi-Operator
 
 **Goal**: Support remote teams; auth token; HTTP API mode for non-local MCP.
 **Duration**: TBD
@@ -143,15 +166,16 @@ aliases: ["Roadmap", "PRODUCTION_ROADMAP"]
 
 ## 📊 Implementation Priority Matrix
 
-| Phase               | Priority    | Blocks        | Complexity | Duration  | Key Risk                     |
-| ------------------- | ----------- | ------------- | ---------- | --------- | ---------------------------- |
-| Phase 1: Foundation | 🔴 Critical | All           | Low        | 1 week    | None                         |
-| Phase 2: Live Graph | 🔴 Critical | Phase 3+      | Medium     | 2 weeks   | WS event schema churn        |
-| Phase 3: Polish     | 🟡 High     | v2 perception | Medium     | 1–2 weeks | Three.js coupling complexity |
-| Phase 4: xterm.js   | 🟢 Medium   | Phase 3       | High       | TBD       | Bundle size, PTY lifecycle   |
-| Phase 5: Networked  | 🟢 Medium   | —             | High       | TBD       | Auth scope creep             |
+| Phase                 | Priority    | Blocks        | Complexity | Duration  | Key Risk                     |
+| --------------------- | ----------- | ------------- | ---------- | --------- | ---------------------------- |
+| Phase 1: Foundation   | 🔴 Critical | All           | Low        | 1 week    | None                         |
+| Phase 2: Live Graph   | 🔴 Critical | Phase 3+      | Medium     | 2 weeks   | WS event schema churn        |
+| Phase 3: Polish       | 🟡 High     | v2 perception | Medium     | 1–2 weeks | Three.js coupling complexity |
+| Phase 4: Provisioning | 🟡 High     | operator toil | Medium     | 1–2 weeks | Readiness races, injection   |
+| Phase 5: xterm.js     | 🟢 Medium   | Phase 3       | High       | TBD       | Bundle size, PTY lifecycle   |
+| Phase 6: Networked    | 🟢 Medium   | —             | High       | TBD       | Auth scope creep             |
 
-**Critical Path**: Phase 1 → Phase 2 → Phase 3 (sequential; Phase 4 is independent v2 work)
+**Critical Path**: Phase 1 → Phase 2 → Phase 3 (sequential). Phase 4 (provisioning) is high-value and reuses existing tmux infra — recommended next. Phases 5–6 are independent v2 work.
 
 ---
 
@@ -184,10 +208,11 @@ aliases: ["Roadmap", "PRODUCTION_ROADMAP"]
 
 ## 🔄 Revision History
 
-| Date       | Change                                        | Reason                                                                            |
-| ---------- | --------------------------------------------- | --------------------------------------------------------------------------------- |
-| 2026-06-08 | Initial roadmap created from kickstart        | Project bootstrapped; Phase 1 & 2 retrospectively documented                      |
-| 2026-06-08 | Added Phase 4 (xterm.js interactive terminal) | ANSI snapshot approach can't support cursor keys / tab-complete / Claude Code TUI |
+| Date       | Change                                                                                                      | Reason                                                                                                            |
+| ---------- | ----------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| 2026-06-08 | Initial roadmap created from kickstart                                                                      | Project bootstrapped; Phase 1 & 2 retrospectively documented                                                      |
+| 2026-06-08 | Added Phase 4 (xterm.js interactive terminal)                                                               | ANSI snapshot approach can't support cursor keys / tab-complete / Claude Code TUI                                 |
+| 2026-06-10 | Inserted Phase 4 (Agent Provisioning & Terminal Groups); renumbered xterm.js → Phase 5, Networked → Phase 6 | Automate the manual tmux spawn/configure/join ritual from the UI; reuses existing tmux infra, high operator value |
 
 ---
 
