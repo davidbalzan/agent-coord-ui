@@ -7,6 +7,10 @@ export function HUD() {
   const roomsMap = useBusStore((s) => s.rooms);
   const nameFilter = useBusStore((s) => s.nameFilter);
   const setNameFilter = useBusStore((s) => s.setNameFilter);
+  const launcherOpen = useBusStore((s) => s.launcherOpen);
+  const setLauncherOpen = useBusStore((s) => s.setLauncherOpen);
+  const launcherPrefill = useBusStore((s) => s.launcherPrefill);
+  const setLauncherPrefill = useBusStore((s) => s.setLauncherPrefill);
   const agents = Object.values(agentsMap);
   const rooms = Object.values(roomsMap);
   const active = agents.filter((a) => a.status === "active").length;
@@ -15,7 +19,6 @@ export function HUD() {
   const total = agents.length || 1;
 
   const [open, setOpen] = useState(false);
-  const [launcherOpen, setLauncherOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
 
   const suggestions = nameFilter.trim()
@@ -321,7 +324,10 @@ export function HUD() {
                 ? "0 0 12px rgba(0,212,255,0.4)"
                 : undefined,
             }}
-            onClick={() => setLauncherOpen((v) => !v)}
+            onClick={() => {
+              setLauncherPrefill(null);
+              setLauncherOpen(!launcherOpen);
+            }}
           >
             ▶ LAUNCH
           </button>
@@ -344,7 +350,15 @@ export function HUD() {
         </div>
       </div>
 
-      {launcherOpen && <AgentLauncher onClose={() => setLauncherOpen(false)} />}
+      {launcherOpen && (
+        <AgentLauncher
+          prefill={launcherPrefill}
+          onClose={() => {
+            setLauncherOpen(false);
+            setLauncherPrefill(null);
+          }}
+        />
+      )}
     </header>
   );
 }

@@ -1,7 +1,8 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 import ForceGraph3D, { type ForceGraph3DInstance } from "3d-force-graph";
 import * as THREE from "three";
 import { useBusStore } from "../store/bus.js";
+import { NodeRadialMenu } from "./NodeRadialMenu.js";
 import type {
   AgentSnapshot,
   RoomSnapshot,
@@ -233,6 +234,15 @@ export function Graph3D() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const graphRef = useRef<any>(null);
   const lastClickRef = useRef<{ id: string; time: number } | null>(null);
+  const savedCameraRef = useRef<{
+    pos: { x: number; y: number; z: number };
+    target: { x: number; y: number; z: number };
+  } | null>(null);
+  const [contextMenu, setContextMenu] = useState<{
+    nodeId: string;
+    kind: "agent" | "room";
+    node3D: { x: number; y: number; z: number };
+  } | null>(null);
   const lastMsgTimeRef = useRef<Map<string, number>>(new Map());
   // unix ms of last message per room id — drives halo ripple
   const roomActivityRef = useRef<Map<string, number>>(new Map());
@@ -832,6 +842,13 @@ export function Graph3D() {
 
         if (last?.id === node.id && now - last.time < 400) {
           lastClickRef.current = null;
+          // Snapshot current camera before zoom so we can restore on menu close
+          const cam = graph.camera() as THREE.PerspectiveCamera;
+          const ctrl = graph.controls() as { target: THREE.Vector3 };
+          savedCameraRef.current = {
+            pos: { x: cam.position.x, y: cam.position.y, z: cam.position.z },
+            target: { x: ctrl.target.x, y: ctrl.target.y, z: ctrl.target.z },
+          };
           const dist = 60;
           const nx = node.x ?? 0,
             ny = node.y ?? 0,
@@ -841,7 +858,7 @@ export function Graph3D() {
           graph.cameraPosition(
             { x: nx * ratio, y: ny * ratio, z: nz * ratio },
             { x: nx, y: ny, z: nz },
-            1200
+            600
           );
           // Focus lock — dim all other nodes + highlight direct edges
           focusedNodeRef.current = node.id;
@@ -849,6 +866,14 @@ export function Graph3D() {
             setDimmed(id !== node.id);
           }
           refreshLinksRef.current();
+          // Open radial context menu (only for agent/room nodes)
+          if (node.kind === "agent" || node.kind === "room") {
+            setContextMenu({
+              nodeId: node.id,
+              kind: node.kind,
+              node3D: { x: nx, y: ny, z: nz },
+            });
+          }
         } else {
           lastClickRef.current = { id: node.id, time: now };
           if (node.kind === "pane") {
@@ -875,6 +900,12 @@ export function Graph3D() {
         for (const setDimmed of nodeDimSetters.current.values())
           setDimmed(false);
         refreshLinksRef.current();
+        setContextMenu(null);
+        if (savedCameraRef.current) {
+          const { pos, target } = savedCameraRef.current;
+          graph.cameraPosition(pos, target, 600);
+          savedCameraRef.current = null;
+        }
       });
 
     applyForceConfig(graph);
@@ -933,17 +964,28 @@ export function Graph3D() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [applyForceConfig]);
 
-  // Escape releases focus lock
+  // Escape releases focus lock and closes context menu
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape" || focusedNodeRef.current === null) return;
-      focusedNodeRef.current = null;
-      for (const setDimmed of nodeDimSetters.current.values()) setDimmed(false);
-      refreshLinksRef.current();
+      if (e.key !== "Escape") return;
+      const hadMenu = contextMenu !== null;
+      setContextMenu(null);
+      if (focusedNodeRef.current !== null) {
+        focusedNodeRef.current = null;
+        for (const setDimmed of nodeDimSetters.current.values())
+          setDimmed(false);
+        refreshLinksRef.current();
+      }
+      if (hadMenu && savedCameraRef.current && graphRef.current) {
+        const { pos, target } = savedCameraRef.current;
+
+        graphRef.current.cameraPosition(pos, target, 600);
+        savedCameraRef.current = null;
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [contextMenu]);
 
   // Stale node pulse
   useEffect(() => {
@@ -1221,12 +1263,35 @@ export function Graph3D() {
     }, 850);
   }, []);
 
+  const closeMenuAndRestore = useCallback(() => {
+    setContextMenu(null);
+    if (savedCameraRef.current && graphRef.current) {
+      const { pos, target } = savedCameraRef.current;
+
+      graphRef.current.cameraPosition(pos, target, 600);
+      savedCameraRef.current = null;
+    }
+    // Release focus lock
+    focusedNodeRef.current = null;
+    for (const setDimmed of nodeDimSetters.current.values()) setDimmed(false);
+    refreshLinksRef.current();
+  }, []);
+
   return (
     <>
       <div
         ref={containerRef}
         style={{ position: "absolute", inset: 0, zIndex: 1 }}
       />
+      {contextMenu && (
+        <NodeRadialMenu
+          nodeId={contextMenu.nodeId}
+          kind={contextMenu.kind}
+          node3D={contextMenu.node3D}
+          graphRef={graphRef}
+          onClose={closeMenuAndRestore}
+        />
+      )}
       {/* Circular icon row — action buttons */}
       <div
         style={{
