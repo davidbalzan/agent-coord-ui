@@ -44,6 +44,9 @@ const SPEED_DECAY = 0.15;
 const RECENT_MSG_MS = 10_000;
 // How long a message edge shows flowing directional particles (the chat "blink").
 const EDGE_ACTIVE_MS = 8_000;
+// Exponential decay constant (s) for the post-message brightness glow — the
+// glow fades as e^(−secAgo/TAU) so the freshest message node is the brightest.
+const ACTIVITY_GLOW_TAU = 2.5;
 
 function linkKey(msg: MessageSnapshot): string {
   return msg.isDM
@@ -118,12 +121,37 @@ function buildGlowNode(
   const light = new THREE.PointLight(hexColor, 1.5, radius * 8);
   group.add(light);
 
+  // Composed material state. dim (focus-lock), highlight (hover) and a decaying
+  // activity glow (0→1, brightest right after a message) all flow through one
+  // render() so they never fight over the same material props.
+  const BASE_HALO1 = 0.28;
+  const BASE_HALO2 = 0.12;
+  const BASE_LIGHT = 1.5;
+  let dimmed = false;
+  let highlighted = false;
+  let activity = 0; // 0..1 — driven down each frame after a message
+  const render = () => {
+    if (dimmed) {
+      coreMat.transparent = true;
+      coreMat.opacity = 0.1;
+      halo1Mat.opacity = 0.03;
+      halo2Mat.opacity = 0.02;
+      light.intensity = 0;
+      group.scale.setScalar(1);
+      return;
+    }
+    const hi = highlighted ? 1 : 0;
+    coreMat.transparent = true;
+    coreMat.opacity = 1;
+    halo1Mat.opacity = BASE_HALO1 + hi * 0.14 + activity * 0.4;
+    halo2Mat.opacity = BASE_HALO2 + hi * 0.08 + activity * 0.28;
+    light.intensity = BASE_LIGHT + hi * 2.5 + activity * 4.5;
+    group.scale.setScalar(highlighted ? 1.5 : 1 + activity * 0.3);
+  };
+
   group.userData.setDimmed = (on: boolean) => {
-    coreMat.transparent = on;
-    coreMat.opacity = on ? 0.1 : 1.0;
-    halo1Mat.opacity = on ? 0.03 : 0.28;
-    halo2Mat.opacity = on ? 0.02 : 0.12;
-    light.intensity = on ? 0.0 : 1.5;
+    dimmed = on;
+    render();
   };
 
   if (agentId) {
@@ -137,10 +165,15 @@ function buildGlowNode(
       halo2.userData.pulseHalo = isPulse;
     };
     group.userData.setHighlight = (on: boolean) => {
-      group.scale.setScalar(on ? 1.5 : 1.0);
-      halo1Mat.opacity = on ? 0.42 : 0.18;
-      halo2Mat.opacity = on ? 0.2 : 0.07;
-      light.intensity = on ? 4.0 : 1.5;
+      highlighted = on;
+      render();
+    };
+    // Decaying activity glow — called every frame with a 0..1 recency level.
+    group.userData.setActivityGlow = (level: number) => {
+      const l = level < 0 ? 0 : level > 1 ? 1 : level;
+      if (l === activity) return;
+      activity = l;
+      render();
     };
   }
 
@@ -918,6 +951,23 @@ export function Graph3D() {
         }
 
         graphRef.current.scene().traverse((obj: THREE.Object3D) => {
+          // Decaying activity glow — brightest right after a message, fading
+          // over the recency window so the most-recently-active node stands out.
+          if (obj.userData?.setActivityGlow && obj.userData?.agentId) {
+            const lastTs = agentMsgTimestampRef.current.get(
+              obj.userData.agentId as string
+            );
+            let level = 0;
+            if (lastTs) {
+              const secAgo = (performance.now() - lastTs) / 1000;
+              if (secAgo < RECENT_MSG_MS / 1000) {
+                level = Math.exp(-secAgo / ACTIVITY_GLOW_TAU);
+              }
+            }
+            (obj.userData.setActivityGlow as (n: number) => void)(
+              level < 0.02 ? 0 : level
+            );
+          }
           if (obj.userData?.pulseHalo) {
             // Gentle slow fade — stale is idle, not an alarm
             (
