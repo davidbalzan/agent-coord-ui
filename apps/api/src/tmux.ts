@@ -184,6 +184,90 @@ export async function sendKeys(paneId: string, keys: string): Promise<void> {
   }
 }
 
+// ─── Pane lifecycle ───────────────────────────────────────────────────────────
+
+function shellEscape(s: string): string {
+  return s.replace(/'/g, "'\\''");
+}
+
+export type PaneKind = "split-window" | "new-window" | "new-session";
+
+export interface CreatePaneOpts {
+  kind: PaneKind;
+  /** tmux target (session, window, or pane) for split-window / new-window */
+  target?: string;
+  /** working directory for the new pane */
+  cwd?: string;
+}
+
+/**
+ * Create a tmux pane and return its pane id (e.g. "%12").
+ * Injection-safe: target and cwd are single-quote-escaped before interpolation.
+ */
+export async function createPane(opts: CreatePaneOpts): Promise<string> {
+  const { kind, target, cwd } = opts;
+  const cwdFlag = cwd ? ` -c '${shellEscape(cwd)}'` : "";
+  let cmd: string;
+  if (kind === "split-window") {
+    const targetFlag = target ? ` -t '${shellEscape(target)}'` : "";
+    cmd = `tmux split-window${targetFlag}${cwdFlag} -P -F '#{pane_id}'`;
+  } else if (kind === "new-window") {
+    const targetFlag = target ? ` -t '${shellEscape(target)}'` : "";
+    cmd = `tmux new-window${targetFlag}${cwdFlag} -P -F '#{pane_id}'`;
+  } else {
+    // new-session: -d so it starts detached; target is unused for new-session
+    cmd = `tmux new-session -d${cwdFlag} -P -F '#{pane_id}'`;
+  }
+  const { stdout } = await execAsync(cmd);
+  const paneId = stdout.trim();
+  if (!paneId) throw new Error(`createPane: tmux returned empty pane id`);
+  return paneId;
+}
+
+/** Kill a tmux pane by id. */
+export async function killPane(paneId: string): Promise<void> {
+  await execAsync(`tmux kill-pane -t '${shellEscape(paneId)}'`);
+}
+
+// ─── Prompt-readiness detection ───────────────────────────────────────────────
+
+export type PromptMatcher = (tail: string[]) => boolean;
+
+/** Matches a shell prompt: $, %, or ❯ at the end of a trimmed line. */
+export const SHELL_READY_MATCHER: PromptMatcher = (lines) =>
+  lines.some((l) => /[$%❯]\s*$/.test(l.trimEnd()));
+
+/** Matches the Claude Code agent input box / initialisation banner. */
+export const AGENT_READY_MATCHER: PromptMatcher = (lines) =>
+  lines.some((l) =>
+    /Human:|Esc to interrupt|✻ Initializ|╭─+╮|claude>/i.test(l)
+  );
+
+export interface WaitForPromptResult {
+  ready: boolean;
+  tail: string[];
+}
+
+/**
+ * Poll capturePane until matcher returns true or timeoutMs elapses.
+ * Never throws — on timeout returns { ready: false, tail: <last captured lines> }.
+ */
+export async function waitForPrompt(
+  paneId: string,
+  matcher: PromptMatcher,
+  opts: { timeoutMs: number; intervalMs?: number }
+): Promise<WaitForPromptResult> {
+  const { timeoutMs, intervalMs = 400 } = opts;
+  const deadline = Date.now() + timeoutMs;
+  let tail: string[] = [];
+  while (Date.now() < deadline) {
+    tail = await capturePane(paneId, 20);
+    if (matcher(tail)) return { ready: true, tail };
+    await new Promise<void>((r) => setTimeout(r, intervalMs));
+  }
+  return { ready: false, tail };
+}
+
 // ─── Pane watcher ─────────────────────────────────────────────────────────────
 
 type Listener = (event: BusEvent) => void;
