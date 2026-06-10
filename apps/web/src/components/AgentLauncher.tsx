@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useBusStore } from "../store/bus.js";
 import { PresetEditor } from "./PresetEditor.js";
 
@@ -32,12 +32,28 @@ interface Props {
 export function AgentLauncher({ onClose }: Props) {
   const presets = useBusStore((s) => s.presets);
   const agents = useBusStore((s) => s.agents);
-  const panes = useBusStore((s) => s.panes);
   const spawnProgress = useBusStore((s) => s.spawnProgress);
   const fetchPresets = useBusStore((s) => s.fetchPresets);
   const spawnAgent = useBusStore((s) => s.spawnAgent);
   const teardownAgent = useBusStore((s) => s.teardownAgent);
   const clearSpawnProgress = useBusStore((s) => s.clearSpawnProgress);
+  // Derive terminal groups from pane session data with useMemo to avoid
+  // the infinite re-render loop that results from calling a selector that
+  // returns a new array reference on every invocation.
+  const panesMap = useBusStore((s) => s.panes);
+  const groups = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const pane of Object.values(panesMap)) {
+      const list = map.get(pane.session) ?? [];
+      list.push(pane.id);
+      map.set(pane.session, list);
+    }
+    return Array.from(map.entries()).map(([session, paneIds]) => ({
+      id: session,
+      label: session,
+      paneIds,
+    }));
+  }, [panesMap]);
 
   const [selectedPresetId, setSelectedPresetId] = useState("");
   const [agentId, setAgentId] = useState("");
@@ -45,6 +61,7 @@ export function AgentLauncher({ onClose }: Props) {
     "split-window" | "new-window" | "new-session"
   >("split-window");
   const [paneTarget, setPaneTarget] = useState("");
+  const [sessionName, setSessionName] = useState("");
   const [showPresetEditor, setShowPresetEditor] = useState(false);
   const [teardownConfirm, setTeardownConfirm] = useState<string | null>(null);
 
@@ -58,21 +75,30 @@ export function AgentLauncher({ onClose }: Props) {
 
   const handleLaunch = useCallback(() => {
     if (!canLaunch) return;
-    spawnAgent(
-      selectedPresetId,
-      agentId,
-      paneKind,
-      paneTarget.trim() || undefined
-    );
-  }, [canLaunch, spawnAgent, selectedPresetId, agentId, paneKind, paneTarget]);
+    // For new-session, pass the named session as paneTarget so createPane can
+    // use it as the session name (e.g. tmux new-session -d -s <sessionName>).
+    const resolvedTarget =
+      paneKind === "new-session"
+        ? sessionName.trim() || undefined
+        : paneTarget.trim() || undefined;
+    spawnAgent(selectedPresetId, agentId, paneKind, resolvedTarget);
+  }, [
+    canLaunch,
+    spawnAgent,
+    selectedPresetId,
+    agentId,
+    paneKind,
+    paneTarget,
+    sessionName,
+  ]);
 
   const findPaneForAgent = useCallback(
     (id: string) => {
       const fromProgress = spawnProgress[id]?.paneId;
       if (fromProgress) return fromProgress;
-      return Object.values(panes).find((p) => p.agentId === id)?.id;
+      return Object.values(panesMap).find((p) => p.agentId === id)?.id;
     },
-    [spawnProgress, panes]
+    [spawnProgress, panesMap]
   );
 
   const handleTeardown = useCallback(
@@ -197,8 +223,59 @@ export function AgentLauncher({ onClose }: Props) {
         </div>
       </Section>
 
-      {paneKind !== "new-session" && (
-        <Section label="PANE TARGET (optional)">
+      {paneKind === "new-session" ? (
+        <Section label="SESSION NAME (optional)">
+          <input
+            className="holo-input"
+            style={{ width: "100%", fontSize: 11 }}
+            placeholder="e.g. agents-2"
+            value={sessionName}
+            onChange={(e) => setSessionName(e.target.value)}
+          />
+          {groups.length > 0 && (
+            <div style={{ marginTop: 4 }}>
+              <div
+                style={{
+                  fontFamily: "Share Tech Mono",
+                  fontSize: 8,
+                  color: "rgba(0,212,255,0.3)",
+                  marginBottom: 3,
+                }}
+              >
+                EXISTING SESSIONS
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 3 }}>
+                {groups.map((g) => (
+                  <button
+                    key={g.id}
+                    onClick={() => setSessionName(g.id)}
+                    style={{
+                      fontFamily: "Share Tech Mono",
+                      fontSize: 9,
+                      padding: "1px 6px",
+                      cursor: "pointer",
+                      border: "1px solid rgba(0,212,255,0.25)",
+                      background:
+                        sessionName === g.id
+                          ? "rgba(0,212,255,0.15)"
+                          : "rgba(0,212,255,0.04)",
+                      color:
+                        sessionName === g.id
+                          ? "#00d4ff"
+                          : "rgba(0,212,255,0.5)",
+                      transition: "all 0.1s",
+                    }}
+                  >
+                    {g.id}{" "}
+                    <span style={{ opacity: 0.5 }}>({g.paneIds.length})</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </Section>
+      ) : (
+        <Section label="TARGET GROUP / PANE (optional)">
           <input
             className="holo-input"
             style={{ width: "100%", fontSize: 11 }}
@@ -206,6 +283,45 @@ export function AgentLauncher({ onClose }: Props) {
             value={paneTarget}
             onChange={(e) => setPaneTarget(e.target.value)}
           />
+          {groups.length > 0 && (
+            <div style={{ marginTop: 4 }}>
+              <div
+                style={{
+                  fontFamily: "Share Tech Mono",
+                  fontSize: 8,
+                  color: "rgba(0,212,255,0.3)",
+                  marginBottom: 3,
+                }}
+              >
+                TERMINAL GROUPS
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 3 }}>
+                {groups.map((g) => (
+                  <button
+                    key={g.id}
+                    onClick={() => setPaneTarget(g.id)}
+                    style={{
+                      fontFamily: "Share Tech Mono",
+                      fontSize: 9,
+                      padding: "1px 6px",
+                      cursor: "pointer",
+                      border: "1px solid rgba(0,212,255,0.25)",
+                      background:
+                        paneTarget === g.id
+                          ? "rgba(0,212,255,0.15)"
+                          : "rgba(0,212,255,0.04)",
+                      color:
+                        paneTarget === g.id ? "#00d4ff" : "rgba(0,212,255,0.5)",
+                      transition: "all 0.1s",
+                    }}
+                  >
+                    {g.id}{" "}
+                    <span style={{ opacity: 0.5 }}>({g.paneIds.length})</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </Section>
       )}
 

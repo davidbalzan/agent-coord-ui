@@ -5,6 +5,7 @@ import type {
   MessageSnapshot,
   PaneSnapshot,
   AgentPreset,
+  TerminalGroup,
 } from "@coord-ui/shared";
 import { busSocket } from "../lib/ws.js";
 
@@ -205,3 +206,18 @@ export const dmMessages = (s: BusState, a: string, b: string) =>
   );
 export const roomMessages = (s: BusState, roomId: string) =>
   s.messages.filter((m) => !m.isDM && m.to === roomId);
+
+/** Derive TerminalGroup list from pane session metadata. */
+export const terminalGroups = (s: BusState): TerminalGroup[] => {
+  const map = new Map<string, string[]>();
+  for (const pane of Object.values(s.panes)) {
+    const list = map.get(pane.session) ?? [];
+    list.push(pane.id);
+    map.set(pane.session, list);
+  }
+  return Array.from(map.entries()).map(([session, paneIds]) => ({
+    id: session,
+    label: session,
+    paneIds,
+  }));
+};

@@ -12,9 +12,9 @@ aliases: ["Roadmap", "PRODUCTION_ROADMAP"]
 
 ## 🎯 Current Focus
 
-**Phase**: Phase 3 — Polish & Production Hardening
-**Task**: Node spotlight / filter toolbar
-**Status**: 🟡 In Progress
+**Phase**: Phase 4 → Phase 5 transition
+**Task**: Phase 4 complete (PRs #1–#4 + T6); next: Phase 5 (xterm.js interactive terminal) or Phase 6 auth
+**Status**: 🟢 Phase 4 Complete
 **Branch**: `main`
 **Blocking Issues**: None
 
@@ -110,22 +110,26 @@ aliases: ["Roadmap", "PRODUCTION_ROADMAP"]
 
 **Goal**: Spawn, configure, and register a fully set-up agent from the web UI — replacing the manual "split pane → launch → `/model` → join chat as `<name>`" ritual. Agents can be organized into named terminal groups (tmux windows/sessions) and torn down from the UI.
 **Duration**: 1–2 weeks
-**Status**: ⚪ Not Started
+**Status**: 🟢 Complete (PRs #1–#4, T6 in final gate)
 
 **Context**: Today the operator hand-spawns every agent in tmux. The plumbing to automate this already exists — `apps/api/src/tmux.ts` has `sendKeys`, `capturePane`, and `listPanes` — so spawning is mostly sequencing existing primitives plus pane creation and **prompt-readiness detection** (the one hard part). Does not depend on the xterm.js work.
 
 **Key Deliverables**:
 
-- [ ] tmux pane lifecycle primitives — `split-window`/`new-window`/`new-session` returning a pane id, `kill-pane`
-- [ ] Prompt-readiness detection — `waitForPrompt` polling `capturePane` so steps never blind-fire
-- [ ] Agent presets — model, role/skill, lane, rooms, launch command (persisted to `~/agent-coord/presets.json`)
-- [ ] Sequenced provisioner — create → launch → `/model` → skill-invoke → confirm registered, with progress events
-- [ ] Launcher + preset-editor UI, per-agent teardown, named terminal groups
-- [ ] Loopback security gate (local-only until Phase 6 auth)
+- [x] tmux pane lifecycle primitives — `split-window`/`new-window`/`new-session` returning a pane id, `kill-pane` (PR #1)
+- [x] Prompt-readiness detection — `waitForPrompt` polling `capturePane` so steps never blind-fire (PR #1)
+- [x] Agent presets — model, role/skill, lane, rooms, launch command (persisted to `~/agent-coord/presets.json`) (PR #2)
+- [x] Sequenced provisioner — create → launch → `/model` → skill-invoke → confirm registered, with progress events (PR #2)
+- [x] WS/REST protocol — `spawn_agent`/`teardown_agent` WS routing, preset CRUD REST, loopback security gate (PR #3)
+- [x] Launcher + preset-editor UI, per-agent teardown, named terminal groups (PR #4, T6)
+- [x] Terminal groups modelled from tmux sessions; `TerminalGroup` type in `@coord-ui/shared` (T6)
+- [x] Graph3D session group labels on pane nodes (T6)
+- [x] Full injection hardening: all preset fields (`launchCmd`, `skillInvocation`, `repoPath`, `lane`, `rooms`) validated before reaching shell (T6)
+- [x] Orphan-pane cleanup verified: mid-sequence failure test confirms `killPane` always called (T6)
 
 **Detailed plan**: [Phase 4 Tasks](./phases/phase4/PHASE4_TASKS.md) · [Phase 4 README](./phases/phase4/README.md)
 
-**Key Risk**: readiness races — `send-keys` is fire-and-forget; every step must gate on captured-output readiness or it silently drops input and half-configures the agent.
+**Key Risk (resolved)**: readiness races — solved via `waitForPrompt` polling `capturePane` with configurable timeout + hard gate before each `send-keys`.
 
 ---
 

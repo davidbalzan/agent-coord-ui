@@ -24,6 +24,8 @@ ADRs capture context that's easy to forget: why we chose X over Y, what constrai
 | ADR-006 | [Three.js Dedup via Vite resolve.dedupe](#adr-006-threejs-dedup-via-vite-resolvededupe)         | Accepted | 2026-06-08 |
 | ADR-007 | [Holographic Aesthetic — NEXUS Theme](#adr-007-holographic-aesthetic--nexus-theme)              | Accepted | 2026-06-08 |
 | ADR-008 | [useShallow for Array Selectors in Zustand](#adr-008-useshallow-for-array-selectors-in-zustand) | Accepted | 2026-06-08 |
+| ADR-009 | [UI-Driven Agent Provisioning via tmux](#adr-009-ui-driven-agent-provisioning-via-tmux)         | Accepted | 2026-06-10 |
+| ADR-010 | [Local-Only Loopback Gate for Provisioning](#adr-010-local-only-loopback-gate-for-provisioning) | Accepted | 2026-06-10 |
 
 ---
 
@@ -300,6 +302,94 @@ const msgs = useBusStore(useShallow((s) => roomMessages(s, roomId)));
 ### Rule
 
 **Any selector that returns an array or derived object must use `useShallow`.** Plain primitive or stable-reference selectors (`s.rooms[id]`, `s.selection`) do not need it.
+
+---
+
+## ADR-009: UI-Driven Agent Provisioning via tmux
+
+**Status**: Accepted
+**Date**: 2026-06-10
+
+### Context
+
+Spawning a new agent requires a fixed multi-step ritual: open a tmux pane, run `claude`, wait for the prompt, send `/model <model>`, wait again, invoke the skill with the right flags, and confirm the agent registered on the coord bus. With multiple agent roles (coordinator, worker, infra) this is toil-heavy and error-prone — a mis-timed `send-keys` silently misconfigures the agent.
+
+The project already had `sendKeys`, `capturePane`, and `listPanes` in `tmux.ts`. The main missing piece was reliable prompt-readiness detection so each step could gate on output before proceeding.
+
+### Decision
+
+Implement a server-side provisioner (`apps/api/src/provisioner.ts`) that sequences the full spawn ritual: `createPane` → `waitForPrompt` (shell ready) → `sendKeys(launchCmd)` → `waitForPrompt` (agent ready) → `sendKeys(/model)` → `waitForPrompt` → `sendKeys(skillInvocation)` → `waitForPrompt` → poll transport dir for bus registration. Each step emits a `spawn_progress` event to the WebSocket client so the browser shows a live step-bar.
+
+Agent presets (`AgentPreset`) encode all per-role configuration (model, launchCmd, skillInvocation template, lane, rooms, repoPath) and are persisted to `~/agent-coord/presets.json`. The `AgentLauncher` React component provides the operator UI; `PresetEditor` handles CRUD via REST.
+
+Terminal groups map 1:1 to tmux sessions. The `TerminalGroup` type in `@coord-ui/shared` lets the launcher enumerate existing sessions and lets Graph3D label pane nodes by group.
+
+### Consequences
+
+**Positive:**
+
+- Eliminates the manual spawn ritual; one click provisions a fully configured, registered agent
+- `waitForPrompt` gates prevent timing bugs — each step only fires after the previous one is confirmed ready
+- Pane orphan cleanup: `killPane` is always called in the error path, preventing stale tmux panes
+- All preset fields reaching a shell are validated server-side (`launchCmd`, `skillInvocation`, `repoPath`, `lane`, `rooms`)
+
+**Negative:**
+
+- Provisioner depends on `capturePane` output matching hardcoded patterns (`SHELL_READY_MATCHER`, `AGENT_READY_MATCHER`) — model prompt changes could break detection
+- Spawn sequence is sequential and slow (~15–30 s end-to-end) — acceptable for manual use but not for bulk spawning
+- Transport-dir polling for registration is a filesystem side-channel; a proper bus `join` event would be cleaner
+
+### Alternatives Considered
+
+| Alternative                     | Pros                                  | Cons                                                                | Why Not                                                   |
+| ------------------------------- | ------------------------------------- | ------------------------------------------------------------------- | --------------------------------------------------------- |
+| Shell script per preset         | Simple, auditable                     | Still manual toil; no progress feedback; no UI integration          | Doesn't eliminate the ritual                              |
+| Direct PTY spawn (node-pty)     | Faster, more reliable ready detection | Complex lifecycle; no tmux session persistence after server restart | Requires Phase 5 work; tmux is already in place           |
+| MCP tool invocation from server | Clean abstraction                     | MCP server not available on the API process                         | MCP only attached to the Claude Code process, not the API |
+
+---
+
+## ADR-010: Local-Only Loopback Gate for Provisioning Endpoints
+
+**Status**: Accepted
+**Date**: 2026-06-10
+
+### Context
+
+The provisioning API (`POST/PUT/DELETE /api/agents/presets`, `spawn_agent`/`teardown_agent` WS messages) can execute shell commands on the host machine via tmux. Without access control, any process or browser tab that can reach the API server could spawn arbitrary agents or run crafted `skillInvocation` templates.
+
+Phase 6 is planned to add shared-secret token auth for networked deployments. For Phase 4 the API is local-only (run on the operator's laptop) and auth machinery adds complexity with no current benefit.
+
+### Decision
+
+Accept `spawn_agent`, `teardown_agent`, and preset-write operations only from connections whose remote IP is a loopback address (`127.0.0.1`, `::1`, `::ffff:127.0.0.1`, `localhost`). This check is enforced in two places:
+
+1. **HTTP** (`requireLoopback` middleware in `apps/api/src/routes/agents.ts`): rejects with 403 for non-loopback callers of `POST/PUT/DELETE /api/agents/presets`
+2. **WebSocket** (`apps/api/src/ws.ts`): `clientIsLoopback` flag set on connection; `spawn_agent` and `teardown_agent` messages from non-loopback clients receive an error `spawn_progress` response and are not processed
+
+Preset reads (`GET /api/agents/presets`) remain open — they are read-only and contain no credentials.
+
+### Consequences
+
+**Positive:**
+
+- Zero-config protection against accidental network exposure while keeping local UX smooth
+- The gate is trivially verifiable: same `isLoopback()` utility shared by HTTP and WS handlers
+- No token management or login flows needed for the expected single-operator local use case
+
+**Negative:**
+
+- Does not protect against attacks from other processes on the same machine (local privilege escalation)
+- Must be replaced before Phase 6 networking or the API is unsafe on any shared/networked machine
+- Vite dev proxy is also loopback (`localhost:3000`) so the loopback check passes transparently in dev — no environment-specific code needed, but this means the gate is not exercised in a meaningful way during development
+
+### Alternatives Considered
+
+| Alternative                           | Pros                                   | Cons                                                           | Why Not                                          |
+| ------------------------------------- | -------------------------------------- | -------------------------------------------------------------- | ------------------------------------------------ |
+| Shared-secret header token            | Protects against other local processes | Requires token distribution/storage; more complex client setup | Planned for Phase 6; premature for local-only v1 |
+| OS-level firewall (no app-level gate) | Simpler code                           | Not portable; not testable in unit tests                       | App-level check is simpler to test and document  |
+| No gate                               | No code                                | Any process on any machine can spawn agents                    | Unacceptable even for local-only dev             |
 
 ---
 

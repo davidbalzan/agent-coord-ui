@@ -24,4 +24,5 @@ export type {
   SpawnAgentRequest,
   SpawnStep,
   SpawnProgressEvent,
+  TerminalGroup,
 } from "./provisioner.js";

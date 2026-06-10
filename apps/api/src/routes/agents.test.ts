@@ -148,6 +148,57 @@ describe("POST /api/agents/presets", () => {
     expect(res.status).toBe(400);
   });
 
+  it("returns 400 for shell metacharacters in repoPath", async () => {
+    const res = await app.request(
+      "/api/agents/presets",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...VALID_PRESET,
+          repoPath: "/home/user/proj; rm -rf /",
+        }),
+      },
+      loopbackEnv()
+    );
+    expect(res.status).toBe(400);
+    expect(savePresetsMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 for shell metacharacters in lane", async () => {
+    const res = await app.request(
+      "/api/agents/presets",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...VALID_PRESET,
+          lane: "repo|owner",
+        }),
+      },
+      loopbackEnv()
+    );
+    expect(res.status).toBe(400);
+    expect(savePresetsMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 for shell metacharacters in rooms entry", async () => {
+    const res = await app.request(
+      "/api/agents/presets",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...VALID_PRESET,
+          rooms: ["general", "bad;room"],
+        }),
+      },
+      loopbackEnv()
+    );
+    expect(res.status).toBe(400);
+    expect(savePresetsMock).not.toHaveBeenCalled();
+  });
+
   it("returns 409 when preset id already exists", async () => {
     loadPresetsMock.mockResolvedValue([VALID_PRESET]);
     const res = await app.request(

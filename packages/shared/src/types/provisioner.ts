@@ -1,5 +1,15 @@
 export type AgentRole = "coordinator" | "worker";
 
+/** A named terminal group — maps 1:1 to a tmux session. */
+export interface TerminalGroup {
+  /** tmux session name */
+  id: string;
+  /** Human-readable label (defaults to session name) */
+  label: string;
+  /** pane IDs belonging to this session */
+  paneIds: string[];
+}
+
 export interface AgentPreset {
   id: string;
   label: string;

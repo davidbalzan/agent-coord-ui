@@ -223,6 +223,32 @@ describe("spawnAgent — failure paths", () => {
     expect(createPaneMock).not.toHaveBeenCalled();
     expect(killPaneMock).not.toHaveBeenCalled();
   });
+
+  it("kills the pane (no orphan) when failure occurs at joining step", async () => {
+    // Pane is created + shell + launch all succeed, but the skill invocation
+    // readiness check times out — simulates a failure mid-sequence after the
+    // pane is already alive (the most common orphan-producing path).
+    readFileMock.mockRejectedValue(
+      Object.assign(new Error("ENOENT"), { code: "ENOENT" })
+    );
+    createPaneMock.mockResolvedValue("%9");
+    waitForPromptMock
+      .mockResolvedValueOnce({ ready: true, tail: ["$ "] }) // shell ready
+      .mockResolvedValueOnce({ ready: true, tail: ["Human:"] }) // after launch
+      .mockResolvedValueOnce({ ready: true, tail: ["Human:"] }) // after /model
+      .mockResolvedValue({ ready: false, tail: [] }); // skill invocation hangs
+
+    const { emit, events } = collectEmit();
+    await expect(spawnAgent(PRESET, REQ, emit)).rejects.toThrow(
+      "Agent not ready after skill invocation"
+    );
+    // Pane must be killed to prevent orphan
+    expect(killPaneMock).toHaveBeenCalledWith("%9");
+    // Error step must be emitted with the pane id so the UI can report it
+    const errorEvent = events.find((e) => e.step === "error");
+    expect(errorEvent).toBeDefined();
+    expect(errorEvent?.paneId).toBe("%9");
+  });
 });
 
 describe("teardownAgent", () => {
