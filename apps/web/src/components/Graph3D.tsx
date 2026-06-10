@@ -40,6 +40,11 @@ const SPEED_BASE = 0.004;
 const SPEED_BOOST = 0.04;
 const SPEED_DECAY = 0.15;
 
+// How long an agent stays lit "active" green after a message (the agent "blink").
+const RECENT_MSG_MS = 10_000;
+// How long a message edge shows flowing directional particles (the chat "blink").
+const EDGE_ACTIVE_MS = 8_000;
+
 function linkKey(msg: MessageSnapshot): string {
   return msg.isDM
     ? `dm:${[msg.from, msg.to].sort().join(":")}`
@@ -260,8 +265,8 @@ export function Graph3D() {
     for (const [id, setColor] of colorSetters.current) {
       const agent = agentsMapRef.current[id];
       if (!agent) continue;
-      // Treat recent message activity (≤60 s) as active regardless of status
-      const recentMessage = (lastMsgAt.get(id) ?? 0) > now - 60_000;
+      // Treat recent message activity as active regardless of status
+      const recentMessage = (lastMsgAt.get(id) ?? 0) > now - RECENT_MSG_MS;
       const effectiveStatus = recentMessage ? "active" : agent.status;
       const hex = STATUS_GLOW[effectiveStatus] ?? STATUS_GLOW["unknown"]!;
       setColor(hex, effectiveStatus === "stale");
@@ -744,7 +749,7 @@ export function Graph3D() {
         if (link.kind === "pane-agent") return 1;
         const key = graphLinkKey(link);
         const lastTs = lastMsgTimeRef.current.get(key);
-        const isActive = !!lastTs && Date.now() - lastTs < 30_000;
+        const isActive = !!lastTs && Date.now() - lastTs < EDGE_ACTIVE_MS;
         if (link.kind === "dm") return isActive ? 6 : 0;
         return isActive ? 4 : 0;
       })
