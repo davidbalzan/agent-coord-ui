@@ -4,6 +4,7 @@ import type {
   RoomSnapshot,
   MessageSnapshot,
   PaneSnapshot,
+  AgentPreset,
 } from "@coord-ui/shared";
 import { busSocket } from "../lib/ws.js";
 
@@ -12,6 +13,14 @@ export type SelectionKind = "agent" | "room" | "dm-edge" | "pane";
 export interface Selection {
   kind: SelectionKind;
   id: string; // agentId, roomId, or "agentA:agentB"
+}
+
+export interface SpawnProgressRecord {
+  agentId: string;
+  step: string;
+  paneId?: string;
+  message?: string;
+  error?: string;
 }
 
 interface BusState {
@@ -25,6 +34,8 @@ interface BusState {
   nameFilter: string;
   hoveredAgentId: string | null;
   sidePanelWidth: number; // 0 when closed
+  presets: AgentPreset[];
+  spawnProgress: Record<string, SpawnProgressRecord>; // keyed by agentId
   setSelection: (s: Selection | null) => void;
   setPaneSelection: (id: string | null) => void;
   setNameFilter: (f: string) => void;
@@ -33,6 +44,15 @@ interface BusState {
   sendMessage: (to: string, body: string, isDM: boolean) => void;
   sendPaneKeys: (paneId: string, keys: string) => void;
   requestPaneOutput: (paneId: string) => void;
+  fetchPresets: () => Promise<void>;
+  spawnAgent: (
+    presetId: string,
+    agentId: string,
+    paneKind?: string,
+    paneTarget?: string
+  ) => void;
+  teardownAgent: (agentId: string, paneId: string) => void;
+  clearSpawnProgress: (agentId: string) => void;
 }
 
 export const useBusStore = create<BusState>((set) => {
@@ -96,6 +116,20 @@ export const useBusStore = create<BusState>((set) => {
           paneAnsi: { ...s.paneAnsi, [event.paneId]: event.ansi },
         }));
         break;
+      case "spawn_progress":
+        set((s) => ({
+          spawnProgress: {
+            ...s.spawnProgress,
+            [event.agentId]: {
+              agentId: event.agentId,
+              step: event.step,
+              paneId: event.paneId,
+              message: event.message,
+              error: event.error,
+            },
+          },
+        }));
+        break;
     }
   });
 
@@ -112,6 +146,8 @@ export const useBusStore = create<BusState>((set) => {
     nameFilter: "",
     hoveredAgentId: null,
     sidePanelWidth: 0,
+    presets: [],
+    spawnProgress: {},
     setSelection: (selection) => set({ selection }),
     setPaneSelection: (paneSelection) => set({ paneSelection }),
     setNameFilter: (nameFilter) => set({ nameFilter }),
@@ -125,6 +161,32 @@ export const useBusStore = create<BusState>((set) => {
     },
     requestPaneOutput: (paneId) => {
       busSocket.send({ type: "pane_request_output", paneId });
+    },
+    fetchPresets: async () => {
+      const res = await fetch("/api/agents/presets");
+      if (res.ok) {
+        const data = (await res.json()) as AgentPreset[];
+        set({ presets: data });
+      }
+    },
+    spawnAgent: (presetId, agentId, paneKind, paneTarget) => {
+      busSocket.send({
+        type: "spawn_agent",
+        presetId,
+        agentId,
+        paneKind,
+        paneTarget,
+      });
+    },
+    teardownAgent: (agentId, paneId) => {
+      busSocket.send({ type: "teardown_agent", agentId, paneId });
+    },
+    clearSpawnProgress: (agentId) => {
+      set((s) => {
+        const spawnProgress = { ...s.spawnProgress };
+        delete spawnProgress[agentId];
+        return { spawnProgress };
+      });
     },
   };
 });

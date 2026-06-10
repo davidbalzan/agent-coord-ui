@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { useBusStore } from "../store/bus.js";
+import { AgentLauncher } from "./AgentLauncher.js";
 
 export function HUD() {
   const agentsMap = useBusStore((s) => s.agents);
@@ -14,6 +15,7 @@ export function HUD() {
   const total = agents.length || 1;
 
   const [open, setOpen] = useState(false);
+  const [launcherOpen, setLauncherOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
 
   const suggestions = nameFilter.trim()
@@ -307,23 +309,42 @@ export function HUD() {
           </div>
         </div>
 
-        {/* Right side hint */}
-        <div
-          className="ml-auto flex items-center gap-3 flex-shrink-0"
-          style={{
-            fontFamily: "Share Tech Mono",
-            fontSize: "10px",
-            color: "rgba(0,212,255,0.3)",
-            letterSpacing: "0.08em",
-          }}
-        >
-          <span>
-            SYS: <span style={{ color: "#00ff88" }}>NOMINAL</span>
-          </span>
-          <span style={{ color: "rgba(0,212,255,0.15)" }}>|</span>
-          <span>CLICK · SELECT &nbsp; DBL-CLICK · FOCUS</span>
+        {/* Right side: launch button + sys hint */}
+        <div className="ml-auto flex items-center gap-3 flex-shrink-0">
+          <button
+            className="holo-btn"
+            style={{
+              fontSize: "9px",
+              padding: "3px 10px",
+              background: launcherOpen ? "rgba(0,212,255,0.2)" : undefined,
+              boxShadow: launcherOpen
+                ? "0 0 12px rgba(0,212,255,0.4)"
+                : undefined,
+            }}
+            onClick={() => setLauncherOpen((v) => !v)}
+          >
+            ▶ LAUNCH
+          </button>
+          <div
+            style={{
+              fontFamily: "Share Tech Mono",
+              fontSize: "10px",
+              color: "rgba(0,212,255,0.3)",
+              letterSpacing: "0.08em",
+            }}
+          >
+            <span>
+              SYS: <span style={{ color: "#00ff88" }}>NOMINAL</span>
+            </span>
+            <span style={{ color: "rgba(0,212,255,0.15)", margin: "0 6px" }}>
+              |
+            </span>
+            <span>CLICK · SELECT &nbsp; DBL-CLICK · FOCUS</span>
+          </div>
         </div>
       </div>
+
+      {launcherOpen && <AgentLauncher onClose={() => setLauncherOpen(false)} />}
     </header>
   );
 }
