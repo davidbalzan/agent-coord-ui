@@ -1,7 +1,6 @@
 ---
 name: distill
 description: Convert a learning into a formal ADR in the current project
-disable-model-invocation: true
 argument-hint: "[category] or <learning text>"
 ---
 

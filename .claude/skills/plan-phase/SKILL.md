@@ -1,7 +1,6 @@
 ---
 name: plan-phase
 description: Generate a new phase task document using the project template
-disable-model-invocation: true
 argument-hint: "<phase number> <phase name>"
 ---
 

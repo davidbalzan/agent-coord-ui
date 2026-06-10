@@ -1,7 +1,6 @@
 ---
 name: check-task
 description: Mark a task as complete in the phase tasks file and update progress
-disable-model-invocation: true
 argument-hint: "<task number or description>"
 ---
 
@@ -21,6 +20,7 @@ Mark tasks as complete in phase task files and update progress metrics.
 ## Task Identification
 
 The user may specify a task by:
+
 - Task number (e.g., "1.3" for Task 1, sub-step 3)
 - Task description (e.g., "implement auth middleware")
 - Partial match (fuzzy search for the task)
@@ -29,7 +29,7 @@ The user may specify a task by:
 
 ```markdown
 Before: - [ ] Implement user authentication
-After:  - [x] Implement user authentication
+After: - [x] Implement user authentication
 ```
 
 ## Progress Section Update
@@ -41,10 +41,10 @@ If the file has a progress tracking section, update the metrics:
 
 **Overall Progress**: X/Y tasks (Z%)
 
-| Task | Status | Completion |
-|------|--------|------------|
-| Task 1 | ✅ Complete | 100% |
-| Task 2 | 🚧 In Progress | 60% |
+| Task   | Status         | Completion |
+| ------ | -------------- | ---------- |
+| Task 1 | ✅ Complete    | 100%       |
+| Task 2 | 🚧 In Progress | 60%        |
 ```
 
 ## Cascade Updates
@@ -59,6 +59,7 @@ After marking a task complete:
 ## Output
 
 Confirm:
+
 - Which task was marked complete
 - Updated progress percentage
 - Remaining tasks in current group

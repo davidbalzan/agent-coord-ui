@@ -1,7 +1,6 @@
 ---
 name: create-prd
 description: Generate a comprehensive Product Requirements Document through guided discovery
-disable-model-invocation: true
 argument-hint: "<product name or idea>"
 ---
 

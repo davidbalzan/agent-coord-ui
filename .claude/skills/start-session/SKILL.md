@@ -1,7 +1,6 @@
 ---
 name: start-session
 description: Load project context from Agent Coord UI docs at the start of a session
-disable-model-invocation: true
 argument-hint: "[optional: specific area to focus on]"
 allowed-tools: Read, Glob, Grep
 ---
@@ -69,6 +68,7 @@ If the user provided $ARGUMENTS, focus the summary on that specific area.
 ## Decision Relevance
 
 When surfacing decisions:
+
 - Show ADRs from the last 30 days
 - Highlight any decisions related to the current phase
 - Note any "Proposed" decisions awaiting confirmation

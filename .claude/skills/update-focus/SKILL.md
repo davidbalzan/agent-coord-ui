@@ -1,7 +1,6 @@
 ---
 name: update-focus
 description: Update the Current Focus section in docs/CURRENT_FOCUS.md with session progress
-disable-model-invocation: true
 argument-hint: "[summary of what was accomplished]"
 ---
 

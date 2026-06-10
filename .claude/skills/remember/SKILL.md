@@ -1,7 +1,6 @@
 ---
 name: remember
 description: Capture and persist learnings globally across all projects
-disable-model-invocation: true
 argument-hint: "[category:] <learning>"
 ---
 

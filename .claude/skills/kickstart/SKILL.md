@@ -1,7 +1,6 @@
 ---
 name: kickstart
 description: Initialize a new project with Agent Coord UI documentation structure
-disable-model-invocation: true
 argument-hint: "<project name>"
 ---
 

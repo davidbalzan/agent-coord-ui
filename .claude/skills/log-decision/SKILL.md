@@ -1,7 +1,6 @@
 ---
 name: log-decision
 description: Create an Architectural Decision Record in DECISIONS.md
-disable-model-invocation: true
 argument-hint: "<decision title>"
 ---
 

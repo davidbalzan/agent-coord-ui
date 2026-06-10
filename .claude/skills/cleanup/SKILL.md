@@ -1,7 +1,6 @@
 ---
 name: cleanup
 description: Reset project to clean template state while preserving essential structure
-disable-model-invocation: true
 argument-hint: "[--dry-run] [--keep-decisions]"
 ---
 

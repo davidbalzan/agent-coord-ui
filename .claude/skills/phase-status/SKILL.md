@@ -1,7 +1,6 @@
 ---
 name: phase-status
 description: Show current phase progress with completion percentages
-disable-model-invocation: true
 argument-hint: "[phase number, or leave blank for current]"
 allowed-tools: Read, Glob, Grep
 ---
@@ -33,25 +32,29 @@ Display comprehensive status for a project phase.
 
 ### Task Breakdown
 
-| # | Task | Status | Progress |
-|---|------|--------|----------|
-| 1 | [Task name] | ✅ Complete | 100% |
-| 2 | [Task name] | 🚧 In Progress | 3/5 sub-tasks |
-| 3 | [Task name] | ⏳ Not Started | 0% |
+| #   | Task        | Status         | Progress      |
+| --- | ----------- | -------------- | ------------- |
+| 1   | [Task name] | ✅ Complete    | 100%          |
+| 2   | [Task name] | 🚧 In Progress | 3/5 sub-tasks |
+| 3   | [Task name] | ⏳ Not Started | 0%            |
 
 ### Key Deliverables
+
 - [x] Deliverable 1
 - [ ] Deliverable 2
 
 ### Success Criteria Status
+
 - ✅ Criterion 1 met
 - 🚧 Criterion 2 partially met
 - ⏳ Criterion 3 not yet addressed
 
 ### Blockers & Risks
+
 - [Any identified blockers]
 
 ### Estimated Remaining Work
+
 - [X tasks remaining]
 - [Key dependencies]
 ```
@@ -59,6 +62,7 @@ Display comprehensive status for a project phase.
 ## Progress Bar Generation
 
 Use block characters for visual progress:
+
 - Full: █
 - Empty: ░
 
