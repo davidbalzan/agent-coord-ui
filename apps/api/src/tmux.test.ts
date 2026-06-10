@@ -51,7 +51,14 @@ vi.mock("./logger.js", () => ({
 
 // ─── Import after mocks ───────────────────────────────────────────────────────
 
-const { TmuxWatcher } = await import("./tmux.js");
+const {
+  TmuxWatcher,
+  createPane,
+  killPane,
+  waitForPrompt,
+  SHELL_READY_MATCHER,
+  AGENT_READY_MATCHER,
+} = await import("./tmux.js");
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -319,5 +326,210 @@ describe("TmuxWatcher — matchAgent strategies", () => {
     expect(
       (events[0] as Extract<BusEvent, { type: "pane_update" }>).pane.agentId
     ).toBe("agent-q");
+  });
+});
+
+// ─── createPane / killPane ────────────────────────────────────────────────────
+
+describe("createPane", () => {
+  beforeEach(() => {
+    readdirFiles = [];
+    readFileContents.clear();
+  });
+
+  it("split-window: issues correct command and returns pane id", async () => {
+    const issuedCmds: string[] = [];
+    execImpl = (cmd) => {
+      issuedCmds.push(cmd);
+      if (cmd.includes("split-window")) return "%7\n";
+      if (cmd.includes("tmux -V")) return "tmux 3.3a\n";
+      return "";
+    };
+    const id = await createPane({ kind: "split-window", target: "main:0.0" });
+    expect(id).toBe("%7");
+    expect(issuedCmds.some((c) => c.includes("split-window"))).toBe(true);
+    expect(issuedCmds.some((c) => c.includes("-t 'main:0.0'"))).toBe(true);
+    expect(issuedCmds.some((c) => c.includes("-P -F '#{pane_id}'"))).toBe(true);
+  });
+
+  it("new-window: issues tmux new-window command", async () => {
+    const issuedCmds: string[] = [];
+    execImpl = (cmd) => {
+      issuedCmds.push(cmd);
+      return cmd.includes("new-window") ? "%8\n" : "";
+    };
+    const id = await createPane({
+      kind: "new-window",
+      target: "main",
+      cwd: "/home/user/project",
+    });
+    expect(id).toBe("%8");
+    expect(issuedCmds.some((c) => c.includes("new-window"))).toBe(true);
+    expect(issuedCmds.some((c) => c.includes("-c '/home/user/project'"))).toBe(
+      true
+    );
+  });
+
+  it("new-session: issues tmux new-session -d command", async () => {
+    const issuedCmds: string[] = [];
+    execImpl = (cmd) => {
+      issuedCmds.push(cmd);
+      return cmd.includes("new-session") ? "%9\n" : "";
+    };
+    const id = await createPane({ kind: "new-session" });
+    expect(id).toBe("%9");
+    expect(
+      issuedCmds.some((c) => c.includes("new-session") && c.includes("-d"))
+    ).toBe(true);
+  });
+
+  it("escapes single quotes in target to prevent injection", async () => {
+    const issuedCmds: string[] = [];
+    execImpl = (cmd) => {
+      issuedCmds.push(cmd);
+      return cmd.includes("split-window") ? "%10\n" : "";
+    };
+    await createPane({ kind: "split-window", target: "bad'session:0.0" });
+    // The single quote in target must be escaped as '\''
+    expect(issuedCmds.some((c) => c.includes("bad'\\''session"))).toBe(true);
+  });
+
+  it("escapes single quotes in cwd to prevent injection", async () => {
+    const issuedCmds: string[] = [];
+    execImpl = (cmd) => {
+      issuedCmds.push(cmd);
+      return cmd.includes("split-window") ? "%11\n" : "";
+    };
+    await createPane({ kind: "split-window", cwd: "/path/with'quote" });
+    expect(issuedCmds.some((c) => c.includes("/path/with'\\''quote"))).toBe(
+      true
+    );
+  });
+
+  it("throws when tmux returns empty pane id", async () => {
+    execImpl = () => ""; // stdout is blank
+    await expect(createPane({ kind: "split-window" })).rejects.toThrow(
+      "empty pane id"
+    );
+  });
+});
+
+describe("killPane", () => {
+  it("issues tmux kill-pane -t with the pane id", async () => {
+    const issuedCmds: string[] = [];
+    execImpl = (cmd) => {
+      issuedCmds.push(cmd);
+      return "";
+    };
+    await killPane("main:0.1");
+    expect(
+      issuedCmds.some(
+        (c) => c.includes("kill-pane") && c.includes("'main:0.1'")
+      )
+    ).toBe(true);
+  });
+
+  it("escapes single quotes in pane id", async () => {
+    const issuedCmds: string[] = [];
+    execImpl = (cmd) => {
+      issuedCmds.push(cmd);
+      return "";
+    };
+    await killPane("bad'pane");
+    expect(issuedCmds.some((c) => c.includes("bad'\\''pane"))).toBe(true);
+  });
+});
+
+// ─── waitForPrompt ────────────────────────────────────────────────────────────
+
+describe("waitForPrompt", () => {
+  it("returns ready=true immediately when matcher matches first capture", async () => {
+    execImpl = (cmd) => {
+      if (cmd.includes("capture-pane")) return "user@host:~$ \n";
+      return "";
+    };
+    const result = await waitForPrompt("%5", SHELL_READY_MATCHER, {
+      timeoutMs: 1000,
+      intervalMs: 1,
+    });
+    expect(result.ready).toBe(true);
+    expect(result.tail.length).toBeGreaterThan(0);
+  });
+
+  it("polls until matcher succeeds then returns ready=true", async () => {
+    let calls = 0;
+    execImpl = (cmd) => {
+      if (cmd.includes("capture-pane")) {
+        calls++;
+        return calls >= 3 ? "❯ \n" : "loading...\n";
+      }
+      return "";
+    };
+    const result = await waitForPrompt("%5", SHELL_READY_MATCHER, {
+      timeoutMs: 2000,
+      intervalMs: 1,
+    });
+    expect(result.ready).toBe(true);
+    expect(calls).toBeGreaterThanOrEqual(3);
+  });
+
+  it("returns ready=false with last tail when timeout elapses", async () => {
+    execImpl = (cmd) => {
+      if (cmd.includes("capture-pane")) return "still booting...\n";
+      return "";
+    };
+    const result = await waitForPrompt("%5", SHELL_READY_MATCHER, {
+      timeoutMs: 10,
+      intervalMs: 1,
+    });
+    expect(result.ready).toBe(false);
+    expect(result.tail).toContain("still booting...");
+  });
+
+  it("never throws on timeout", async () => {
+    execImpl = () => ""; // capture-pane returns empty — no match ever
+    await expect(
+      waitForPrompt("%5", SHELL_READY_MATCHER, { timeoutMs: 5, intervalMs: 1 })
+    ).resolves.toMatchObject({ ready: false });
+  });
+});
+
+// ─── Built-in matchers ────────────────────────────────────────────────────────
+
+describe("SHELL_READY_MATCHER", () => {
+  it("matches $ at end of line", () => {
+    expect(SHELL_READY_MATCHER(["user@host:~$ "])).toBe(true);
+  });
+
+  it("matches % at end of line", () => {
+    expect(SHELL_READY_MATCHER(["zsh% "])).toBe(true);
+  });
+
+  it("matches ❯ at end of line", () => {
+    expect(SHELL_READY_MATCHER(["❯ "])).toBe(true);
+  });
+
+  it("does not match mid-line prompt characters", () => {
+    expect(SHELL_READY_MATCHER(["echo $HOME"])).toBe(false);
+  });
+});
+
+describe("AGENT_READY_MATCHER", () => {
+  it("matches 'Human:' banner line", () => {
+    expect(AGENT_READY_MATCHER(["╭── Human: ──╮"])).toBe(true);
+  });
+
+  it("matches 'Esc to interrupt' hint", () => {
+    expect(AGENT_READY_MATCHER(["Esc to interrupt"])).toBe(true);
+  });
+
+  it("matches '✻ Initializ' startup line", () => {
+    expect(AGENT_READY_MATCHER(["✻ Initializing..."])).toBe(true);
+  });
+
+  it("does not match unrelated output", () => {
+    expect(AGENT_READY_MATCHER(["npm install", "added 42 packages"])).toBe(
+      false
+    );
   });
 });
