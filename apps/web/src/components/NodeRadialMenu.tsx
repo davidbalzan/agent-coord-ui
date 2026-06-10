@@ -18,7 +18,7 @@ interface ScreenPos {
 // Geometry — INNER_R must contain the rendered 3D node sphere on screen
 const INNER_R = 50; // hole radius around node
 const OUTER_R = 145; // outer edge — must be large vs INNER_R to look like petals not ring
-const GAP_DEG = 10; // angular gap between sectors
+const GAP_DEG = 16; // wider gaps → true petal separation
 const PAD = 18; // extra space around wheel
 const HALF = OUTER_R + PAD;
 const SIZE = HALF * 2;
@@ -237,23 +237,17 @@ export function NodeRadialMenu({
          * inset: PAD aligns this div exactly with the outer SVG circle.
          */}
         {/*
-         * Donut-shaped glass backdrop — mask cuts transparent hole so the
-         * Three.js node sphere shows through the center unobstructed.
-         * backdrop-filter only works on HTML elements, not SVG.
+         * Very faint outer glow ring — no solid background so sector gaps
+         * show the live 3D graph scene (true hollow petal separation).
+         * Each sector carries its own fill opacity instead.
          */}
         <div
           style={{
             position: "absolute",
             inset: PAD,
             borderRadius: "50%",
-            backdropFilter: "blur(18px)",
-            WebkitBackdropFilter: "blur(18px)",
-            background: "rgba(4,10,28,0.62)",
-            border: `1px solid rgba(${accentRgb},0.18)`,
-            boxShadow: `0 0 40px rgba(${accentRgb},0.08), inset 0 0 20px rgba(0,0,0,0.4)`,
-            // punch transparent hole: INNER_R px from center of this div
-            mask: `radial-gradient(circle at center, transparent ${INNER_R}px, black ${INNER_R + 1}px)`,
-            WebkitMask: `radial-gradient(circle at center, transparent ${INNER_R}px, black ${INNER_R + 1}px)`,
+            boxShadow: `0 0 60px rgba(${accentRgb},0.12)`,
+            pointerEvents: "none",
           }}
         />
 
@@ -268,8 +262,8 @@ export function NodeRadialMenu({
             const hovered = hoveredIdx === i;
             const destr = !!sector.destructive;
             const rgb = destr ? "255,70,70" : accentRgb;
-            const fillOpacity = hovered ? 0.22 : 0.06;
-            const strokeOpacity = hovered ? 0.7 : 0.22;
+            const fillOpacity = hovered ? 0.45 : 0.22;
+            const strokeOpacity = hovered ? 0.95 : 0.55;
             const path = sectorPath(
               HALF,
               HALF,
@@ -306,17 +300,17 @@ export function NodeRadialMenu({
                   d={path}
                   fill={`rgba(${rgb},${fillOpacity})`}
                   stroke={`rgba(${rgb},${strokeOpacity})`}
-                  strokeWidth={hovered ? 1.5 : 0.8}
+                  strokeWidth={hovered ? 2 : 1.2}
                   style={{ transition: "fill 0.15s, stroke 0.15s" }}
                 />
                 {/* Icon */}
                 <text
                   x={center.x}
-                  y={center.y - (lines.length > 1 ? 11 : 6)}
+                  y={center.y - (lines.length > 1 ? 15 : 7)}
                   textAnchor="middle"
                   dominantBaseline="middle"
-                  fontSize="15"
-                  fill={`rgba(${rgb},${hovered ? 1 : 0.65})`}
+                  fontSize="20"
+                  fill={`rgba(${rgb},${hovered ? 1 : 0.75})`}
                   fontFamily="Share Tech Mono, monospace"
                   style={{
                     pointerEvents: "none",
@@ -331,12 +325,12 @@ export function NodeRadialMenu({
                   <text
                     key={li}
                     x={center.x}
-                    y={center.y + 4 + li * 10}
+                    y={center.y + 8 + li * 13}
                     textAnchor="middle"
                     dominantBaseline="middle"
-                    fontSize="7.5"
+                    fontSize="10"
                     letterSpacing="0.1em"
-                    fill={`rgba(${rgb},${hovered ? 0.95 : 0.5})`}
+                    fill={`rgba(${rgb},${hovered ? 1 : 0.65})`}
                     fontFamily="Share Tech Mono, monospace"
                     style={{
                       pointerEvents: "none",
