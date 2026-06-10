@@ -849,7 +849,7 @@ export function Graph3D() {
             pos: { x: cam.position.x, y: cam.position.y, z: cam.position.z },
             target: { x: ctrl.target.x, y: ctrl.target.y, z: ctrl.target.z },
           };
-          const dist = 60;
+          const dist = 120;
           const nx = node.x ?? 0,
             ny = node.y ?? 0,
             nz = node.z ?? 0;
