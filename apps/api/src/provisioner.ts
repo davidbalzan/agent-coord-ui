@@ -82,7 +82,7 @@ export async function spawnAgent(
   emit: Emit,
   opts: { timeoutMs?: number; registrationTimeoutMs?: number } = {}
 ): Promise<{ paneId: string }> {
-  const { timeoutMs = 30_000, registrationTimeoutMs = 15_000 } = opts;
+  const { timeoutMs = 30_000, registrationTimeoutMs = 90_000 } = opts;
   const { agentId, paneKind = "split-window", paneTarget } = req;
 
   // 3.5 — name collision check
@@ -122,13 +122,17 @@ export async function spawnAgent(
     }
     await sendKeys(paneId, `/model ${preset.model}\n`);
 
-    // Wait for agent to finish /model switch
+    // Wait for agent to finish /model switch.
+    // After /model, AGENT_READY_MATCHER can fire on stale separator lines before
+    // the TUI finishes re-rendering. A brief settle sleep prevents the skill from
+    // being sent into a mid-transition TUI that silently discards keyboard input.
     const agentReady2 = await waitForPrompt(paneId, AGENT_READY_MATCHER, {
       timeoutMs: 15_000,
     });
     if (!agentReady2.ready) {
       throw new Error(`Agent not ready after /model in pane ${paneId}`);
     }
+    await sleep(1_500);
 
     // Send skill invocation
     progress(emit, agentId, "joining", { paneId });
@@ -141,17 +145,12 @@ export async function spawnAgent(
     const skillCmd = resolveTemplate(preset.skillInvocation, templateVars);
     await sendKeys(paneId, skillCmd + "\n");
 
-    // Wait for skill to initialise
-    const agentReady3 = await waitForPrompt(paneId, AGENT_READY_MATCHER, {
-      timeoutMs,
-    });
-    if (!agentReady3.ready) {
-      throw new Error(
-        `Agent not ready after skill invocation in pane ${paneId}`
-      );
-    }
-
-    // Poll transport dir for coord-bus registration
+    // Poll transport dir for coord-bus registration.
+    // We do NOT wait for AGENT_READY_MATCHER here — the input-box pattern is
+    // unreliable while the skill startup is in progress (stale-capture false
+    // positives, plus the skill itself may take 30–90 s to complete all its
+    // MCP join/join_room/post_status calls).  The transport file is the
+    // authoritative "registered" signal.
     progress(emit, agentId, "confirming", { paneId });
     const registered = await waitForRegistration(
       agentId,
@@ -159,7 +158,7 @@ export async function spawnAgent(
     );
     if (!registered) {
       throw new Error(
-        `Agent "${agentId}" did not appear in transport dir within 15 s`
+        `Agent "${agentId}" did not register within ${registrationTimeoutMs / 1000} s`
       );
     }
 

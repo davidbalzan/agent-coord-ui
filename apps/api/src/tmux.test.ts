@@ -383,6 +383,21 @@ describe("createPane", () => {
     ).toBe(true);
   });
 
+  it("new-session with target: passes -s <name> flag", async () => {
+    const issuedCmds: string[] = [];
+    execImpl = (cmd) => {
+      issuedCmds.push(cmd);
+      return cmd.includes("new-session") ? "%10\n" : "";
+    };
+    const id = await createPane({ kind: "new-session", target: "my-agents" });
+    expect(id).toBe("%10");
+    expect(
+      issuedCmds.some(
+        (c) => c.includes("new-session") && c.includes("-s 'my-agents'")
+      )
+    ).toBe(true);
+  });
+
   it("escapes single quotes in target to prevent injection", async () => {
     const issuedCmds: string[] = [];
     execImpl = (cmd) => {
@@ -509,6 +524,14 @@ describe("SHELL_READY_MATCHER", () => {
     expect(SHELL_READY_MATCHER(["❯ "])).toBe(true);
   });
 
+  it("matches ➜ (U+279C, Powerlevel10k zsh prompt) at end of line", () => {
+    expect(SHELL_READY_MATCHER(["🕐 10:22:37➜"])).toBe(true);
+  });
+
+  it("matches ➜ with trailing space", () => {
+    expect(SHELL_READY_MATCHER(["🕐 10:22:37➜ "])).toBe(true);
+  });
+
   it("does not match mid-line prompt characters", () => {
     expect(SHELL_READY_MATCHER(["echo $HOME"])).toBe(false);
   });
@@ -525,6 +548,26 @@ describe("AGENT_READY_MATCHER", () => {
 
   it("matches '✻ Initializ' startup line", () => {
     expect(AGENT_READY_MATCHER(["✻ Initializing..."])).toBe(true);
+  });
+
+  it("matches long ─ box-drawing line (Claude Code ≥2.1 input box border)", () => {
+    expect(
+      AGENT_READY_MATCHER([
+        "────────────────────────────────────────────────────────────────────────────────",
+      ])
+    ).toBe(true);
+  });
+
+  it("matches ⏵⏵ bypass-permissions footer (Claude Code ≥2.1)", () => {
+    expect(
+      AGENT_READY_MATCHER([
+        "  ⏵⏵ bypass permissions on (shift+tab to cycle) · ← for agents",
+      ])
+    ).toBe(true);
+  });
+
+  it("matches 'bypass permissions' text (Claude Code ≥2.1 footer variant)", () => {
+    expect(AGENT_READY_MATCHER(["bypass permissions on"])).toBe(true);
   });
 
   it("does not match unrelated output", () => {

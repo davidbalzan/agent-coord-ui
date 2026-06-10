@@ -80,12 +80,12 @@ function mockHappyPath() {
     Object.assign(new Error("ENOENT"), { code: "ENOENT" })
   );
   createPaneMock.mockResolvedValue("%7");
-  // Shell ready, then agent ready ×3, then transport confirms registration
+  // Shell ready, then agent ready ×2 (after launch + after /model)
   waitForPromptMock
     .mockResolvedValueOnce({ ready: true, tail: ["$ "] }) // shell
     .mockResolvedValueOnce({ ready: true, tail: ["Human:"] }) // after launch
-    .mockResolvedValueOnce({ ready: true, tail: ["Human:"] }) // after /model
-    .mockResolvedValueOnce({ ready: true, tail: ["Human:"] }); // after skill
+    .mockResolvedValueOnce({ ready: true, tail: ["Human:"] }); // after /model
+  // No waitForPrompt after skill — provisioner goes straight to transport poll
   // Registration poll: first call still ENOENT, second returns transport JSON
   readFileMock
     .mockRejectedValueOnce(
@@ -207,7 +207,7 @@ describe("spawnAgent — failure paths", () => {
     const { emit, events } = collectEmit();
     await expect(
       spawnAgent(PRESET, REQ, emit, { registrationTimeoutMs: 200 })
-    ).rejects.toThrow("did not appear in transport dir");
+    ).rejects.toThrow("did not register within");
     expect(events.find((e) => e.step === "error")).toBeDefined();
     expect(killPaneMock).toHaveBeenCalledWith("%7");
   });
@@ -224,10 +224,10 @@ describe("spawnAgent — failure paths", () => {
     expect(killPaneMock).not.toHaveBeenCalled();
   });
 
-  it("kills the pane (no orphan) when failure occurs at joining step", async () => {
-    // Pane is created + shell + launch all succeed, but the skill invocation
-    // readiness check times out — simulates a failure mid-sequence after the
-    // pane is already alive (the most common orphan-producing path).
+  it("kills the pane (no orphan) when registration times out after skill invocation", async () => {
+    // Pane created + shell + launch + /model all succeed, skill is sent,
+    // but the agent never writes its transport file (e.g. skill fails, MCP
+    // unreachable).  Provisioner must kill the pane so no orphan is left.
     readFileMock.mockRejectedValue(
       Object.assign(new Error("ENOENT"), { code: "ENOENT" })
     );
@@ -235,13 +235,12 @@ describe("spawnAgent — failure paths", () => {
     waitForPromptMock
       .mockResolvedValueOnce({ ready: true, tail: ["$ "] }) // shell ready
       .mockResolvedValueOnce({ ready: true, tail: ["Human:"] }) // after launch
-      .mockResolvedValueOnce({ ready: true, tail: ["Human:"] }) // after /model
-      .mockResolvedValue({ ready: false, tail: [] }); // skill invocation hangs
+      .mockResolvedValueOnce({ ready: true, tail: ["Human:"] }); // after /model
 
     const { emit, events } = collectEmit();
-    await expect(spawnAgent(PRESET, REQ, emit)).rejects.toThrow(
-      "Agent not ready after skill invocation"
-    );
+    await expect(
+      spawnAgent(PRESET, REQ, emit, { registrationTimeoutMs: 100 })
+    ).rejects.toThrow("did not register within");
     // Pane must be killed to prevent orphan
     expect(killPaneMock).toHaveBeenCalledWith("%9");
     // Error step must be emitted with the pane id so the UI can report it

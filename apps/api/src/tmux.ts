@@ -215,8 +215,9 @@ export async function createPane(opts: CreatePaneOpts): Promise<string> {
     const targetFlag = target ? ` -t '${shellEscape(target)}'` : "";
     cmd = `tmux new-window${targetFlag}${cwdFlag} -P -F '#{pane_id}'`;
   } else {
-    // new-session: -d so it starts detached; target is unused for new-session
-    cmd = `tmux new-session -d${cwdFlag} -P -F '#{pane_id}'`;
+    // new-session: -d so it starts detached; target used as session name (-s)
+    const sessionFlag = target ? ` -s '${shellEscape(target)}'` : "";
+    cmd = `tmux new-session -d${sessionFlag}${cwdFlag} -P -F '#{pane_id}'`;
   }
   const { stdout } = await execAsync(cmd);
   const paneId = stdout.trim();
@@ -233,14 +234,28 @@ export async function killPane(paneId: string): Promise<void> {
 
 export type PromptMatcher = (tail: string[]) => boolean;
 
-/** Matches a shell prompt: $, %, or ❯ at the end of a trimmed line. */
+/**
+ * Matches a shell prompt at end-of-line.
+ * Covers: bash ($), zsh vanilla (%), pure/powerlevel10k (❯ U+276F), and
+ * Powerlevel10k heavy-arrow (➜ U+279C) used in David's zsh config.
+ */
 export const SHELL_READY_MATCHER: PromptMatcher = (lines) =>
-  lines.some((l) => /[$%❯]\s*$/.test(l.trimEnd()));
+  lines.some((l) => /[$%❯➜]\s*$/.test(l.trimEnd()));
 
-/** Matches the Claude Code agent input box / initialisation banner. */
+/**
+ * Matches the Claude Code TUI when it is ready for keyboard input.
+ * Covers two states:
+ *   - Initialising: "✻ Initializ…" spinner line
+ *   - Idle/ready: the input box rendered as a line of ─ box-drawing chars
+ *     (≥10 consecutive), OR the "⏵⏵ bypass permissions" footer line that
+ *     appears below the ❯ input cursor in Claude Code ≥2.1.
+ * Legacy patterns (╭─╮, Human:, Esc to interrupt) retained for older versions.
+ */
 export const AGENT_READY_MATCHER: PromptMatcher = (lines) =>
   lines.some((l) =>
-    /Human:|Esc to interrupt|✻ Initializ|╭─+╮|claude>/i.test(l)
+    /✻ Initializ|─{10,}|⏵⏵|bypass permissions|Human:|Esc to interrupt|╭─+╮|claude>/i.test(
+      l
+    )
   );
 
 export interface WaitForPromptResult {
