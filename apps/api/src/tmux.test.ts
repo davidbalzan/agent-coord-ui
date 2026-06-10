@@ -56,6 +56,8 @@ const {
   createPane,
   killPane,
   waitForPrompt,
+  ensureHomeSession,
+  HOME_SESSION,
   SHELL_READY_MATCHER,
   AGENT_READY_MATCHER,
 } = await import("./tmux.js");
@@ -423,9 +425,118 @@ describe("createPane", () => {
 
   it("throws when tmux returns empty pane id", async () => {
     execImpl = () => ""; // stdout is blank
-    await expect(createPane({ kind: "split-window" })).rejects.toThrow(
-      "empty pane id"
-    );
+    await expect(
+      createPane({ kind: "split-window", target: "some-session" })
+    ).rejects.toThrow("empty pane id");
+  });
+
+  // ── Home-session default (blank target must never inherit active session) ──
+
+  it("blank split-window target defaults to HOME_SESSION", async () => {
+    const issuedCmds: string[] = [];
+    execImpl = (cmd) => {
+      issuedCmds.push(cmd);
+      if (cmd.includes("has-session")) return ""; // session exists
+      if (cmd.includes("split-window")) return "%20\n";
+      return "";
+    };
+    const id = await createPane({ kind: "split-window" });
+    expect(id).toBe("%20");
+    const splitCmd = issuedCmds.find((c) => c.includes("split-window"))!;
+    expect(splitCmd).toMatch(new RegExp(`-t '${HOME_SESSION}'`));
+  });
+
+  it("blank new-window target defaults to HOME_SESSION", async () => {
+    const issuedCmds: string[] = [];
+    execImpl = (cmd) => {
+      issuedCmds.push(cmd);
+      if (cmd.includes("has-session")) return "";
+      if (cmd.includes("new-window")) return "%21\n";
+      return "";
+    };
+    const id = await createPane({ kind: "new-window" });
+    expect(id).toBe("%21");
+    const newWinCmd = issuedCmds.find((c) => c.includes("new-window"))!;
+    expect(newWinCmd).toMatch(new RegExp(`-t '${HOME_SESSION}'`));
+  });
+
+  it("auto-creates home session when missing before split-window", async () => {
+    const issuedCmds: string[] = [];
+    execImpl = (cmd) => {
+      issuedCmds.push(cmd);
+      if (cmd.includes("has-session"))
+        throw new Error("can't find session: agent-coord-ui");
+      if (cmd.includes("new-session")) return ""; // creation succeeds
+      if (cmd.includes("split-window")) return "%22\n";
+      return "";
+    };
+    await createPane({ kind: "split-window" });
+    expect(issuedCmds.some((c) => c.includes("has-session"))).toBe(true);
+    expect(
+      issuedCmds.some(
+        (c) => c.includes("new-session") && c.includes(`'${HOME_SESSION}'`)
+      )
+    ).toBe(true);
+    expect(issuedCmds.some((c) => c.includes("split-window"))).toBe(true);
+  });
+
+  it("explicit target is used as-is without touching home session", async () => {
+    const issuedCmds: string[] = [];
+    execImpl = (cmd) => {
+      issuedCmds.push(cmd);
+      return cmd.includes("split-window") ? "%23\n" : "";
+    };
+    const id = await createPane({
+      kind: "split-window",
+      target: "myproject:1",
+    });
+    expect(id).toBe("%23");
+    const splitCmd = issuedCmds.find((c) => c.includes("split-window"))!;
+    expect(splitCmd).toContain("myproject:1");
+    expect(issuedCmds.some((c) => c.includes("has-session"))).toBe(false);
+  });
+});
+
+describe("ensureHomeSession", () => {
+  beforeEach(() => {
+    execImpl = () => "";
+  });
+
+  it("does nothing when session already exists", async () => {
+    const issuedCmds: string[] = [];
+    execImpl = (cmd) => {
+      issuedCmds.push(cmd);
+      return "";
+    };
+    await ensureHomeSession("my-session");
+    expect(issuedCmds).toHaveLength(1);
+    expect(issuedCmds[0]).toMatch(/has-session.*'my-session'/);
+  });
+
+  it("creates session when has-session fails", async () => {
+    const issuedCmds: string[] = [];
+    execImpl = (cmd) => {
+      issuedCmds.push(cmd);
+      if (cmd.includes("has-session")) throw new Error("no session");
+      return "";
+    };
+    await ensureHomeSession("new-home");
+    expect(issuedCmds.some((c) => c.includes("has-session"))).toBe(true);
+    expect(
+      issuedCmds.some(
+        (c) => c.includes("new-session") && c.includes("'new-home'")
+      )
+    ).toBe(true);
+  });
+
+  it("defaults to HOME_SESSION when no name given", async () => {
+    const issuedCmds: string[] = [];
+    execImpl = (cmd) => {
+      issuedCmds.push(cmd);
+      return "";
+    };
+    await ensureHomeSession();
+    expect(issuedCmds[0]).toContain(HOME_SESSION);
   });
 });
 

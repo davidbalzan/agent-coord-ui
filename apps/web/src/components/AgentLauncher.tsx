@@ -287,7 +287,7 @@ export function AgentLauncher({ onClose, prefill }: Props) {
           <input
             className="holo-input"
             style={{ width: "100%", fontSize: 11 }}
-            placeholder="e.g. main:0 or %3"
+            placeholder="default: agent-coord-ui session"
             value={paneTarget}
             onChange={(e) => setPaneTarget(e.target.value)}
           />
