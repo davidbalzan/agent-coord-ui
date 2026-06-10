@@ -130,6 +130,39 @@ cat docs/phases/phase4/PHASE4_TASKS.md
 
 ---
 
+### ⚠️ Runtime Prerequisite — `~/.claude/settings.json` allow list
+
+Spawned agents call `mcp__agent-coord__*` tools during their startup sequence (join, attach, join_room).
+On any machine where these tool calls have not been pre-approved, Claude will pause and prompt for
+permission, causing the provisioner to time out waiting for the agent to register.
+
+**Fix — add to `~/.claude/settings.json` on every machine that runs spawned agents:**
+
+```json
+{
+  "permissions": {
+    "allow": ["mcp__agent-coord__*"]
+  }
+}
+```
+
+Without this, the spawn sequence will appear to hang after the skill is invoked. This is a one-time
+per-machine setup step; it is not committed to the repo (it lives in `~/.claude/`, not the project).
+
+---
+
+### ⚠️ Known Issue — Default pane target inherits active tmux session
+
+When the launcher is used with `paneKind: split-window` or `new-window` and no explicit `paneTarget`,
+`tmux split-window` / `tmux new-window` creates the pane in whichever session is currently active in
+the operator's terminal. If the operator has a different project's session attached (e.g. `scores-box`),
+the spawned agent pane lands there instead of `agent-coord-ui`.
+
+**Workaround**: always set `paneTarget` to the intended session name (e.g. `agent-coord-ui`) in the
+launcher before spawning. A future improvement should default `paneTarget` to a configured home session.
+
+---
+
 ## ⏭️ Next Phase
 
 After completion: → Phase 5: Full Interactive Terminal (xterm.js + PTY) — the previous Phase 4, renumbered. See [[PRODUCTION_ROADMAP]].
