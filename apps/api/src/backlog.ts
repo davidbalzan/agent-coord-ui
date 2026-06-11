@@ -41,6 +41,33 @@ export async function getAgentPaneRoots(): Promise<string[]> {
   return [...new Set(roots.filter((r): r is string => r !== null))];
 }
 
+/** Build a root→agentIds map from live panes. Preserves the agentId→root link
+ *  that getAgentPaneRoots discards. Multiple agents at the same root accumulate. */
+export async function getAgentRootsWithAgents(): Promise<
+  Map<string, string[]>
+> {
+  const agentPanes = tmuxWatcher.panes.filter(
+    (p): p is typeof p & { agentId: string } => !!p.agentId && !!p.cwd
+  );
+  const resolved = await Promise.all(
+    agentPanes.map(async (p) => ({
+      agentId: p.agentId,
+      root: await gitRoot(p.cwd),
+    }))
+  );
+  const map = new Map<string, string[]>();
+  for (const { agentId, root } of resolved) {
+    if (root === null) continue;
+    const existing = map.get(root);
+    if (existing) {
+      if (!existing.includes(agentId)) existing.push(agentId);
+    } else {
+      map.set(root, [agentId]);
+    }
+  }
+  return map;
+}
+
 // Queue: canonical format is - [ ] (P1) <task> [— refs/constraints (optional)]
 // Priority MUST be parenthesized: (P1) / (P2) / (P3).
 // Everything after priority is captured as text (no greedy split on prose em-dashes).
@@ -138,8 +165,13 @@ export async function loadBacklog(
 }
 
 export async function loadAllBacklogs(): Promise<ProjectBacklog[]> {
-  const [panePaths] = await Promise.all([getAgentPaneRoots()]);
-  const allPaths = [...new Set([...getProjectRepoPaths(), ...panePaths])];
+  const agentRootsMap = await getAgentRootsWithAgents();
+  const agentRoots = [...agentRootsMap.keys()];
+  const allPaths = [...new Set([...getProjectRepoPaths(), ...agentRoots])];
   const results = await Promise.all(allPaths.map(loadBacklog));
-  return results.filter((b): b is ProjectBacklog => b !== null);
+  const backlogs = results.filter((b): b is ProjectBacklog => b !== null);
+  for (const b of backlogs) {
+    b.agentIds = agentRootsMap.get(b.project) ?? [];
+  }
+  return backlogs;
 }

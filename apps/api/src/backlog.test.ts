@@ -55,6 +55,7 @@ const {
   getProjectRepoPaths,
   gitRoot,
   getAgentPaneRoots,
+  getAgentRootsWithAgents,
 } = await import("./backlog.js");
 
 // ─── Real-file fixture (lines copied from shadowGuard/docs/BACKLOG.md) ────────
@@ -399,6 +400,79 @@ describe("loadAllBacklogs", () => {
     expect(results.map((r) => r.project)).toEqual(
       expect.arrayContaining(["/repo/a", "/repo/b"])
     );
+  });
+
+  it("populates agentIds for backlog whose root matches a live agent pane", async () => {
+    process.env.AGENT_COORD_PROJECT_REPOS = "/repo/a";
+    gitRootMap.set("/repo/a", "/repo/a");
+    mockPanes = [
+      makePane({ id: "%5", cwd: "/repo/a", agentId: "agent-alpha" }),
+    ];
+    const results = await loadAllBacklogs();
+    expect(results[0]!.agentIds).toEqual(["agent-alpha"]);
+  });
+
+  it("agentIds is empty array for env-configured roots with no live agent", async () => {
+    process.env.AGENT_COORD_PROJECT_REPOS = "/repo/a";
+    mockPanes = [];
+    const results = await loadAllBacklogs();
+    expect(results[0]!.agentIds).toEqual([]);
+  });
+
+  it("accumulates multiple agents at the same root", async () => {
+    process.env.AGENT_COORD_PROJECT_REPOS = "";
+    gitRootMap.set("/repo/shared", "/repo/shared");
+    mockPanes = [
+      makePane({ id: "%6", cwd: "/repo/shared", agentId: "agent-1" }),
+      makePane({ id: "%7", cwd: "/repo/shared", agentId: "agent-2" }),
+    ];
+    const results = await loadAllBacklogs();
+    expect(results[0]!.agentIds).toEqual(
+      expect.arrayContaining(["agent-1", "agent-2"])
+    );
+    expect(results[0]!.agentIds).toHaveLength(2);
+  });
+});
+
+// ─── getAgentRootsWithAgents ──────────────────────────────────────────────────
+
+describe("getAgentRootsWithAgents", () => {
+  beforeEach(() => {
+    mockPanes = [];
+    gitRootMap.clear();
+  });
+
+  it("returns empty map when no agent panes exist", async () => {
+    expect((await getAgentRootsWithAgents()).size).toBe(0);
+  });
+
+  it("maps root → agentId for a single pane", async () => {
+    gitRootMap.set("/workspace/proj", "/workspace/proj");
+    mockPanes = [
+      makePane({ id: "%1", cwd: "/workspace/proj", agentId: "agent-x" }),
+    ];
+    const map = await getAgentRootsWithAgents();
+    expect(map.get("/workspace/proj")).toEqual(["agent-x"]);
+  });
+
+  it("skips panes whose cwd is not inside a git repo", async () => {
+    mockPanes = [makePane({ id: "%2", cwd: "/not/a/repo", agentId: "orphan" })];
+    const map = await getAgentRootsWithAgents();
+    expect(map.size).toBe(0);
+  });
+
+  it("accumulates multiple agents at the same root without duplicates", async () => {
+    gitRootMap.set("/repo/multi", "/repo/multi");
+    mockPanes = [
+      makePane({ id: "%3", cwd: "/repo/multi", agentId: "agent-a" }),
+      makePane({ id: "%4", cwd: "/repo/multi", agentId: "agent-b" }),
+      makePane({ id: "%5", cwd: "/repo/multi", agentId: "agent-a" }), // duplicate
+    ];
+    const map = await getAgentRootsWithAgents();
+    expect(map.get("/repo/multi")).toEqual(
+      expect.arrayContaining(["agent-a", "agent-b"])
+    );
+    expect(map.get("/repo/multi")).toHaveLength(2);
   });
 });
 
