@@ -8,8 +8,10 @@ import {
   appendActivityEntries,
   activityEntryAge,
   activityEntryOpacity,
+  activityEventDetail,
   expireActivityEntries,
   formatActivityLabel,
+  formatActivityTimestamp,
   isCoordinatorSender,
   MAX_RETAINED_ACTIVITY_ENTRIES,
   newMessagesSince,
@@ -59,8 +61,8 @@ describe("ActivityLog helpers", () => {
 
   it("caps visible entries to protect the corner from bursts", () => {
     const existing: ActivityLogEntry[] = [
-      { id: "old-1", label: "old → one", isCoordinator: false, createdAt: 1 },
-      { id: "old-2", label: "old → two", isCoordinator: false, createdAt: 1 },
+      entry("old-1", "old", "one", true, 1),
+      entry("old-2", "old", "two", true, 1),
     ];
     const entries = appendActivityEntries(
       existing,
@@ -96,6 +98,7 @@ describe("ActivityLog helpers", () => {
         id: "faded",
         label: "faded → #room",
         isCoordinator: false,
+        message: msg("faded", "faded", "room", false),
         createdAt: 1000,
       },
     ];
@@ -113,6 +116,7 @@ describe("ActivityLog helpers", () => {
         id: `entry-${index}`,
         label: `agent-${index} → #room`,
         isCoordinator: false,
+        message: msg(`entry-${index}`, `agent-${index}`, "room", false),
         createdAt: index,
       })
     );
@@ -131,6 +135,7 @@ describe("ActivityLog helpers", () => {
         id: `entry-${index}`,
         label: `agent-${index} → #room`,
         isCoordinator: false,
+        message: msg(`entry-${index}`, `agent-${index}`, "room", false),
         createdAt: 1000 + index,
       })
     );
@@ -151,6 +156,7 @@ describe("ActivityLog helpers", () => {
         id: "fading",
         label: "fading → #room",
         isCoordinator: false,
+        message: msg("fading", "fading", "room", false),
         createdAt: 1000,
       },
     ];
@@ -185,6 +191,56 @@ describe("ActivityLog helpers", () => {
     expect(isCoordinatorSender("fallback", agents)).toBe(true);
     expect(isCoordinatorSender("worker", agents)).toBe(false);
   });
+
+  it("keeps full message details for the hover panel", () => {
+    const message = {
+      ...msg("m-detail", "coord", "david", true),
+      body: "BLOCKER: full body\nwith a second line",
+      timestamp: Date.UTC(2026, 5, 11, 13, 49, 15),
+    };
+    const detail = activityEventDetail({
+      id: "entry-detail",
+      label: "coord → david",
+      isCoordinator: true,
+      message,
+      createdAt: 1000,
+    });
+
+    expect(detail).toEqual({
+      route: "coord → david",
+      sender: "coord",
+      recipient: "david",
+      channelType: "DM",
+      body: "BLOCKER: full body\nwith a second line",
+      timestamp: "2026-06-11 13:49:15",
+      prefix: "BLOCKER",
+      severity: "loud",
+    });
+  });
+
+  it("formats room event detail recipients with a room marker", () => {
+    const detail = activityEventDetail({
+      id: "entry-room",
+      label: "coord → #general",
+      isCoordinator: true,
+      message: {
+        ...msg("m-room", "coord", "general", false),
+        body: "FYI: room event",
+      },
+      createdAt: 1000,
+    });
+
+    expect(detail.recipient).toBe("#general");
+    expect(detail.channelType).toBe("ROOM");
+    expect(detail.prefix).toBe("FYI");
+    expect(detail.severity).toBe("subtle");
+  });
+
+  it("formats timestamps for event details", () => {
+    expect(formatActivityTimestamp(Date.UTC(2026, 5, 11, 14, 49, 15))).toBe(
+      "2026-06-11 14:49:15"
+    );
+  });
 });
 
 function msg(
@@ -211,5 +267,21 @@ function agent(id: string, name: string, role?: string): AgentSnapshot {
     rooms: [],
     lastSeen: 100,
     metadata: role ? { role } : undefined,
+  };
+}
+
+function entry(
+  id: string,
+  from: string,
+  to: string,
+  isDM: boolean,
+  createdAt: number
+): ActivityLogEntry {
+  return {
+    id,
+    label: formatActivityLabel(msg(id, from, to, isDM)),
+    isCoordinator: false,
+    message: msg(id, from, to, isDM),
+    createdAt,
   };
 }
