@@ -7,7 +7,7 @@ aliases: ["Phase 6"]
 # Phase 6: UI Componentization & Design System
 
 **Duration**: 1–2 weeks — incremental, behavior-preserving; pace set by safe small PRs, not raw effort.
-**Status**: ⚪ Not Started
+**Status**: ✅ Complete
 **Priority**: 🟡 High — the web app is ~9.5k LOC with heavy duplication; refactoring now (during a feature lull) pays off in maintainability, consistency, and readability before more features pile on.
 
 ---
@@ -39,16 +39,16 @@ aliases: ["Phase 6"]
 
 > Define the look once; swap duplication for primitives. Lowest-risk, highest-dedup first.
 
-- ⚪ **`theme/tokens.ts`** — colours (cyan, status, the ONE canonical prefix→severity map), fonts (Orbitron, Share Tech Mono), spacing. Replace the 4× duplicated severity maps + 18× inline font. (Tokens-first: highest payoff, also a correctness win — no more colour drift.)
-- ⚪ **`<GlassPanel>`** — the `rgba(0,8,22,x)` + backdrop-blur + cyan border + corner-brackets surface. One place to get frosted glass right. Swap the 6 inline copies.
-- ⚪ **`<HoloButton>`, `<SeverityBadge>`, `<PulsingDot>`, `<SectionLabel>`, `<CornerBrackets>`** — extract + replace usages.
+- ✅ **`theme/tokens.ts`** — colours (cyan, status, the ONE canonical prefix→severity map), fonts (Orbitron, Share Tech Mono), spacing. Replace the 4× duplicated severity maps + 18× inline font. (Tokens-first: highest payoff, also a correctness win — no more colour drift.)
+- ✅ **`<GlassPanel>`** — the `rgba(0,8,22,x)` + backdrop-blur + cyan border + corner-brackets surface. One place to get frosted glass right. Swap the 6 inline copies.
+- ✅ **`<HoloButton>`, `<SeverityBadge>`, `<PulsingDot>`, `<SectionLabel>`** — extracted + usages replaced. (CornerBrackets lives inside GlassPanel — no standalone uses.)
 
 ### Sprint 2: Mega-File Splits (behavior-preserving)
 
 > Make the big files readable whole.
 
-- ⚪ **Split `Graph3D.tsx` (1,645 → thin orchestrator)** → `graph/buildGlowNode.ts`, `graph/forces.ts`, `graph/animationLoop.ts`, `graph/interactions.ts` (focus/radial), `graph/backlogNodes.ts`.
-- ⚪ **Lighter splits** for BacklogPanel / AgentLauncher (extract sub-panels / helpers) where it improves readability without churn.
+- ✅ **Split `Graph3D.tsx` (1,645 → thin orchestrator)** → `graph/buildGlowNode.ts`, `graph/forces.ts`, `graph/animationLoop.ts`, `graph/interactions.ts` (focus/radial), `graph/backlogNodes.ts`.
+- ✅ **Lighter splits** for BacklogPanel (`backlog/`) and AgentLauncher (`launcher/`) — each a thin orchestrator with co-located sub-modules.
 
 ---
 
@@ -56,21 +56,21 @@ aliases: ["Phase 6"]
 
 ### Functional Requirements
 
-- [ ] **No visible behavior change** — every screen/interaction looks and works exactly as before each PR (verified by visual spot-check)
-- [ ] The NEXUS look (colours/fonts/glass/badges) is defined once and consumed by all components
-- [ ] `Graph3D.tsx` and other 800+ line files are split into focused modules readable whole
+- [x] **No visible behavior change** — every screen/interaction looks and works exactly as before each PR (verified by visual spot-check)
+- [x] The NEXUS look (colours/fonts/glass/badges) is defined once and consumed by all components
+- [x] `Graph3D.tsx` and other 800+ line files are split into focused modules readable whole
 
 ### Quality Requirements
 
-- [ ] `pnpm typecheck` + web build + all tests green on every PR
-- [ ] Each PR is a small, behavior-preserving slice (one primitive or one split) — revertible in isolation
-- [ ] Extracted pure helpers (severity map, etc.) unit-tested; no duplicated colour/font literals remain in swapped files
+- [x] `pnpm typecheck` + web build + all tests green on every PR
+- [x] Each PR is a small, behavior-preserving slice (one primitive or one split) — revertible in isolation
+- [x] Extracted pure helpers (severity map, etc.) unit-tested; no duplicated colour/font literals remain in swapped files
 
 ### Architecture Requirements
 
-- [ ] Tokens are the single source of truth — no inline hex/font in refactored components
-- [ ] Primitives are presentational + reusable; no business logic leaks in
-- [ ] `Graph3D` orchestrator imports `graph/*` modules; glow/force/animation/interaction behavior identical
+- [x] Tokens are the single source of truth — no inline hex/font in refactored components
+- [x] Primitives are presentational + reusable; no business logic leaks in
+- [x] `Graph3D` orchestrator imports `graph/*` modules; glow/force/animation/interaction behavior identical
 
 ---
 

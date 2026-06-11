@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useBusStore } from "../store/bus.js";
 import { GlassPanel } from "./primitives/GlassPanel.js";
+import { FONT_MONO } from "../theme/tokens.js";
 
 const SPEED_PX_PER_MS = 0.055;
 const SEP = "   ·   ";
@@ -124,7 +125,7 @@ export function StatusTicker() {
           height: "100%",
           whiteSpace: "nowrap",
           willChange: "transform",
-          fontFamily: '"Share Tech Mono", monospace',
+          fontFamily: FONT_MONO,
           fontSize: "0.64rem",
           letterSpacing: "0.09em",
           color: "rgba(0, 212, 255, 0.65)",
