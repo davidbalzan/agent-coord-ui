@@ -147,7 +147,21 @@ aliases: ["Roadmap", "PRODUCTION_ROADMAP"]
 
 ---
 
-### Phase 6: Full Interactive Terminal (xterm.js)
+### Phase 6: UI Componentization & Design System
+
+**Goal**: Extract a design-system layer (tokens + primitive components) and split the mega-files, behavior-preserving — so the NEXUS look is defined once and large files read whole.
+**Duration**: 1–2 weeks (incremental)
+**Status**: 🟡 In Progress
+
+**Context**: Web app is ~9.5k LOC; Graph3D.tsx alone is 1,645 lines. Glass surface duplicated in 6 files, prefix→severity colour map in 4 (drift), `Share Tech Mono` inline in 18. Refactor during the feature lull, behavior-preserving (gate + visual spot-check per PR), soft feature freeze.
+
+**Detailed plan**: [Phase 6 Tasks](./phases/phase6/PHASE6_TASKS.md) · [Phase 6 README](./phases/phase6/README.md)
+
+**Key Risk**: refactors touch shared files (collide with features) + a no-behavior-change refactor can subtly shift rendering — mitigated by small slices, soft freeze, visual checks, Graph3D split last.
+
+---
+
+### Phase 7: Full Interactive Terminal (xterm.js)
 
 **Goal**: Replace the ANSI-snapshot + send-keys terminal with a real PTY-backed xterm.js emulator — full cursor control, tab-completion, arrow keys, and Claude Code's interactive TUI work from the browser.
 **Duration**: TBD
@@ -167,7 +181,7 @@ aliases: ["Roadmap", "PRODUCTION_ROADMAP"]
 
 ---
 
-### Phase 7 (v2): Networked & Multi-Operator
+### Phase 8 (v2): Networked & Multi-Operator
 
 **Goal**: Support remote teams; auth token; HTTP API mode for non-local MCP.
 **Duration**: TBD
@@ -184,15 +198,16 @@ aliases: ["Roadmap", "PRODUCTION_ROADMAP"]
 
 ## 📊 Implementation Priority Matrix
 
-| Phase                 | Priority    | Blocks        | Complexity | Duration  | Key Risk                            |
-| --------------------- | ----------- | ------------- | ---------- | --------- | ----------------------------------- |
-| Phase 1: Foundation   | 🔴 Critical | All           | Low        | 1 week    | None                                |
-| Phase 2: Live Graph   | 🔴 Critical | Phase 3+      | Medium     | 2 weeks   | WS event schema churn               |
-| Phase 3: Polish       | 🟡 High     | v2 perception | Medium     | 1–2 weeks | Three.js coupling complexity        |
-| Phase 4: Provisioning | 🟡 High     | operator toil | Medium     | 1–2 weeks | Readiness races, injection          |
-| Phase 5: Cockpit      | 🟡 High     | David's UX    | Medium     | 1–2 weeks | Notification spam, missed decisions |
-| Phase 6: xterm.js     | 🟢 Medium   | Phase 3       | High       | TBD       | Bundle size, PTY lifecycle          |
-| Phase 7: Networked    | 🟢 Medium   | —             | High       | TBD       | Auth scope creep                    |
+| Phase                     | Priority    | Blocks          | Complexity | Duration  | Key Risk                              |
+| ------------------------- | ----------- | --------------- | ---------- | --------- | ------------------------------------- |
+| Phase 1: Foundation       | 🔴 Critical | All             | Low        | 1 week    | None                                  |
+| Phase 2: Live Graph       | 🔴 Critical | Phase 3+        | Medium     | 2 weeks   | WS event schema churn                 |
+| Phase 3: Polish           | 🟡 High     | v2 perception   | Medium     | 1–2 weeks | Three.js coupling complexity          |
+| Phase 4: Provisioning     | 🟡 High     | operator toil   | Medium     | 1–2 weeks | Readiness races, injection            |
+| Phase 5: Cockpit          | 🟡 High     | David's UX      | Medium     | 1–2 weeks | Notification spam, missed decisions   |
+| Phase 6: Componentization | 🟡 High     | maintainability | Medium     | 1–2 weeks | Refactor regressions, file collisions |
+| Phase 7: xterm.js         | 🟢 Medium   | Phase 3         | High       | TBD       | Bundle size, PTY lifecycle            |
+| Phase 8: Networked        | 🟢 Medium   | —               | High       | TBD       | Auth scope creep                      |
 
 **Critical Path**: Phase 1 → Phase 2 → Phase 3 (sequential). Phase 4 (provisioning) is high-value and reuses existing tmux infra — recommended next. Phases 5–6 are independent v2 work.
 
@@ -227,12 +242,13 @@ aliases: ["Roadmap", "PRODUCTION_ROADMAP"]
 
 ## 🔄 Revision History
 
-| Date       | Change                                                                                                                                                                                                   | Reason                                                                                                                  |
-| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| 2026-06-08 | Initial roadmap created from kickstart                                                                                                                                                                   | Project bootstrapped; Phase 1 & 2 retrospectively documented                                                            |
-| 2026-06-08 | Added Phase 4 (xterm.js interactive terminal)                                                                                                                                                            | ANSI snapshot approach can't support cursor keys / tab-complete / Claude Code TUI                                       |
-| 2026-06-10 | Inserted Phase 4 (Agent Provisioning & Terminal Groups); renumbered xterm.js → Phase 5, Networked → Phase 6                                                                                              | Automate the manual tmux spawn/configure/join ritual from the UI; reuses existing tmux infra, high operator value       |
-| 2026-06-11 | Inserted Phase 5 (David Coordination Cockpit); renumbered xterm.js → Phase 6, Networked → Phase 7. Also: read-only Task Backlog feature shipped (discovery + parser + panel) outside the phase numbering | Make the UI David's coordination surface (DM inbox + notifications + decision cards); DM data + send path already exist |
+| Date       | Change                                                                                                                                                                                                   | Reason                                                                                                                                                         |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-06-08 | Initial roadmap created from kickstart                                                                                                                                                                   | Project bootstrapped; Phase 1 & 2 retrospectively documented                                                                                                   |
+| 2026-06-08 | Added Phase 4 (xterm.js interactive terminal)                                                                                                                                                            | ANSI snapshot approach can't support cursor keys / tab-complete / Claude Code TUI                                                                              |
+| 2026-06-10 | Inserted Phase 4 (Agent Provisioning & Terminal Groups); renumbered xterm.js → Phase 5, Networked → Phase 6                                                                                              | Automate the manual tmux spawn/configure/join ritual from the UI; reuses existing tmux infra, high operator value                                              |
+| 2026-06-11 | Inserted Phase 5 (David Coordination Cockpit); renumbered xterm.js → Phase 6, Networked → Phase 7. Also: read-only Task Backlog feature shipped (discovery + parser + panel) outside the phase numbering | Make the UI David's coordination surface (DM inbox + notifications + decision cards); DM data + send path already exist                                        |
+| 2026-06-11 | Inserted Phase 6 (UI Componentization & Design System); renumbered xterm.js → Phase 7, Networked → Phase 8                                                                                               | ~9.5k LOC web app with heavy duplication (glass ×6, severity map ×4, font ×18) + 1,645-line Graph3D; componentize during the feature lull, behavior-preserving |
 
 ---
 
