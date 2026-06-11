@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { MdMessage } from "./MdMessage.js";
 import { useShallow } from "zustand/react/shallow";
 import { useBusStore } from "../store/bus.js";
+import { AgentActivityDot } from "./AgentActivityDot.js";
 
 interface Props {
   agentId: string;
@@ -108,9 +109,13 @@ export function DMPanel({ agentId }: Props) {
                 fontSize: "12px",
                 color: "#8ecfff",
                 letterSpacing: "0.1em",
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
               }}
             >
               {agent.name.toUpperCase()}
+              <AgentActivityDot agentId={agentId} />
             </div>
             <div
               style={{

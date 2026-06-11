@@ -80,7 +80,7 @@ export interface NotificationOrigin {
   y: number;
 }
 
-interface BusState {
+export interface BusState {
   agents: Record<string, AgentSnapshot>;
   rooms: Record<string, RoomSnapshot>;
   messages: MessageSnapshot[];
@@ -107,6 +107,8 @@ interface BusState {
   notificationDockItems: NotificationItem[];
   notificationLastSeenMessageId: string | null;
   notificationLastSeenMessageCount: number;
+  /** Monotonically updated every 1s so activity selectors re-evaluate */
+  nowTick: number;
   setSelection: (s: Selection | null) => void;
   setPaneSelection: (id: string | null) => void;
   setNameFilter: (f: string) => void;
@@ -308,6 +310,9 @@ export const useBusStore = create<BusState>((set) => {
 
   busSocket.connect();
 
+  // Tick every 1s so isAgentActive selectors clear ~4s after pane goes quiet
+  setInterval(() => set({ nowTick: Date.now() }), 1000);
+
   return {
     agents: {},
     rooms: {},
@@ -334,6 +339,7 @@ export const useBusStore = create<BusState>((set) => {
     notificationDockItems: [],
     notificationLastSeenMessageId: null,
     notificationLastSeenMessageCount: 0,
+    nowTick: Date.now(),
     setSelection: (selection) => set({ selection }),
     setPaneSelection: (paneSelection) => set({ paneSelection }),
     setNameFilter: (nameFilter) => set({ nameFilter }),
@@ -470,6 +476,21 @@ export const davidThreads = (s: BusState) =>
 /** Total unread count across all David's DM threads. */
 export const davidGlobalUnread = (s: BusState) =>
   globalUnreadCount(buildDavidThreads(s.messages, s.readState));
+
+/**
+ * Returns true when the agent's matched pane has produced output within the
+ * last 4s. Recomputes on every 1s nowTick tick so the indicator clears
+ * promptly when pane activity stops.
+ * Note: this lights for ANY pane output, not strictly a reply being typed.
+ */
+export const AGENT_ACTIVE_THRESHOLD_MS = 4000;
+
+export const isAgentActive = (s: BusState, agentId: string): boolean => {
+  void s.nowTick; // subscribe to tick so selector re-runs every second
+  const pane = Object.values(s.panes).find((p) => p.agentId === agentId);
+  if (!pane || !pane.lastActivity) return false;
+  return Date.now() - pane.lastActivity < AGENT_ACTIVE_THRESHOLD_MS;
+};
 
 /** Derive TerminalGroup list from pane session metadata. */
 export const terminalGroups = (s: BusState): TerminalGroup[] => {

@@ -5,6 +5,7 @@ import type { MessageSnapshot } from "@coord-ui/shared";
 import { DAVID_ID, buildDavidThreads } from "../lib/inbox.js";
 import { parseDavidDecisionPacket } from "../lib/decisionPacket.js";
 import { DecisionCard } from "./DecisionCard.js";
+import { AgentActivityDot } from "./AgentActivityDot.js";
 
 const PANEL_WIDTH = 700;
 
@@ -304,6 +305,31 @@ function ThreadView({
 
   return (
     <>
+      {/* Thread header: counterpart name + activity indicator */}
+      <div
+        style={{
+          padding: "6px 20px",
+          borderBottom: "1px solid rgba(0,212,255,0.07)",
+          flexShrink: 0,
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          minHeight: 30,
+        }}
+      >
+        <span
+          style={{
+            fontFamily: "Share Tech Mono, monospace",
+            fontSize: 10,
+            color: "rgba(0,212,255,0.45)",
+            letterSpacing: "0.1em",
+          }}
+        >
+          {thread.counterpart}
+        </span>
+        <AgentActivityDot agentId={thread.counterpart} />
+      </div>
+
       {/* Messages */}
       <div
         style={{
