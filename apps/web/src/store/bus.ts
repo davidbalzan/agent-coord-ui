@@ -10,11 +10,18 @@ import type {
 } from "@coord-ui/shared";
 import { busSocket } from "../lib/ws.js";
 import {
+  DAVID_ID,
   buildDavidThreads,
   globalUnreadCount,
   loadReadState,
   saveReadState,
 } from "../lib/inbox.js";
+import {
+  classifyPriority,
+  extractPrefix,
+  type BusPrefix,
+  type Priority,
+} from "../lib/notificationPriority.js";
 export type { DmThread } from "../lib/inbox.js";
 
 const RESOLVED_LS_KEY = "coord-ui:resolved-decisions";
@@ -57,6 +64,16 @@ export interface SpawnProgressRecord {
   error?: string;
 }
 
+export interface NotificationItem {
+  id: string;
+  messageId: string;
+  from: string;
+  body: string;
+  timestamp: number;
+  priority: Priority;
+  prefix: BusPrefix | null;
+}
+
 interface BusState {
   agents: Record<string, AgentSnapshot>;
   rooms: Record<string, RoomSnapshot>;
@@ -78,6 +95,12 @@ interface BusState {
   activeInboxThread: string | null; // counterpart agent id currently viewed
   readState: Record<string, number>; // counterpart → last-read timestamp
   resolvedDecisions: Record<string, string>; // messageId → chosen option text
+  // Notifications slice — kept separate from inbox/read-state for concurrent Task 5 work.
+  notificationPopup: NotificationItem | null;
+  notificationQueue: NotificationItem[];
+  notificationDockItems: NotificationItem[];
+  notificationLastSeenMessageId: string | null;
+  notificationLastSeenMessageCount: number;
   setSelection: (s: Selection | null) => void;
   setPaneSelection: (id: string | null) => void;
   setNameFilter: (f: string) => void;
@@ -90,6 +113,9 @@ interface BusState {
   setActiveInboxThread: (counterpart: string | null) => void;
   markThreadRead: (counterpart: string) => void;
   addResolvedDecision: (messageId: string, chosenOption: string) => void;
+  moveNotificationToDock: (id: string) => void;
+  dismissNotification: (id: string) => void;
+  actNotification: (id: string) => void;
   fetchBacklogs: () => Promise<void>;
   saveBacklogQueue: (
     project: string,
@@ -109,11 +135,64 @@ interface BusState {
   clearSpawnProgress: (agentId: string) => void;
 }
 
+function isIncomingDavidDm(msg: MessageSnapshot) {
+  return msg.isDM && msg.to === DAVID_ID && msg.from !== DAVID_ID;
+}
+
+function buildNotification(msg: MessageSnapshot): NotificationItem {
+  return {
+    id: msg.id,
+    messageId: msg.id,
+    from: msg.from,
+    body: msg.body,
+    timestamp: msg.timestamp,
+    priority: classifyPriority(msg.body),
+    prefix: extractPrefix(msg.body),
+  };
+}
+
+function hasNotification(s: BusState, id: string) {
+  return (
+    s.notificationPopup?.id === id ||
+    s.notificationQueue.some((item) => item.id === id) ||
+    s.notificationDockItems.some((item) => item.id === id)
+  );
+}
+
+function enqueueNotification(s: BusState, item: NotificationItem) {
+  if (hasNotification(s, item.id)) return {};
+
+  if (item.priority === "loud") {
+    if (s.notificationPopup) {
+      return { notificationQueue: [...s.notificationQueue, item] };
+    }
+    return { notificationPopup: item };
+  }
+
+  return { notificationDockItems: [item, ...s.notificationDockItems] };
+}
+
+function clearNotification(s: BusState, id: string) {
+  const isPopup = s.notificationPopup?.id === id;
+  const [nextPopup, ...remainingQueue] = s.notificationQueue;
+
+  return {
+    notificationPopup: isPopup ? (nextPopup ?? null) : s.notificationPopup,
+    notificationQueue: isPopup
+      ? remainingQueue
+      : s.notificationQueue.filter((item) => item.id !== id),
+    notificationDockItems: s.notificationDockItems.filter(
+      (item) => item.id !== id
+    ),
+  };
+}
+
 export const useBusStore = create<BusState>((set) => {
   // Wire WS events into the store
   busSocket.on((event) => {
     switch (event.type) {
-      case "full_state":
+      case "full_state": {
+        const messages = event.messages ?? [];
         set({
           agents: Object.fromEntries(
             event.agents.map((a: AgentSnapshot) => [a.id, a])
@@ -121,12 +200,16 @@ export const useBusStore = create<BusState>((set) => {
           rooms: Object.fromEntries(
             event.rooms.map((r: RoomSnapshot) => [r.id, r])
           ),
-          messages: event.messages ?? [],
+          messages,
           panes: Object.fromEntries(
             (event.panes ?? []).map((p: PaneSnapshot) => [p.id, p])
           ),
+          notificationLastSeenMessageId:
+            messages[messages.length - 1]?.id ?? null,
+          notificationLastSeenMessageCount: messages.length,
         });
         break;
+      }
       case "agent_join":
         set((s) => ({
           agents: { ...s.agents, [event.agent.id]: event.agent },
@@ -151,7 +234,22 @@ export const useBusStore = create<BusState>((set) => {
         set((s) => ({ rooms: { ...s.rooms, [event.room.id]: event.room } }));
         break;
       case "message":
-        set((s) => ({ messages: [...s.messages, event.msg] }));
+        set((s) => {
+          const messages = [...s.messages, event.msg];
+          const base = {
+            messages,
+            notificationLastSeenMessageId: event.msg.id,
+            notificationLastSeenMessageCount: messages.length,
+          };
+
+          if (event.msg.id === s.notificationLastSeenMessageId) return base;
+          if (!isIncomingDavidDm(event.msg)) return base;
+
+          return {
+            ...base,
+            ...enqueueNotification(s, buildNotification(event.msg)),
+          };
+        });
         break;
       case "pane_update":
         set((s) => ({ panes: { ...s.panes, [event.pane.id]: event.pane } }));
@@ -210,6 +308,11 @@ export const useBusStore = create<BusState>((set) => {
     activeInboxThread: null,
     readState: loadReadState(),
     resolvedDecisions: loadResolvedDecisions(),
+    notificationPopup: null,
+    notificationQueue: [],
+    notificationDockItems: [],
+    notificationLastSeenMessageId: null,
+    notificationLastSeenMessageCount: 0,
     setSelection: (selection) => set({ selection }),
     setPaneSelection: (paneSelection) => set({ paneSelection }),
     setNameFilter: (nameFilter) => set({ nameFilter }),
@@ -235,6 +338,21 @@ export const useBusStore = create<BusState>((set) => {
         saveResolvedDecisions(resolvedDecisions);
         return { resolvedDecisions };
       }),
+    moveNotificationToDock: (id) =>
+      set((s) => {
+        if (s.notificationPopup?.id !== id) return {};
+        const [nextPopup, ...remainingQueue] = s.notificationQueue;
+        return {
+          notificationPopup: nextPopup ?? null,
+          notificationQueue: remainingQueue,
+          notificationDockItems: [
+            s.notificationPopup,
+            ...s.notificationDockItems,
+          ],
+        };
+      }),
+    dismissNotification: (id) => set((s) => clearNotification(s, id)),
+    actNotification: (id) => set((s) => clearNotification(s, id)),
     fetchBacklogs: async () => {
       const res = await fetch("/api/backlogs");
       if (res.ok) {
