@@ -1,10 +1,18 @@
 import { describe, expect, it } from "vitest";
 import type { AgentSnapshot, MessageSnapshot } from "@coord-ui/shared";
 import {
+  ACTIVITY_FADE_MS,
+  ACTIVITY_HOLD_MS,
+  ACTIVITY_TTL_MS,
   appendActivityEntries,
+  activityEntryAge,
+  activityEntryOpacity,
+  expireActivityEntries,
   formatActivityLabel,
   isCoordinatorSender,
   newMessagesSince,
+  pauseActivityEntries,
+  resumeActivityEntries,
   type ActivityLogEntry,
 } from "./ActivityLog.js";
 
@@ -64,6 +72,67 @@ describe("ActivityLog helpers", () => {
       "c → d",
       "e → f",
     ]);
+  });
+
+  it("keeps each line fully visible before fading it independently", () => {
+    expect(activityEntryOpacity(ACTIVITY_HOLD_MS - 1, false)).toBe(1);
+    expect(activityEntryOpacity(ACTIVITY_HOLD_MS, false)).toBe(1);
+    expect(
+      activityEntryOpacity(ACTIVITY_HOLD_MS + ACTIVITY_FADE_MS / 2, false)
+    ).toBe(0.5);
+    expect(activityEntryOpacity(ACTIVITY_TTL_MS, false)).toBe(0);
+  });
+
+  it("removes only entries that have completed their own lifecycle", () => {
+    const entries: ActivityLogEntry[] = [
+      {
+        id: "fresh",
+        label: "fresh → #room",
+        isCoordinator: false,
+        createdAt: 1000,
+      },
+      {
+        id: "expired",
+        label: "expired → #room",
+        isCoordinator: false,
+        createdAt: 999,
+      },
+    ];
+
+    expect(
+      expireActivityEntries(entries, 1000 + ACTIVITY_TTL_MS - 1).map(
+        (entry) => entry.id
+      )
+    ).toEqual(["fresh"]);
+  });
+
+  it("restores full opacity while hovered and resumes from the paused age", () => {
+    const entries: ActivityLogEntry[] = [
+      {
+        id: "fading",
+        label: "fading → #room",
+        isCoordinator: false,
+        createdAt: 1000,
+      },
+    ];
+    const pauseAt = 1000 + ACTIVITY_HOLD_MS + 1000;
+    const [paused] = pauseActivityEntries(entries, pauseAt);
+
+    expect(activityEntryAge(paused!, pauseAt + 5000)).toBe(
+      ACTIVITY_HOLD_MS + 1000
+    );
+    expect(activityEntryOpacity(activityEntryAge(paused!, pauseAt), true)).toBe(
+      1
+    );
+
+    const [resumed] = resumeActivityEntries([paused!], pauseAt + 5000);
+
+    expect(activityEntryAge(resumed!, pauseAt + 5000)).toBe(
+      ACTIVITY_HOLD_MS + 1000
+    );
+    expect(activityEntryAge(resumed!, pauseAt + 6000)).toBe(
+      ACTIVITY_HOLD_MS + 2000
+    );
   });
 
   it("marks coordinator senders by role, with fallback only when role is absent", () => {

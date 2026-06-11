@@ -3,13 +3,16 @@ import type { AgentSnapshot, MessageSnapshot } from "@coord-ui/shared";
 import { useBusStore } from "../store/bus.js";
 
 const MAX_ACTIVITY_ENTRIES = 7;
-const ACTIVITY_TTL_MS = 5600;
+export const ACTIVITY_HOLD_MS = 8000;
+export const ACTIVITY_FADE_MS = 4000;
+export const ACTIVITY_TTL_MS = ACTIVITY_HOLD_MS + ACTIVITY_FADE_MS;
 
 export interface ActivityLogEntry {
   id: string;
   label: string;
   isCoordinator: boolean;
   createdAt: number;
+  pausedAgeMs?: number;
 }
 
 interface LastSeenMessage {
@@ -65,10 +68,60 @@ export function appendActivityEntries(
   return [...entries, ...nextEntries].slice(-maxEntries);
 }
 
+export function activityEntryAge(entry: ActivityLogEntry, now: number): number {
+  return entry.pausedAgeMs ?? Math.max(0, now - entry.createdAt);
+}
+
+export function activityEntryOpacity(
+  ageMs: number,
+  isHovered: boolean
+): number {
+  if (isHovered) return 1;
+  if (ageMs <= ACTIVITY_HOLD_MS) return 1;
+
+  const fadeProgress = (ageMs - ACTIVITY_HOLD_MS) / ACTIVITY_FADE_MS;
+  return Math.max(0, 1 - fadeProgress);
+}
+
+export function pauseActivityEntries(
+  entries: ActivityLogEntry[],
+  now: number
+): ActivityLogEntry[] {
+  return entries.map((entry) => ({
+    ...entry,
+    pausedAgeMs: activityEntryAge(entry, now),
+  }));
+}
+
+export function resumeActivityEntries(
+  entries: ActivityLogEntry[],
+  now: number
+): ActivityLogEntry[] {
+  return entries.map((entry) => {
+    const ageMs = activityEntryAge(entry, now);
+    const { pausedAgeMs: _pausedAgeMs, ...rest } = entry;
+    return {
+      ...rest,
+      createdAt: now - ageMs,
+    };
+  });
+}
+
+export function expireActivityEntries(
+  entries: ActivityLogEntry[],
+  now: number
+): ActivityLogEntry[] {
+  return entries.filter(
+    (entry) => activityEntryAge(entry, now) < ACTIVITY_TTL_MS
+  );
+}
+
 export function ActivityLog() {
   const messages = useBusStore((s) => s.messages);
   const agents = useBusStore((s) => s.agents);
   const [entries, setEntries] = useState<ActivityLogEntry[]>([]);
+  const [isHovered, setIsHovered] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
   const lastSeenRef = useRef<LastSeenMessage | null>(null);
 
   useEffect(() => {
@@ -91,56 +144,81 @@ export function ActivityLog() {
     if (nextMessages.length === 0) return;
 
     const now = Date.now();
-    setEntries((current) =>
-      appendActivityEntries(current, nextMessages, agents, now)
-    );
-  }, [agents, messages]);
+    setEntries((current) => {
+      const nextEntries = appendActivityEntries(
+        current,
+        nextMessages,
+        agents,
+        now
+      );
+      return isHovered ? pauseActivityEntries(nextEntries, now) : nextEntries;
+    });
+  }, [agents, isHovered, messages]);
 
   useEffect(() => {
     if (entries.length === 0) return;
 
     const timer = window.setInterval(() => {
-      const now = Date.now();
-      setEntries((current) =>
-        current.filter((entry) => now - entry.createdAt < ACTIVITY_TTL_MS)
-      );
-    }, 700);
+      const nextNow = Date.now();
+      setNow(nextNow);
+      if (isHovered) return;
+
+      setEntries((current) => expireActivityEntries(current, nextNow));
+    }, 500);
 
     return () => window.clearInterval(timer);
-  }, [entries.length]);
+  }, [entries.length, isHovered]);
+
+  const handleMouseEnter = () => {
+    const hoverNow = Date.now();
+    setNow(hoverNow);
+    setIsHovered(true);
+    setEntries((current) => pauseActivityEntries(current, hoverNow));
+  };
+
+  const handleMouseLeave = () => {
+    const leaveNow = Date.now();
+    setNow(leaveNow);
+    setIsHovered(false);
+    setEntries((current) => resumeActivityEntries(current, leaveNow));
+  };
 
   if (entries.length === 0) return null;
 
   return (
-    <aside aria-hidden="true" style={shellStyle}>
+    <aside
+      aria-hidden="true"
+      style={shellStyle}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
       <div style={headerStyle}>BUS ACTIVITY</div>
       <div style={stackStyle}>
-        {entries.map((entry) => (
-          <div key={entry.id} style={entryStyle}>
-            {entry.isCoordinator ? <span style={coordMarkStyle}>◆</span> : null}
-            <span>{entry.label}</span>
-          </div>
-        ))}
+        {entries.map((entry) => {
+          const ageMs = activityEntryAge(entry, now);
+          const opacity = activityEntryOpacity(ageMs, isHovered);
+
+          return (
+            <div key={entry.id} style={{ ...entryStyle, opacity }}>
+              {entry.isCoordinator ? (
+                <span style={coordMarkStyle}>◆</span>
+              ) : null}
+              <span>{entry.label}</span>
+            </div>
+          );
+        })}
       </div>
       <style>{`
-        @keyframes activity-log-fade {
+        @keyframes activity-log-enter {
           0% {
             opacity: 0;
             transform: translate3d(-6px, 2px, 0);
             filter: blur(2px);
           }
-          14% {
-            opacity: 0.62;
+          100% {
+            opacity: 1;
             transform: translate3d(0, 0, 0);
             filter: blur(0);
-          }
-          72% {
-            opacity: 0.42;
-          }
-          100% {
-            opacity: 0;
-            transform: translate3d(0, -5px, 0);
-            filter: blur(1px);
           }
         }
       `}</style>
@@ -155,7 +233,7 @@ const shellStyle: CSSProperties = {
   zIndex: 4,
   width: 260,
   maxWidth: "34vw",
-  pointerEvents: "none",
+  pointerEvents: "auto",
   fontFamily: '"Share Tech Mono", monospace',
   color: "rgba(157, 244, 255, 0.72)",
   textShadow: "0 0 10px rgba(0, 212, 255, 0.22)",
@@ -191,7 +269,8 @@ const entryStyle: CSSProperties = {
   whiteSpace: "nowrap",
   fontSize: 11,
   lineHeight: 1.25,
-  animation: `activity-log-fade ${ACTIVITY_TTL_MS}ms linear forwards`,
+  transition: "opacity 240ms linear",
+  animation: "activity-log-enter 180ms ease-out",
 };
 
 const coordMarkStyle: CSSProperties = {
