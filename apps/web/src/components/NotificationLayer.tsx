@@ -2,6 +2,10 @@ import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { useBusStore, type NotificationItem } from "../store/bus.js";
 
 type NotificationLocation = "popup" | "dock";
+type PopupStyle = CSSProperties & {
+  "--origin-x"?: string;
+  "--origin-y"?: string;
+};
 
 interface NotificationLayerProps {
   renderContent?: (
@@ -47,20 +51,28 @@ export function NotificationLayer({ renderContent }: NotificationLayerProps) {
   const actionableCount = dockItems.filter(
     (item) => item.priority !== "subtle"
   ).length;
+  const popupStyle: PopupStyle | undefined = popup
+    ? {
+        ...popupShell,
+        ...(popup.origin
+          ? {
+              "--origin-x": `${popup.origin.x}px`,
+              "--origin-y": `${popup.origin.y}px`,
+            }
+          : {}),
+        animation:
+          exitingPopupId === popup.id
+            ? "nexus-popup-to-dock 480ms ease-in forwards"
+            : popup.origin
+              ? "nexus-popup-from-origin 420ms cubic-bezier(0.16, 1, 0.3, 1) forwards"
+              : "nexus-popup-in 180ms ease-out forwards",
+      }
+    : undefined;
 
   return (
     <>
       {popup ? (
-        <section
-          aria-live="assertive"
-          style={{
-            ...popupShell,
-            animation:
-              exitingPopupId === popup.id
-                ? "nexus-popup-to-dock 480ms ease-in forwards"
-                : "nexus-popup-in 180ms ease-out forwards",
-          }}
-        >
+        <section aria-live="assertive" style={popupStyle}>
           <div style={popupHeader}>
             <span>{popup.priority === "loud" ? "PRIORITY" : "NOTICE"}</span>
             <span style={popupPrefix}>{popup.prefix ?? "MESSAGE"}</span>
@@ -106,6 +118,27 @@ export function NotificationLayer({ renderContent }: NotificationLayerProps) {
         @keyframes nexus-popup-in {
           from { opacity: 0; transform: translate(-50%, -50%) scale(0.92); }
           to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+        }
+
+        @keyframes nexus-popup-from-origin {
+          0% {
+            opacity: 0;
+            filter: blur(8px);
+            transform: translate(
+              calc(var(--origin-x) - 50vw - 50%),
+              calc(var(--origin-y) - 50vh - 50%)
+            ) scale(0.26);
+          }
+          55% {
+            opacity: 1;
+            filter: blur(0);
+            transform: translate(-50%, -50%) scale(1.04);
+          }
+          100% {
+            opacity: 1;
+            filter: blur(0);
+            transform: translate(-50%, -50%) scale(1);
+          }
         }
 
         @keyframes nexus-popup-to-dock {

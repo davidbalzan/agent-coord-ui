@@ -164,6 +164,19 @@ describe("bus store — notification queue", () => {
     useBusStore.getState().actNotification("m-2");
     expect(useBusStore.getState().notificationDockItems).toEqual([]);
   });
+
+  it("sets and clears popup origin coordinates", () => {
+    dispatch({ type: "message", msg: msg("m-1", "BLOCKER: review needed") });
+
+    useBusStore.getState().setNotificationOrigin("m-1", { x: 128, y: 256 });
+    expect(useBusStore.getState().notificationPopup?.origin).toEqual({
+      x: 128,
+      y: 256,
+    });
+
+    useBusStore.getState().setNotificationOrigin("m-1", null);
+    expect(useBusStore.getState().notificationPopup?.origin).toBeUndefined();
+  });
 });
 
 function msg(
