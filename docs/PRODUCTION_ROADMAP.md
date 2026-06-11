@@ -133,7 +133,21 @@ aliases: ["Roadmap", "PRODUCTION_ROADMAP"]
 
 ---
 
-### Phase 5: Full Interactive Terminal (xterm.js)
+### Phase 5: David Coordination Cockpit
+
+**Goal**: David coordinates from the UI — DM inbox + reply, prefix-ranked holographic notifications (emanate from sender node → center popup → bottom-left action dock), and `DAVID_DECISION`s as actionable cards answered in one click.
+**Duration**: 1–2 weeks
+**Status**: 🟡 In Progress
+
+**Context**: De-risked because DMs to `david` already flow into the store (`inbox/david.jsonl` → `message` events) and `store.sendMessage` already round-trips replies. Mostly a web render+interaction layer.
+
+**Detailed plan**: [Phase 5 Tasks](./phases/phase5/PHASE5_TASKS.md) · [Phase 5 README](./phases/phase5/README.md)
+
+**Key Risk**: notification spam / missed DAVID_DECISION — mitigated by prefix-driven prominence + persistent action dock; terminal stays a fallback.
+
+---
+
+### Phase 6: Full Interactive Terminal (xterm.js)
 
 **Goal**: Replace the ANSI-snapshot + send-keys terminal with a real PTY-backed xterm.js emulator — full cursor control, tab-completion, arrow keys, and Claude Code's interactive TUI work from the browser.
 **Duration**: TBD
@@ -153,7 +167,7 @@ aliases: ["Roadmap", "PRODUCTION_ROADMAP"]
 
 ---
 
-### Phase 6 (v2): Networked & Multi-Operator
+### Phase 7 (v2): Networked & Multi-Operator
 
 **Goal**: Support remote teams; auth token; HTTP API mode for non-local MCP.
 **Duration**: TBD
@@ -170,14 +184,15 @@ aliases: ["Roadmap", "PRODUCTION_ROADMAP"]
 
 ## 📊 Implementation Priority Matrix
 
-| Phase                 | Priority    | Blocks        | Complexity | Duration  | Key Risk                     |
-| --------------------- | ----------- | ------------- | ---------- | --------- | ---------------------------- |
-| Phase 1: Foundation   | 🔴 Critical | All           | Low        | 1 week    | None                         |
-| Phase 2: Live Graph   | 🔴 Critical | Phase 3+      | Medium     | 2 weeks   | WS event schema churn        |
-| Phase 3: Polish       | 🟡 High     | v2 perception | Medium     | 1–2 weeks | Three.js coupling complexity |
-| Phase 4: Provisioning | 🟡 High     | operator toil | Medium     | 1–2 weeks | Readiness races, injection   |
-| Phase 5: xterm.js     | 🟢 Medium   | Phase 3       | High       | TBD       | Bundle size, PTY lifecycle   |
-| Phase 6: Networked    | 🟢 Medium   | —             | High       | TBD       | Auth scope creep             |
+| Phase                 | Priority    | Blocks        | Complexity | Duration  | Key Risk                            |
+| --------------------- | ----------- | ------------- | ---------- | --------- | ----------------------------------- |
+| Phase 1: Foundation   | 🔴 Critical | All           | Low        | 1 week    | None                                |
+| Phase 2: Live Graph   | 🔴 Critical | Phase 3+      | Medium     | 2 weeks   | WS event schema churn               |
+| Phase 3: Polish       | 🟡 High     | v2 perception | Medium     | 1–2 weeks | Three.js coupling complexity        |
+| Phase 4: Provisioning | 🟡 High     | operator toil | Medium     | 1–2 weeks | Readiness races, injection          |
+| Phase 5: Cockpit      | 🟡 High     | David's UX    | Medium     | 1–2 weeks | Notification spam, missed decisions |
+| Phase 6: xterm.js     | 🟢 Medium   | Phase 3       | High       | TBD       | Bundle size, PTY lifecycle          |
+| Phase 7: Networked    | 🟢 Medium   | —             | High       | TBD       | Auth scope creep                    |
 
 **Critical Path**: Phase 1 → Phase 2 → Phase 3 (sequential). Phase 4 (provisioning) is high-value and reuses existing tmux infra — recommended next. Phases 5–6 are independent v2 work.
 
@@ -212,11 +227,12 @@ aliases: ["Roadmap", "PRODUCTION_ROADMAP"]
 
 ## 🔄 Revision History
 
-| Date       | Change                                                                                                      | Reason                                                                                                            |
-| ---------- | ----------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| 2026-06-08 | Initial roadmap created from kickstart                                                                      | Project bootstrapped; Phase 1 & 2 retrospectively documented                                                      |
-| 2026-06-08 | Added Phase 4 (xterm.js interactive terminal)                                                               | ANSI snapshot approach can't support cursor keys / tab-complete / Claude Code TUI                                 |
-| 2026-06-10 | Inserted Phase 4 (Agent Provisioning & Terminal Groups); renumbered xterm.js → Phase 5, Networked → Phase 6 | Automate the manual tmux spawn/configure/join ritual from the UI; reuses existing tmux infra, high operator value |
+| Date       | Change                                                                                                                                                                                                   | Reason                                                                                                                  |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| 2026-06-08 | Initial roadmap created from kickstart                                                                                                                                                                   | Project bootstrapped; Phase 1 & 2 retrospectively documented                                                            |
+| 2026-06-08 | Added Phase 4 (xterm.js interactive terminal)                                                                                                                                                            | ANSI snapshot approach can't support cursor keys / tab-complete / Claude Code TUI                                       |
+| 2026-06-10 | Inserted Phase 4 (Agent Provisioning & Terminal Groups); renumbered xterm.js → Phase 5, Networked → Phase 6                                                                                              | Automate the manual tmux spawn/configure/join ritual from the UI; reuses existing tmux infra, high operator value       |
+| 2026-06-11 | Inserted Phase 5 (David Coordination Cockpit); renumbered xterm.js → Phase 6, Networked → Phase 7. Also: read-only Task Backlog feature shipped (discovery + parser + panel) outside the phase numbering | Make the UI David's coordination surface (DM inbox + notifications + decision cards); DM data + send path already exist |
 
 ---
 
