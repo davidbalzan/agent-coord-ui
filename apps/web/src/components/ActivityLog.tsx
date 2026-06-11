@@ -251,33 +251,35 @@ export function ActivityLog() {
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
-      <div style={tileStyle}>{ACTIVITY_LOG_TILE_LABEL}</div>
-      {renderedEntries.length > 0 ? (
-        <div style={stackStyle}>
-          {renderedEntries.map((entry) => {
-            const ageMs = activityEntryAge(entry, now);
-            const opacity = activityEntryOpacity(ageMs, isHovered);
+      <div style={logSurfaceStyle}>
+        <div style={tileStyle}>{ACTIVITY_LOG_TILE_LABEL}</div>
+        {renderedEntries.length > 0 ? (
+          <div style={stackStyle}>
+            {renderedEntries.map((entry) => {
+              const ageMs = activityEntryAge(entry, now);
+              const opacity = activityEntryOpacity(ageMs, isHovered);
 
-            return (
-              <div
-                key={entry.id}
-                style={{ ...entryStyle, opacity }}
-                onMouseEnter={() => setHoveredEntryId(entry.id)}
-                onMouseLeave={() =>
-                  setHoveredEntryId((current) =>
-                    current === entry.id ? null : current
-                  )
-                }
-              >
-                {entry.isCoordinator ? (
-                  <span style={coordMarkStyle}>◆</span>
-                ) : null}
-                <span>{entry.label}</span>
-              </div>
-            );
-          })}
-        </div>
-      ) : null}
+              return (
+                <div
+                  key={entry.id}
+                  style={{ ...entryStyle, opacity }}
+                  onMouseEnter={() => setHoveredEntryId(entry.id)}
+                  onMouseLeave={() =>
+                    setHoveredEntryId((current) =>
+                      current === entry.id ? null : current
+                    )
+                  }
+                >
+                  {entry.isCoordinator ? (
+                    <span style={coordMarkStyle}>◆</span>
+                  ) : null}
+                  <span>{entry.label}</span>
+                </div>
+              );
+            })}
+          </div>
+        ) : null}
+      </div>
       {hoveredEntry ? <ActivityEventDetailPanel entry={hoveredEntry} /> : null}
       <style>{`
         @keyframes activity-log-enter {
@@ -364,6 +366,9 @@ const shellStyle: CSSProperties = {
   fontFamily: '"Share Tech Mono", monospace',
   color: "rgba(157, 244, 255, 0.72)",
   textShadow: "0 0 10px rgba(0, 212, 255, 0.22)",
+};
+
+const logSurfaceStyle: CSSProperties = {
   mixBlendMode: "screen",
 };
 
