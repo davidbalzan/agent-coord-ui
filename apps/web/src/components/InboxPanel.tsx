@@ -3,6 +3,8 @@ import { useBusStore } from "../store/bus.js";
 import type { DmThread } from "../store/bus.js";
 import type { MessageSnapshot } from "@coord-ui/shared";
 import { DAVID_ID, buildDavidThreads } from "../lib/inbox.js";
+import { parseDavidDecisionPacket } from "../lib/decisionPacket.js";
+import { DecisionCard } from "./DecisionCard.js";
 
 const PANEL_WIDTH = 700;
 
@@ -314,7 +316,7 @@ function ThreadView({
         }}
       >
         {thread.messages.map((msg) => (
-          <MessageBubble key={msg.id} msg={msg} />
+          <MessageBubble key={msg.id} msg={msg} onSend={onSend} />
         ))}
         <div ref={messagesEndRef} />
       </div>
@@ -397,14 +399,24 @@ function ThreadView({
   );
 }
 
-function MessageBubble({ msg }: { msg: MessageSnapshot }) {
+function MessageBubble({
+  msg,
+  onSend,
+}: {
+  msg: MessageSnapshot;
+  onSend: (body: string) => void;
+}) {
   const isOutbound = msg.from === DAVID_ID;
-  const prefix = extractPrefix(msg.body);
-  const prefixColor = PREFIX_COLORS[prefix ?? ""] ?? "rgba(0,212,255,0.35)";
   const ts = new Date(msg.timestamp).toLocaleTimeString([], {
     hour: "2-digit",
     minute: "2-digit",
   });
+
+  // Try to parse inbound DAVID_DECISION messages as structured packets
+  const packet = !isOutbound ? parseDavidDecisionPacket(msg.body) : null;
+
+  const prefix = packet ? "DAVID_DECISION" : extractPrefix(msg.body);
+  const prefixColor = PREFIX_COLORS[prefix ?? ""] ?? "rgba(0,212,255,0.35)";
 
   return (
     <div
@@ -444,7 +456,7 @@ function MessageBubble({ msg }: { msg: MessageSnapshot }) {
         >
           {ts}
         </span>
-        {prefix && (
+        {prefix && !packet && (
           <span
             style={{
               fontFamily: "Share Tech Mono, monospace",
@@ -462,26 +474,32 @@ function MessageBubble({ msg }: { msg: MessageSnapshot }) {
         )}
       </div>
 
-      {/* Message body */}
-      <div
-        style={{
-          maxWidth: "85%",
-          background: isOutbound
-            ? "rgba(0,255,136,0.06)"
-            : "rgba(0,212,255,0.06)",
-          border: `1px solid ${isOutbound ? "rgba(0,255,136,0.15)" : "rgba(0,212,255,0.15)"}`,
-          borderRadius: 4,
-          padding: "10px 14px",
-          fontFamily: "Share Tech Mono, monospace",
-          fontSize: 13,
-          lineHeight: 1.7,
-          color: isOutbound ? "rgba(0,255,136,0.85)" : "rgba(0,212,255,0.9)",
-          whiteSpace: "pre-wrap",
-          wordBreak: "break-word",
-        }}
-      >
-        {msg.body}
-      </div>
+      {/* Message body — DecisionCard for packets, plain bubble otherwise */}
+      {packet ? (
+        <div style={{ width: "100%" }}>
+          <DecisionCard packet={packet} messageId={msg.id} onSend={onSend} />
+        </div>
+      ) : (
+        <div
+          style={{
+            maxWidth: "85%",
+            background: isOutbound
+              ? "rgba(0,255,136,0.06)"
+              : "rgba(0,212,255,0.06)",
+            border: `1px solid ${isOutbound ? "rgba(0,255,136,0.15)" : "rgba(0,212,255,0.15)"}`,
+            borderRadius: 4,
+            padding: "10px 14px",
+            fontFamily: "Share Tech Mono, monospace",
+            fontSize: 13,
+            lineHeight: 1.7,
+            color: isOutbound ? "rgba(0,255,136,0.85)" : "rgba(0,212,255,0.9)",
+            whiteSpace: "pre-wrap",
+            wordBreak: "break-word",
+          }}
+        >
+          {msg.body}
+        </div>
+      )}
     </div>
   );
 }

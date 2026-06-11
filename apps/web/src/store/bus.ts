@@ -17,6 +17,25 @@ import {
 } from "../lib/inbox.js";
 export type { DmThread } from "../lib/inbox.js";
 
+const RESOLVED_LS_KEY = "coord-ui:resolved-decisions";
+
+function loadResolvedDecisions(): Record<string, string> {
+  try {
+    const raw = localStorage.getItem(RESOLVED_LS_KEY);
+    return raw ? (JSON.parse(raw) as Record<string, string>) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveResolvedDecisions(state: Record<string, string>): void {
+  try {
+    localStorage.setItem(RESOLVED_LS_KEY, JSON.stringify(state));
+  } catch {
+    // storage quota or unavailable — silent
+  }
+}
+
 export type SelectionKind = "agent" | "room" | "dm-edge" | "pane";
 
 export interface Selection {
@@ -58,6 +77,7 @@ interface BusState {
   inboxOpen: boolean;
   activeInboxThread: string | null; // counterpart agent id currently viewed
   readState: Record<string, number>; // counterpart → last-read timestamp
+  resolvedDecisions: Record<string, string>; // messageId → chosen option text
   setSelection: (s: Selection | null) => void;
   setPaneSelection: (id: string | null) => void;
   setNameFilter: (f: string) => void;
@@ -69,6 +89,7 @@ interface BusState {
   setInboxOpen: (v: boolean) => void;
   setActiveInboxThread: (counterpart: string | null) => void;
   markThreadRead: (counterpart: string) => void;
+  addResolvedDecision: (messageId: string, chosenOption: string) => void;
   fetchBacklogs: () => Promise<void>;
   saveBacklogQueue: (
     project: string,
@@ -188,6 +209,7 @@ export const useBusStore = create<BusState>((set) => {
     inboxOpen: false,
     activeInboxThread: null,
     readState: loadReadState(),
+    resolvedDecisions: loadResolvedDecisions(),
     setSelection: (selection) => set({ selection }),
     setPaneSelection: (paneSelection) => set({ paneSelection }),
     setNameFilter: (nameFilter) => set({ nameFilter }),
@@ -203,6 +225,15 @@ export const useBusStore = create<BusState>((set) => {
         const readState = { ...s.readState, [counterpart]: Date.now() };
         saveReadState(readState);
         return { readState };
+      }),
+    addResolvedDecision: (messageId, chosenOption) =>
+      set((s) => {
+        const resolvedDecisions = {
+          ...s.resolvedDecisions,
+          [messageId]: chosenOption,
+        };
+        saveResolvedDecisions(resolvedDecisions);
+        return { resolvedDecisions };
       }),
     fetchBacklogs: async () => {
       const res = await fetch("/api/backlogs");

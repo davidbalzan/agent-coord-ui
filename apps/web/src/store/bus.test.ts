@@ -35,6 +35,7 @@ const INITIAL_STATE = {
   nameFilter: "",
   hoveredAgentId: null,
   sidePanelWidth: 0,
+  resolvedDecisions: {},
 };
 
 beforeEach(() => {
@@ -177,5 +178,47 @@ describe("bus store — setters", () => {
       kind: "agent",
       id: "agent-1",
     });
+  });
+});
+
+describe("bus store — decision resolution", () => {
+  it("resolvedDecisions starts empty", () => {
+    expect(useBusStore.getState().resolvedDecisions).toEqual({});
+  });
+
+  it("addResolvedDecision records messageId → chosenOption", () => {
+    useBusStore
+      .getState()
+      .addResolvedDecision("msg-dd-1", "Deploy to QA first.");
+    expect(useBusStore.getState().resolvedDecisions["msg-dd-1"]).toBe(
+      "Deploy to QA first."
+    );
+  });
+
+  it("addResolvedDecision accumulates multiple resolved decisions", () => {
+    useBusStore.getState().addResolvedDecision("msg-a", "Option A");
+    useBusStore.getState().addResolvedDecision("msg-b", "Option B");
+    const state = useBusStore.getState().resolvedDecisions;
+    expect(state["msg-a"]).toBe("Option A");
+    expect(state["msg-b"]).toBe("Option B");
+  });
+
+  it("resolving one decision does not affect others", () => {
+    useBusStore.setState({
+      resolvedDecisions: { "msg-existing": "already chosen" },
+    });
+    useBusStore.getState().addResolvedDecision("msg-new", "new choice");
+    expect(useBusStore.getState().resolvedDecisions["msg-existing"]).toBe(
+      "already chosen"
+    );
+    expect(useBusStore.getState().resolvedDecisions["msg-new"]).toBe(
+      "new choice"
+    );
+  });
+
+  it("unresolved decision messageId returns undefined", () => {
+    expect(
+      useBusStore.getState().resolvedDecisions["msg-not-resolved"]
+    ).toBeUndefined();
   });
 });
