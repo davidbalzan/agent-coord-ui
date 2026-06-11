@@ -11,9 +11,11 @@ import {
   expireActivityEntries,
   formatActivityLabel,
   isCoordinatorSender,
+  MAX_RETAINED_ACTIVITY_ENTRIES,
   newMessagesSince,
   pauseActivityEntries,
   resumeActivityEntries,
+  visibleActivityEntries,
   type ActivityLogEntry,
 } from "./ActivityLog.js";
 
@@ -88,27 +90,59 @@ describe("ActivityLog helpers", () => {
     expect(activityEntryOpacity(ACTIVITY_TTL_MS, false)).toBe(0);
   });
 
-  it("removes only entries that have completed their own lifecycle", () => {
+  it("retains entries after the visual fade window", () => {
     const entries: ActivityLogEntry[] = [
       {
-        id: "fresh",
-        label: "fresh → #room",
+        id: "faded",
+        label: "faded → #room",
         isCoordinator: false,
         createdAt: 1000,
       },
-      {
-        id: "expired",
-        label: "expired → #room",
-        isCoordinator: false,
-        createdAt: 999,
-      },
     ];
 
+    expect(expireActivityEntries(entries, 1000 + ACTIVITY_TTL_MS + 1)).toEqual(
+      entries
+    );
+    expect(activityEntryOpacity(ACTIVITY_TTL_MS + 1, false)).toBe(0);
+  });
+
+  it("drops retained entries only when the retained buffer cap is exceeded", () => {
+    const entries = Array.from(
+      { length: MAX_RETAINED_ACTIVITY_ENTRIES + 1 },
+      (_, index) => ({
+        id: `entry-${index}`,
+        label: `agent-${index} → #room`,
+        isCoordinator: false,
+        createdAt: index,
+      })
+    );
+
     expect(
-      expireActivityEntries(entries, 1000 + ACTIVITY_TTL_MS - 1).map(
+      expireActivityEntries(entries, ACTIVITY_TTL_MS + 100).map(
         (entry) => entry.id
       )
-    ).toEqual(["fresh"]);
+    ).toEqual(entries.slice(1).map((entry) => entry.id));
+  });
+
+  it("reveals the full retained buffer at full opacity while hovered", () => {
+    const entries: ActivityLogEntry[] = Array.from(
+      { length: 10 },
+      (_, index) => ({
+        id: `entry-${index}`,
+        label: `agent-${index} → #room`,
+        isCoordinator: false,
+        createdAt: 1000 + index,
+      })
+    );
+    const now = 1000 + ACTIVITY_TTL_MS + 5000;
+
+    expect(visibleActivityEntries(entries, false).length).toBe(7);
+    expect(visibleActivityEntries(entries, true).length).toBe(10);
+    expect(
+      visibleActivityEntries(entries, true).map((entry) =>
+        activityEntryOpacity(activityEntryAge(entry, now), true)
+      )
+    ).toEqual(Array.from({ length: 10 }, () => 1));
   });
 
   it("restores full opacity while hovered and resumes from the paused age", () => {

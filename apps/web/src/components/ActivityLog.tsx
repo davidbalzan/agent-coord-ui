@@ -2,7 +2,8 @@ import { useEffect, useRef, useState, type CSSProperties } from "react";
 import type { AgentSnapshot, MessageSnapshot } from "@coord-ui/shared";
 import { useBusStore } from "../store/bus.js";
 
-const MAX_ACTIVITY_ENTRIES = 7;
+const MAX_VISIBLE_ACTIVITY_ENTRIES = 7;
+export const MAX_RETAINED_ACTIVITY_ENTRIES = 18;
 export const ACTIVITY_LOG_TILE_LABEL = "◇ BUS ACTIVITY";
 export const ACTIVITY_HOLD_MS = 8000;
 export const ACTIVITY_FADE_MS = 4000;
@@ -57,7 +58,7 @@ export function appendActivityEntries(
   messages: MessageSnapshot[],
   agents: Record<string, AgentSnapshot>,
   now: number,
-  maxEntries = MAX_ACTIVITY_ENTRIES
+  maxEntries = MAX_RETAINED_ACTIVITY_ENTRIES
 ): ActivityLogEntry[] {
   const nextEntries = messages.map((msg, index) => ({
     id: `${msg.id}:${now}:${index}`,
@@ -110,11 +111,18 @@ export function resumeActivityEntries(
 
 export function expireActivityEntries(
   entries: ActivityLogEntry[],
-  now: number
+  _now: number,
+  maxEntries = MAX_RETAINED_ACTIVITY_ENTRIES
 ): ActivityLogEntry[] {
-  return entries.filter(
-    (entry) => activityEntryAge(entry, now) < ACTIVITY_TTL_MS
-  );
+  return entries.slice(-maxEntries);
+}
+
+export function visibleActivityEntries(
+  entries: ActivityLogEntry[],
+  isHovered: boolean,
+  maxEntries = MAX_VISIBLE_ACTIVITY_ENTRIES
+): ActivityLogEntry[] {
+  return isHovered ? entries : entries.slice(-maxEntries);
 }
 
 export function ActivityLog() {
@@ -183,6 +191,7 @@ export function ActivityLog() {
     setIsHovered(false);
     setEntries((current) => resumeActivityEntries(current, leaveNow));
   };
+  const renderedEntries = visibleActivityEntries(entries, isHovered);
 
   return (
     <aside
@@ -192,9 +201,9 @@ export function ActivityLog() {
       onMouseLeave={handleMouseLeave}
     >
       <div style={tileStyle}>{ACTIVITY_LOG_TILE_LABEL}</div>
-      {entries.length > 0 ? (
+      {renderedEntries.length > 0 ? (
         <div style={stackStyle}>
-          {entries.map((entry) => {
+          {renderedEntries.map((entry) => {
             const ageMs = activityEntryAge(entry, now);
             const opacity = activityEntryOpacity(ageMs, isHovered);
 
