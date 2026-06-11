@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { AgentSnapshot, MessageSnapshot } from "@coord-ui/shared";
 import {
+  ACTIVITY_LOG_TILE_LABEL,
   ACTIVITY_FADE_MS,
   ACTIVITY_HOLD_MS,
   ACTIVITY_TTL_MS,
@@ -17,6 +18,10 @@ import {
 } from "./ActivityLog.js";
 
 describe("ActivityLog helpers", () => {
+  it("uses a stable discoverable tile label", () => {
+    expect(ACTIVITY_LOG_TILE_LABEL).toBe("◇ BUS ACTIVITY");
+  });
+
   it("formats DMs and room posts as short ambient routes", () => {
     expect(formatActivityLabel(msg("m-1", "alice", "bob", true))).toBe(
       "alice → bob"

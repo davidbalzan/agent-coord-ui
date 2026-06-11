@@ -3,6 +3,7 @@ import type { AgentSnapshot, MessageSnapshot } from "@coord-ui/shared";
 import { useBusStore } from "../store/bus.js";
 
 const MAX_ACTIVITY_ENTRIES = 7;
+export const ACTIVITY_LOG_TILE_LABEL = "◇ BUS ACTIVITY";
 export const ACTIVITY_HOLD_MS = 8000;
 export const ACTIVITY_FADE_MS = 4000;
 export const ACTIVITY_TTL_MS = ACTIVITY_HOLD_MS + ACTIVITY_FADE_MS;
@@ -183,8 +184,6 @@ export function ActivityLog() {
     setEntries((current) => resumeActivityEntries(current, leaveNow));
   };
 
-  if (entries.length === 0) return null;
-
   return (
     <aside
       aria-hidden="true"
@@ -192,22 +191,24 @@ export function ActivityLog() {
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
-      <div style={headerStyle}>BUS ACTIVITY</div>
-      <div style={stackStyle}>
-        {entries.map((entry) => {
-          const ageMs = activityEntryAge(entry, now);
-          const opacity = activityEntryOpacity(ageMs, isHovered);
+      <div style={tileStyle}>{ACTIVITY_LOG_TILE_LABEL}</div>
+      {entries.length > 0 ? (
+        <div style={stackStyle}>
+          {entries.map((entry) => {
+            const ageMs = activityEntryAge(entry, now);
+            const opacity = activityEntryOpacity(ageMs, isHovered);
 
-          return (
-            <div key={entry.id} style={{ ...entryStyle, opacity }}>
-              {entry.isCoordinator ? (
-                <span style={coordMarkStyle}>◆</span>
-              ) : null}
-              <span>{entry.label}</span>
-            </div>
-          );
-        })}
-      </div>
+            return (
+              <div key={entry.id} style={{ ...entryStyle, opacity }}>
+                {entry.isCoordinator ? (
+                  <span style={coordMarkStyle}>◆</span>
+                ) : null}
+                <span>{entry.label}</span>
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
       <style>{`
         @keyframes activity-log-enter {
           0% {
@@ -240,11 +241,20 @@ const shellStyle: CSSProperties = {
   mixBlendMode: "screen",
 };
 
-const headerStyle: CSSProperties = {
-  marginBottom: 6,
-  fontSize: 9,
+const tileStyle: CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  marginBottom: 7,
+  padding: "4px 8px",
+  border: "1px solid rgba(0, 212, 255, 0.13)",
+  borderRadius: 2,
+  background:
+    "linear-gradient(90deg, rgba(0, 212, 255, 0.055), rgba(0, 212, 255, 0.012))",
+  boxShadow:
+    "0 0 18px rgba(0, 212, 255, 0.035), inset 0 0 12px rgba(0, 212, 255, 0.035)",
+  fontSize: 10,
   letterSpacing: "0.22em",
-  color: "rgba(0, 212, 255, 0.32)",
+  color: "rgba(157, 244, 255, 0.44)",
 };
 
 const stackStyle: CSSProperties = {
