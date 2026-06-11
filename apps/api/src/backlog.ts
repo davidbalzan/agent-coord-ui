@@ -41,8 +41,46 @@ export async function getAgentPaneRoots(): Promise<string[]> {
   return [...new Set(roots.filter((r): r is string => r !== null))];
 }
 
-const QUEUE_RE = /^-\s+\[\s*\]\s+(P[123])\s+(.+?)\s*(?:—|-{1,2})\s*(.*)$/;
-const DONE_RE = /^-\s+\[x\]\s+(.+?)\s*(?:—|-{1,2})\s*([^\s·]+)\s*·?\s*(.*)$/i;
+// Queue: canonical format is - [ ] (P1) <task> [— refs/constraints (optional)]
+// Priority MUST be parenthesized: (P1) / (P2) / (P3).
+// Everything after priority is captured as text (no greedy split on prose em-dashes).
+const QUEUE_RE = /^-\s+\[\s*\]\s+\((P[123])\)\s+(.+)$/;
+
+// Done items are parsed procedurally — right-anchored — because task text can
+// contain em-dashes and · as prose punctuation, making left-anchored splits
+// produce wrong text/ref/date splits.
+function parseDoneItem(line: string): BacklogDoneItem | null {
+  const prefixMatch = /^-\s+\[x\]\s+/i.exec(line);
+  if (!prefixMatch) return null;
+  let rest = line.slice(prefixMatch[0].length).trim();
+  if (!rest) return null;
+
+  // 1. Strip trailing date: " · YYYY-MM-DD"
+  let date = "";
+  const dateMatch = / · (\d{4}-\d{2}-\d{2})$/.exec(rest);
+  if (dateMatch) {
+    date = dateMatch[1]!;
+    rest = rest.slice(0, dateMatch.index).trim();
+  }
+
+  // 2. Strip one trailing period (common in prose-style entries)
+  if (rest.endsWith(".")) rest = rest.slice(0, -1).trim();
+
+  // 3. Split on the LAST " — " (em-dash + spaces) to separate text from ref.
+  //    This keeps internal em-dashes intact in the task text.
+  const dashIdx = rest.lastIndexOf(" — ");
+  let text: string;
+  let ref: string;
+  if (dashIdx >= 0) {
+    text = rest.slice(0, dashIdx).trim();
+    ref = rest.slice(dashIdx + 3).trim(); // 3 = " — " length
+  } else {
+    text = rest;
+    ref = "";
+  }
+
+  return text ? { text, ref, date } : null;
+}
 
 export function parseBacklog(project: string, content: string): ProjectBacklog {
   const queue: BacklogQueueItem[] = [];
@@ -72,19 +110,13 @@ export function parseBacklog(project: string, content: string): ProjectBacklog {
         queue.push({
           priority: m[1] as BacklogPriority,
           text: m[2].trim(),
-          refs: m[3].trim(),
+          refs: "",
           checked: false,
         });
       }
     } else if (section === "done") {
-      const m = DONE_RE.exec(line);
-      if (m) {
-        done.push({
-          text: m[1].trim(),
-          ref: m[2].trim(),
-          date: m[3].trim(),
-        });
-      }
+      const item = parseDoneItem(line);
+      if (item) done.push(item);
     }
   }
 
