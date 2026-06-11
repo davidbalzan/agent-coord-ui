@@ -12,6 +12,7 @@ import {
   FONT_MONO,
   FONT_DISPLAY,
 } from "../theme/tokens.js";
+import { GlassPanel } from "./primitives/GlassPanel.js";
 
 const PANEL_WIDTH = 700;
 
@@ -45,14 +46,14 @@ export function InboxPanel() {
   };
 
   return (
-    <div
+    <GlassPanel
+      background="rgba(0,8,22,0.97)"
       style={{
         position: "fixed",
         top: 56,
         right: 0,
         bottom: 0,
         width: PANEL_WIDTH,
-        background: "rgba(0,8,22,0.97)",
         borderLeft: "1px solid rgba(0,212,255,0.25)",
         display: "flex",
         flexDirection: "column",
@@ -192,7 +193,7 @@ export function InboxPanel() {
           )}
         </div>
       </div>
-    </div>
+    </GlassPanel>
   );
 }
 

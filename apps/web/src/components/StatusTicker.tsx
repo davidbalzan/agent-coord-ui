@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useBusStore } from "../store/bus.js";
+import { GlassPanel } from "./primitives/GlassPanel.js";
 
 const SPEED_PX_PER_MS = 0.055;
 const SEP = "   ·   ";
@@ -88,7 +89,10 @@ export function StatusTicker() {
   }, []);
 
   return (
-    <div
+    <GlassPanel
+      background="linear-gradient(to bottom, rgba(8, 24, 48, 0.45), rgba(0, 8, 22, 0.35))"
+      blur={16}
+      saturate={150}
       style={{
         position: "fixed",
         bottom: 0,
@@ -97,13 +101,9 @@ export function StatusTicker() {
         height: 28,
         zIndex: 200,
         overflow: "hidden",
-        background:
-          "linear-gradient(to bottom, rgba(8, 24, 48, 0.45), rgba(0, 8, 22, 0.35))",
         borderTop: "1px solid rgba(0, 212, 255, 0.22)",
         boxShadow:
           "inset 0 1px 0 rgba(255,255,255,0.06), 0 -4px 24px rgba(0,0,0,0.35)",
-        backdropFilter: "blur(16px) saturate(150%)",
-        WebkitBackdropFilter: "blur(16px) saturate(150%)",
       }}
     >
       <div
@@ -133,6 +133,6 @@ export function StatusTicker() {
         }}
         dangerouslySetInnerHTML={{ __html: html + html }}
       />
-    </div>
+    </GlassPanel>
   );
 }
