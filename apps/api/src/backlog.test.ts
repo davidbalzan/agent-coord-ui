@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { PaneSnapshot } from "@coord-ui/shared";
 
 // ─── Module mocks ─────────────────────────────────────────────────────────────
 
@@ -14,12 +15,51 @@ vi.mock("node:fs/promises", () => ({
   },
 }));
 
+// Controls what gitRoot() resolves to per-cwd. key=cwd, value=root or null.
+const gitRootMap = new Map<string, string | null>();
+
+type ExecCallback = (
+  err: Error | null,
+  result?: { stdout: string; stderr: string }
+) => void;
+
+vi.mock("node:child_process", () => ({
+  exec: (cmd: string, cb: ExecCallback) => {
+    // Extract the -C path from: git -C '<path>' rev-parse --show-toplevel
+    const m = /git -C '(.+?)' rev-parse/.exec(cmd);
+    const cwd = m ? m[1]!.replace(/'\\''/g, "'") : "";
+    const root = gitRootMap.get(cwd) ?? null;
+    if (root === null) {
+      cb(new Error("not a git repository"));
+    } else {
+      cb(null, { stdout: root + "\n", stderr: "" });
+    }
+  },
+}));
+
+let mockPanes: PaneSnapshot[] = [];
+
+vi.mock("./tmux.js", () => ({
+  tmuxWatcher: {
+    get panes() {
+      return mockPanes;
+    },
+  },
+  HOME_SESSION: "agent-coord-ui",
+}));
+
 // ─── Import after mocks ───────────────────────────────────────────────────────
 
-const { parseBacklog, loadBacklog, loadAllBacklogs, getProjectRepoPaths } =
-  await import("./backlog.js");
+const {
+  parseBacklog,
+  loadBacklog,
+  loadAllBacklogs,
+  getProjectRepoPaths,
+  gitRoot,
+  getAgentPaneRoots,
+} = await import("./backlog.js");
 
-// ─── Fixture ──────────────────────────────────────────────────────────────────
+// ─── Fixtures ─────────────────────────────────────────────────────────────────
 
 const FIXTURE = `# Task Backlog
 
@@ -34,6 +74,27 @@ const FIXTURE = `# Task Backlog
 - [x] Fix login redirect — owner/repo#8 · 2026-06-01
 - [x] Bootstrap CI — owner/repo#3 · 2026-05-20
 `;
+
+function makePane(overrides: Partial<PaneSnapshot>): PaneSnapshot {
+  return {
+    id: "%1",
+    pid: 100,
+    title: "",
+    command: "node",
+    session: "main",
+    window: 0,
+    pane: 0,
+    active: true,
+    lastActivity: 0,
+    cwd: "/some/path",
+    left: 0,
+    top: 0,
+    width: 80,
+    height: 24,
+    lines: [],
+    ...overrides,
+  };
+}
 
 // ─── parseBacklog ─────────────────────────────────────────────────────────────
 
@@ -135,9 +196,90 @@ describe("loadBacklog", () => {
   });
 
   it("returns null when file is absent (no throw)", async () => {
-    readFileContent = null; // triggers ENOENT
+    readFileContent = null;
     const result = await loadBacklog("/no/backlog/here");
     expect(result).toBeNull();
+  });
+});
+
+// ─── gitRoot ──────────────────────────────────────────────────────────────────
+
+describe("gitRoot", () => {
+  beforeEach(() => {
+    gitRootMap.clear();
+  });
+
+  it("returns the git root when cwd is inside a repo", async () => {
+    gitRootMap.set("/workspace/myrepo/src", "/workspace/myrepo");
+    expect(await gitRoot("/workspace/myrepo/src")).toBe("/workspace/myrepo");
+  });
+
+  it("returns null when cwd is not inside a git repo", async () => {
+    // no entry in map → exec callback receives an error
+    expect(await gitRoot("/tmp/not-a-repo")).toBeNull();
+  });
+
+  it("returns null without throwing on exec error", async () => {
+    gitRootMap.set("/bad", null as unknown as string); // explicit null → error path
+    expect(await gitRoot("/bad")).toBeNull();
+  });
+});
+
+// ─── getAgentPaneRoots ────────────────────────────────────────────────────────
+
+describe("getAgentPaneRoots", () => {
+  beforeEach(() => {
+    mockPanes = [];
+    gitRootMap.clear();
+  });
+
+  it("returns git roots for panes with an agentId", async () => {
+    gitRootMap.set("/workspace/repo-a", "/workspace/repo-a");
+    gitRootMap.set("/workspace/repo-b", "/workspace/repo-b");
+    mockPanes = [
+      makePane({ id: "%1", cwd: "/workspace/repo-a", agentId: "agent-1" }),
+      makePane({ id: "%2", cwd: "/workspace/repo-b", agentId: "agent-2" }),
+    ];
+    const roots = await getAgentPaneRoots();
+    expect(roots).toEqual(
+      expect.arrayContaining(["/workspace/repo-a", "/workspace/repo-b"])
+    );
+    expect(roots).toHaveLength(2);
+  });
+
+  it("skips panes without an agentId", async () => {
+    gitRootMap.set("/workspace/repo-a", "/workspace/repo-a");
+    mockPanes = [
+      makePane({ id: "%1", cwd: "/workspace/repo-a", agentId: undefined }),
+    ];
+    const roots = await getAgentPaneRoots();
+    expect(roots).toHaveLength(0);
+  });
+
+  it("skips panes whose cwd is not inside a git repo", async () => {
+    mockPanes = [
+      makePane({ id: "%1", cwd: "/tmp/scratch", agentId: "agent-x" }),
+    ];
+    // no gitRootMap entry → null
+    const roots = await getAgentPaneRoots();
+    expect(roots).toHaveLength(0);
+  });
+
+  it("deduplicates panes that resolve to the same git root", async () => {
+    gitRootMap.set("/workspace/repo/src", "/workspace/repo");
+    gitRootMap.set("/workspace/repo/lib", "/workspace/repo");
+    mockPanes = [
+      makePane({ id: "%1", cwd: "/workspace/repo/src", agentId: "agent-1" }),
+      makePane({ id: "%2", cwd: "/workspace/repo/lib", agentId: "agent-2" }),
+    ];
+    const roots = await getAgentPaneRoots();
+    expect(roots).toEqual(["/workspace/repo"]);
+  });
+
+  it("returns empty array when no agent panes exist", async () => {
+    mockPanes = [];
+    const roots = await getAgentPaneRoots();
+    expect(roots).toHaveLength(0);
   });
 });
 
@@ -146,6 +288,8 @@ describe("loadBacklog", () => {
 describe("loadAllBacklogs", () => {
   beforeEach(() => {
     readFileContent = FIXTURE;
+    mockPanes = [];
+    gitRootMap.clear();
     process.env.AGENT_COORD_PROJECT_REPOS = "/repo/a,/repo/b";
   });
 
@@ -156,11 +300,39 @@ describe("loadAllBacklogs", () => {
   });
 
   it("skips repos whose backlog is absent when one path has no file", async () => {
-    // Only one repo configured — its file is absent
     process.env.AGENT_COORD_PROJECT_REPOS = "/repo/missing";
-    readFileContent = null; // triggers ENOENT for that path
+    readFileContent = null;
     const results = await loadAllBacklogs();
     expect(results).toHaveLength(0);
+  });
+
+  it("includes auto-discovered agent pane roots", async () => {
+    process.env.AGENT_COORD_PROJECT_REPOS = "";
+    gitRootMap.set("/workspace/agent-repo", "/workspace/agent-repo");
+    mockPanes = [
+      makePane({
+        id: "%3",
+        cwd: "/workspace/agent-repo",
+        agentId: "some-agent",
+      }),
+    ];
+    const results = await loadAllBacklogs();
+    expect(results).toHaveLength(1);
+    expect(results[0]!.project).toBe("/workspace/agent-repo");
+  });
+
+  it("unions env paths and agent pane roots without duplicates", async () => {
+    // /repo/a is in both env and agent panes
+    gitRootMap.set("/repo/a", "/repo/a");
+    mockPanes = [
+      makePane({ id: "%4", cwd: "/repo/a", agentId: "agent-overlap" }),
+    ];
+    const results = await loadAllBacklogs();
+    // /repo/a, /repo/b from env (agent /repo/a is a dup, /repo/b from env only)
+    expect(results).toHaveLength(2);
+    expect(results.map((r) => r.project)).toEqual(
+      expect.arrayContaining(["/repo/a", "/repo/b"])
+    );
   });
 });
 
