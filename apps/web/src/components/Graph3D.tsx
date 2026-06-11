@@ -23,6 +23,16 @@ import {
 } from "./graph/buildGlowNode.js";
 import { startGraphAnimationLoop } from "./graph/animationLoop.js";
 import { applyForceConfig } from "./graph/forces.js";
+import {
+  closeMenuAndRestore as closeGraphMenuAndRestore,
+  createBackgroundClickHandler,
+  createEscapeFocusHandler,
+  createLinkClickHandler,
+  createNodeClickHandler,
+  fitToScreen as fitGraphToScreen,
+  releaseFocusLock,
+  type ContextMenuState,
+} from "./graph/interactions.js";
 import type {
   AgentSnapshot,
   PaneSnapshot,
@@ -50,11 +60,7 @@ export function Graph3D() {
     pos: { x: number; y: number; z: number };
     target: { x: number; y: number; z: number };
   } | null>(null);
-  const [contextMenu, setContextMenu] = useState<{
-    nodeId: string;
-    kind: "agent" | "room";
-    node3D: { x: number; y: number; z: number };
-  } | null>(null);
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const lastMsgTimeRef = useRef<Map<string, number>>(new Map());
   // unix ms of last message per room id — drives halo ripple
   const roomActivityRef = useRef<Map<string, number>>(new Map());
@@ -661,84 +667,31 @@ export function Graph3D() {
         const secAgo = (Date.now() - lastTs) / 1000;
         return SPEED_BASE + SPEED_BOOST * Math.exp(-SPEED_DECAY * secAgo);
       })
-      .onNodeClick((n: object) => {
-        const node = n as GraphNode;
-        const now = Date.now();
-        const last = lastClickRef.current;
-
-        if (last?.id === node.id && now - last.time < 400) {
-          lastClickRef.current = null;
-          // Snapshot current camera before zoom so we can restore on menu close
-          const cam = graph.camera() as THREE.PerspectiveCamera;
-          const ctrl = graph.controls() as { target: THREE.Vector3 };
-          savedCameraRef.current = {
-            pos: { x: cam.position.x, y: cam.position.y, z: cam.position.z },
-            target: { x: ctrl.target.x, y: ctrl.target.y, z: ctrl.target.z },
-          };
-          const dist = 120;
-          const nx = node.x ?? 0,
-            ny = node.y ?? 0,
-            nz = node.z ?? 0;
-          const mag = Math.hypot(nx, ny, nz) || 1;
-          const ratio = 1 + dist / mag;
-          graph.cameraPosition(
-            { x: nx * ratio, y: ny * ratio, z: nz * ratio },
-            { x: nx, y: ny, z: nz },
-            600
-          );
-          // Focus lock — dim all other nodes + highlight direct edges
-          focusedNodeRef.current = node.id;
-          for (const [id, setDimmed] of nodeDimSetters.current) {
-            setDimmed(id !== node.id);
-          }
-          refreshLinksRef.current();
-          // For backlog nodes: single-click opens the panel; double-click also opens it
-          if (node.kind === "backlog") {
-            setOpenBacklogProject((node.data as ProjectBacklog).project);
-          }
-          // Open radial context menu (only for agent/room nodes)
-          if (node.kind === "agent" || node.kind === "room") {
-            setContextMenu({
-              nodeId: node.id,
-              kind: node.kind,
-              node3D: { x: nx, y: ny, z: nz },
-            });
-          }
-        } else {
-          lastClickRef.current = { id: node.id, time: now };
-          if (node.kind === "pane") {
-            setPaneSelection(node.id.replace(/^pane:/, ""));
-          } else if (node.kind === "backlog") {
-            setOpenBacklogProject((node.data as ProjectBacklog).project);
-          } else {
-            setSelection({
-              kind: node.kind === "room" ? "room" : "agent",
-              id: node.id,
-            });
-          }
-        }
-      })
-      .onLinkClick((l: object) => {
-        const link = l as GraphLink;
-        if (link.kind === "membership") {
-          setSelection({ kind: "room", id: nodeId(link.source) });
-        } else if (link.kind === "dm") {
-          setSelection({ kind: "agent", id: nodeId(link.source) });
-        }
-      })
-      .onBackgroundClick(() => {
-        if (focusedNodeRef.current === null) return;
-        focusedNodeRef.current = null;
-        for (const setDimmed of nodeDimSetters.current.values())
-          setDimmed(false);
-        refreshLinksRef.current();
-        setContextMenu(null);
-        if (savedCameraRef.current) {
-          const { pos, target } = savedCameraRef.current;
-          graph.cameraPosition(pos, target, 600);
-          savedCameraRef.current = null;
-        }
-      });
+      .onNodeClick(
+        createNodeClickHandler({
+          graphRef,
+          lastClickRef,
+          savedCameraRef,
+          focusedNodeRef,
+          nodeDimSetters,
+          refreshLinksRef,
+          setOpenBacklogProject,
+          setContextMenu,
+          setPaneSelection,
+          setSelection,
+        })
+      )
+      .onLinkClick(createLinkClickHandler({ setSelection }))
+      .onBackgroundClick(
+        createBackgroundClickHandler({
+          graphRef,
+          focusedNodeRef,
+          nodeDimSetters,
+          refreshLinksRef,
+          setContextMenu,
+          savedCameraRef,
+        })
+      );
 
     applyForceConfig(graph);
 
@@ -798,23 +751,15 @@ export function Graph3D() {
 
   // Escape releases focus lock and closes context menu
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
-      const hadMenu = contextMenu !== null;
-      setContextMenu(null);
-      if (focusedNodeRef.current !== null) {
-        focusedNodeRef.current = null;
-        for (const setDimmed of nodeDimSetters.current.values())
-          setDimmed(false);
-        refreshLinksRef.current();
-      }
-      if (hadMenu && savedCameraRef.current && graphRef.current) {
-        const { pos, target } = savedCameraRef.current;
-
-        graphRef.current.cameraPosition(pos, target, 600);
-        savedCameraRef.current = null;
-      }
-    };
+    const onKey = createEscapeFocusHandler({
+      graphRef,
+      contextMenu,
+      setContextMenu,
+      focusedNodeRef,
+      nodeDimSetters,
+      refreshLinksRef,
+      savedCameraRef,
+    });
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [contextMenu]);
@@ -945,57 +890,18 @@ export function Graph3D() {
   sidePanelWidthRef.current = sidePanelWidth;
 
   const fitToScreen = useCallback(() => {
-    const graph = graphRef.current;
-    if (!graph) return;
-    graph.zoomToFit(800, 60);
-
-    // After the fit animation settles, pan left so the panel doesn't obscure nodes
-    const panelW = sidePanelWidthRef.current;
-    if (panelW <= 0) return;
-    setTimeout(() => {
-      const g = graphRef.current;
-      if (!g) return;
-      const camera = g.camera() as THREE.PerspectiveCamera;
-      const controls = g.controls() as { target: THREE.Vector3 };
-      const dist = camera.position.distanceTo(controls.target);
-      const canvasH = containerRef.current?.clientHeight ?? window.innerHeight;
-      const worldPerPx =
-        (2 * dist * Math.tan(((camera.fov * Math.PI) / 180) * 0.5)) / canvasH;
-      const shift = (panelW / 2) * worldPerPx;
-
-      const right = new THREE.Vector3()
-        .crossVectors(camera.getWorldDirection(new THREE.Vector3()), camera.up)
-        .normalize()
-        .multiplyScalar(-shift); // negative = shift view leftward
-
-      g.cameraPosition(
-        {
-          x: camera.position.x + right.x,
-          y: camera.position.y + right.y,
-          z: camera.position.z + right.z,
-        },
-        {
-          x: controls.target.x + right.x,
-          y: controls.target.y + right.y,
-          z: controls.target.z + right.z,
-        },
-        0
-      );
-    }, 850);
+    fitGraphToScreen({ graphRef, sidePanelWidthRef, containerRef });
   }, []);
 
   const closeMenuAndRestore = useCallback(() => {
-    setContextMenu(null);
-    if (savedCameraRef.current && graphRef.current) {
-      const { pos, target } = savedCameraRef.current;
-
-      graphRef.current.cameraPosition(pos, target, 600);
-      savedCameraRef.current = null;
-    }
-    // Release focus lock
-    focusedNodeRef.current = null;
-    for (const setDimmed of nodeDimSetters.current.values()) setDimmed(false);
-    refreshLinksRef.current();
+    closeGraphMenuAndRestore({
+      graphRef,
+      setContextMenu,
+      savedCameraRef,
+      focusedNodeRef,
+      nodeDimSetters,
+      refreshLinksRef,
+    });
   }, []);
 
   // Close menu but keep camera zoomed + dim state active.
@@ -1049,10 +955,11 @@ export function Graph3D() {
           onClick={() => {
             if (!graphRef.current) return;
             // Release any active focus lock
-            focusedNodeRef.current = null;
-            for (const setDimmed of nodeDimSetters.current.values())
-              setDimmed(false);
-            refreshLinksRef.current();
+            releaseFocusLock({
+              focusedNodeRef,
+              nodeDimSetters,
+              refreshLinksRef,
+            });
           }}
           title="Clear focus"
           icon="✕"
