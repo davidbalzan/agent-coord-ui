@@ -26,3 +26,9 @@ export type {
   SpawnProgressEvent,
   TerminalGroup,
 } from "./provisioner.js";
+export type {
+  BacklogPriority,
+  BacklogQueueItem,
+  BacklogDoneItem,
+  ProjectBacklog,
+} from "./backlog.js";
