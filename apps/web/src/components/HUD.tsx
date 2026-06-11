@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { useBusStore, davidGlobalUnread } from "../store/bus.js";
 import { AgentLauncher } from "./AgentLauncher.js";
+import { HoloButton } from "./primitives/HoloButton.js";
 
 export function HUD() {
   const agentsMap = useBusStore((s) => s.agents);
@@ -319,8 +320,7 @@ export function HUD() {
         <div className="ml-auto flex items-center gap-3 flex-shrink-0">
           {/* INBOX button with global unread badge */}
           <div style={{ position: "relative", flexShrink: 0 }}>
-            <button
-              className="holo-btn"
+            <HoloButton
               style={{
                 fontSize: "9px",
                 padding: "3px 10px",
@@ -332,7 +332,7 @@ export function HUD() {
               onClick={() => setInboxOpen(!inboxOpen)}
             >
               ✉ INBOX
-            </button>
+            </HoloButton>
             {globalUnread > 0 && (
               <span
                 style={{
@@ -357,8 +357,7 @@ export function HUD() {
               </span>
             )}
           </div>
-          <button
-            className="holo-btn"
+          <HoloButton
             style={{
               fontSize: "9px",
               padding: "3px 10px",
@@ -373,7 +372,7 @@ export function HUD() {
             }}
           >
             ▶ LAUNCH
-          </button>
+          </HoloButton>
           <div
             style={{
               fontFamily: "Share Tech Mono",

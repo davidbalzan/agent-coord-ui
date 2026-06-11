@@ -6,13 +6,9 @@ import { DAVID_ID, buildDavidThreads } from "../lib/inbox.js";
 import { parseDavidDecisionPacket } from "../lib/decisionPacket.js";
 import { DecisionCard } from "./DecisionCard.js";
 import { AgentActivityDot } from "./AgentActivityDot.js";
-import {
-  PREFIX_COLORS,
-  PREFIX_COLOR_FALLBACK,
-  FONT_MONO,
-  FONT_DISPLAY,
-} from "../theme/tokens.js";
+import { FONT_MONO, FONT_DISPLAY } from "../theme/tokens.js";
 import { GlassPanel } from "./primitives/GlassPanel.js";
+import { SeverityBadge } from "./primitives/SeverityBadge.js";
 
 const PANEL_WIDTH = 700;
 
@@ -449,10 +445,6 @@ function MessageBubble({
   const packet = !isOutbound ? parseDavidDecisionPacket(msg.body) : null;
 
   const prefix = packet ? "DAVID_DECISION" : extractPrefix(msg.body);
-  const prefixColor =
-    (prefix
-      ? PREFIX_COLORS[prefix as keyof typeof PREFIX_COLORS]
-      : undefined) ?? PREFIX_COLOR_FALLBACK;
 
   return (
     <div
@@ -492,22 +484,7 @@ function MessageBubble({
         >
           {ts}
         </span>
-        {prefix && !packet && (
-          <span
-            style={{
-              fontFamily: FONT_MONO,
-              fontSize: 9,
-              letterSpacing: "0.1em",
-              color: prefixColor,
-              border: `1px solid ${prefixColor}`,
-              borderRadius: 2,
-              padding: "1px 5px",
-              opacity: 0.85,
-            }}
-          >
-            {prefix}
-          </span>
-        )}
+        {prefix && !packet && <SeverityBadge prefix={prefix} />}
       </div>
 
       {/* Message body — DecisionCard for packets, plain bubble otherwise */}

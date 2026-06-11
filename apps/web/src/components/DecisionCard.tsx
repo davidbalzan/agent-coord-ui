@@ -1,6 +1,7 @@
 import { useBusStore } from "../store/bus.js";
 import type { DavidDecisionPacket } from "../lib/decisionPacket.js";
 import { PREFIX_COLORS, FONT_MONO, FONT_DISPLAY } from "../theme/tokens.js";
+import { SeverityBadge } from "./primitives/SeverityBadge.js";
 
 export function DecisionCard({
   packet,
@@ -37,20 +38,10 @@ export function DecisionCard({
     >
       {/* Title */}
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <span
-          style={{
-            fontFamily: FONT_MONO,
-            fontSize: 9,
-            letterSpacing: "0.15em",
-            color: PREFIX_COLORS.DAVID_DECISION,
-            border: "1px solid rgba(255,78,78,0.5)",
-            borderRadius: 2,
-            padding: "2px 7px",
-            flexShrink: 0,
-          }}
-        >
-          DAVID_DECISION
-        </span>
+        <SeverityBadge
+          prefix="DAVID_DECISION"
+          style={{ letterSpacing: "0.15em", padding: "2px 7px", flexShrink: 0 }}
+        />
         <span
           style={{
             fontFamily: FONT_DISPLAY,

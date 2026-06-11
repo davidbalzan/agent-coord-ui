@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import type { AgentPreset, AgentRole } from "@coord-ui/shared";
 import { useBusStore } from "../store/bus.js";
+import { HoloButton } from "./primitives/HoloButton.js";
 
 const API_BASE = "/api/agents/presets";
 
@@ -153,13 +154,12 @@ export function PresetEditor({ onBack }: Props) {
           PRESET EDITOR
         </span>
         {!showForm && (
-          <button
-            className="holo-btn"
+          <HoloButton
             style={{ marginLeft: "auto", fontSize: 9, padding: "2px 8px" }}
             onClick={startCreate}
           >
             + NEW
-          </button>
+          </HoloButton>
         )}
       </div>
 
@@ -393,14 +393,13 @@ export function PresetEditor({ onBack }: Props) {
           </FormRow>
 
           <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-            <button
-              className="holo-btn"
+            <HoloButton
               style={{ flex: 1, fontSize: 10, opacity: saving ? 0.5 : 1 }}
               disabled={saving}
               onClick={handleSave}
             >
               {saving ? "SAVING…" : creating ? "CREATE" : "UPDATE"}
-            </button>
+            </HoloButton>
             <button
               style={{ ...cancelBtnStyle, padding: "5px 12px" }}
               onClick={cancelForm}

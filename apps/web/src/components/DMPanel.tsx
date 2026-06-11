@@ -3,6 +3,7 @@ import { MdMessage } from "./MdMessage.js";
 import { useShallow } from "zustand/react/shallow";
 import { useBusStore } from "../store/bus.js";
 import { AgentActivityDot } from "./AgentActivityDot.js";
+import { HoloButton } from "./primitives/HoloButton.js";
 
 interface Props {
   agentId: string;
@@ -246,9 +247,7 @@ export function DMPanel({ agentId }: Props) {
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && send()}
         />
-        <button className="holo-btn" onClick={send}>
-          SEND
-        </button>
+        <HoloButton onClick={send}>SEND</HoloButton>
       </div>
     </div>
   );
