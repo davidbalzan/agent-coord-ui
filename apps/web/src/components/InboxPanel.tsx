@@ -6,6 +6,12 @@ import { DAVID_ID, buildDavidThreads } from "../lib/inbox.js";
 import { parseDavidDecisionPacket } from "../lib/decisionPacket.js";
 import { DecisionCard } from "./DecisionCard.js";
 import { AgentActivityDot } from "./AgentActivityDot.js";
+import {
+  PREFIX_COLORS,
+  PREFIX_COLOR_FALLBACK,
+  FONT_MONO,
+  FONT_DISPLAY,
+} from "../theme/tokens.js";
 
 const PANEL_WIDTH = 700;
 
@@ -76,7 +82,7 @@ export function InboxPanel() {
       >
         <span
           style={{
-            fontFamily: "Orbitron, sans-serif",
+            fontFamily: FONT_DISPLAY,
             fontSize: 11,
             fontWeight: 700,
             letterSpacing: "0.2em",
@@ -88,7 +94,7 @@ export function InboxPanel() {
         </span>
         <span
           style={{
-            fontFamily: "Share Tech Mono, monospace",
+            fontFamily: FONT_MONO,
             fontSize: 9,
             color: "rgba(0,212,255,0.35)",
             letterSpacing: "0.12em",
@@ -104,7 +110,7 @@ export function InboxPanel() {
             border: "none",
             cursor: "pointer",
             color: "rgba(0,212,255,0.4)",
-            fontFamily: "Share Tech Mono, monospace",
+            fontFamily: FONT_MONO,
             fontSize: 16,
             lineHeight: 1,
             padding: "0 4px",
@@ -131,7 +137,7 @@ export function InboxPanel() {
             <div
               style={{
                 padding: "20px 14px",
-                fontFamily: "Share Tech Mono, monospace",
+                fontFamily: FONT_MONO,
                 fontSize: 11,
                 color: "rgba(0,212,255,0.25)",
                 letterSpacing: "0.08em",
@@ -175,7 +181,7 @@ export function InboxPanel() {
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                fontFamily: "Share Tech Mono, monospace",
+                fontFamily: FONT_MONO,
                 fontSize: 11,
                 color: "rgba(0,212,255,0.2)",
                 letterSpacing: "0.1em",
@@ -233,7 +239,7 @@ function ThreadRow({
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
         <span
           style={{
-            fontFamily: "Share Tech Mono, monospace",
+            fontFamily: FONT_MONO,
             fontSize: 11,
             color: active ? "#00d4ff" : "rgba(0,212,255,0.75)",
             letterSpacing: "0.06em",
@@ -250,7 +256,7 @@ function ThreadRow({
             style={{
               background: "#00d4ff",
               color: "#000913",
-              fontFamily: "Orbitron, sans-serif",
+              fontFamily: FONT_DISPLAY,
               fontWeight: 700,
               fontSize: 8,
               padding: "1px 5px",
@@ -266,7 +272,7 @@ function ThreadRow({
       </div>
       <span
         style={{
-          fontFamily: "Share Tech Mono, monospace",
+          fontFamily: FONT_MONO,
           fontSize: 10,
           color: "rgba(0,212,255,0.3)",
           overflow: "hidden",
@@ -319,7 +325,7 @@ function ThreadView({
       >
         <span
           style={{
-            fontFamily: "Share Tech Mono, monospace",
+            fontFamily: FONT_MONO,
             fontSize: 10,
             color: "rgba(0,212,255,0.45)",
             letterSpacing: "0.1em",
@@ -378,7 +384,7 @@ function ThreadView({
               background: "rgba(0,212,255,0.04)",
               border: "1px solid rgba(0,212,255,0.2)",
               color: "rgba(0,212,255,0.9)",
-              fontFamily: "Share Tech Mono, monospace",
+              fontFamily: FONT_MONO,
               fontSize: 13,
               lineHeight: 1.5,
               padding: "8px 12px",
@@ -396,7 +402,7 @@ function ThreadView({
                 : "rgba(0,212,255,0.04)",
               border: `1px solid ${draft.trim() ? "rgba(0,212,255,0.4)" : "rgba(0,212,255,0.1)"}`,
               color: draft.trim() ? "#00d4ff" : "rgba(0,212,255,0.25)",
-              fontFamily: "Share Tech Mono, monospace",
+              fontFamily: FONT_MONO,
               fontSize: 10,
               letterSpacing: "0.12em",
               padding: "8px 14px",
@@ -412,7 +418,7 @@ function ThreadView({
         <div
           style={{
             marginTop: 5,
-            fontFamily: "Share Tech Mono, monospace",
+            fontFamily: FONT_MONO,
             fontSize: 9,
             color: "rgba(0,212,255,0.2)",
             letterSpacing: "0.08em",
@@ -442,7 +448,10 @@ function MessageBubble({
   const packet = !isOutbound ? parseDavidDecisionPacket(msg.body) : null;
 
   const prefix = packet ? "DAVID_DECISION" : extractPrefix(msg.body);
-  const prefixColor = PREFIX_COLORS[prefix ?? ""] ?? "rgba(0,212,255,0.35)";
+  const prefixColor =
+    (prefix
+      ? PREFIX_COLORS[prefix as keyof typeof PREFIX_COLORS]
+      : undefined) ?? PREFIX_COLOR_FALLBACK;
 
   return (
     <div
@@ -465,7 +474,7 @@ function MessageBubble({
       >
         <span
           style={{
-            fontFamily: "Share Tech Mono, monospace",
+            fontFamily: FONT_MONO,
             fontSize: 10,
             color: isOutbound ? "rgba(0,255,136,0.6)" : "rgba(0,212,255,0.5)",
             letterSpacing: "0.08em",
@@ -475,7 +484,7 @@ function MessageBubble({
         </span>
         <span
           style={{
-            fontFamily: "Share Tech Mono, monospace",
+            fontFamily: FONT_MONO,
             fontSize: 9,
             color: "rgba(0,212,255,0.2)",
           }}
@@ -485,7 +494,7 @@ function MessageBubble({
         {prefix && !packet && (
           <span
             style={{
-              fontFamily: "Share Tech Mono, monospace",
+              fontFamily: FONT_MONO,
               fontSize: 9,
               letterSpacing: "0.1em",
               color: prefixColor,
@@ -515,7 +524,7 @@ function MessageBubble({
             border: `1px solid ${isOutbound ? "rgba(0,255,136,0.15)" : "rgba(0,212,255,0.15)"}`,
             borderRadius: 4,
             padding: "10px 14px",
-            fontFamily: "Share Tech Mono, monospace",
+            fontFamily: FONT_MONO,
             fontSize: 13,
             lineHeight: 1.7,
             color: isOutbound ? "rgba(0,255,136,0.85)" : "rgba(0,212,255,0.9)",
@@ -529,15 +538,6 @@ function MessageBubble({
     </div>
   );
 }
-
-const PREFIX_COLORS: Record<string, string> = {
-  DAVID_DECISION: "#ff4e4e",
-  BLOCKER: "#ff4e4e",
-  RISK: "#ff8c00",
-  AGENT_ACTION: "#00d4ff",
-  DONE: "#00ff88",
-  FYI: "rgba(0,212,255,0.35)",
-};
 
 function extractPrefix(body: string): string | null {
   const m = /^(DAVID_DECISION|BLOCKER|RISK|AGENT_ACTION|DONE|FYI):/.exec(body);

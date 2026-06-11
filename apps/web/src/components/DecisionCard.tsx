@@ -1,5 +1,6 @@
 import { useBusStore } from "../store/bus.js";
 import type { DavidDecisionPacket } from "../lib/decisionPacket.js";
+import { PREFIX_COLORS, FONT_MONO, FONT_DISPLAY } from "../theme/tokens.js";
 
 export function DecisionCard({
   packet,
@@ -25,7 +26,7 @@ export function DecisionCard({
     <div
       style={{
         border: "1px solid rgba(255,78,78,0.35)",
-        borderLeft: "3px solid #ff4e4e",
+        borderLeft: `3px solid ${PREFIX_COLORS.DAVID_DECISION}`,
         borderRadius: 4,
         background: "rgba(255,78,78,0.04)",
         padding: "14px 16px",
@@ -38,10 +39,10 @@ export function DecisionCard({
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         <span
           style={{
-            fontFamily: "Share Tech Mono, monospace",
+            fontFamily: FONT_MONO,
             fontSize: 9,
             letterSpacing: "0.15em",
-            color: "#ff4e4e",
+            color: PREFIX_COLORS.DAVID_DECISION,
             border: "1px solid rgba(255,78,78,0.5)",
             borderRadius: 2,
             padding: "2px 7px",
@@ -52,7 +53,7 @@ export function DecisionCard({
         </span>
         <span
           style={{
-            fontFamily: "Orbitron, sans-serif",
+            fontFamily: FONT_DISPLAY,
             fontSize: 11,
             fontWeight: 700,
             color: "rgba(255,200,200,0.9)",
@@ -66,7 +67,7 @@ export function DecisionCard({
       {/* Context */}
       <div
         style={{
-          fontFamily: "Share Tech Mono, monospace",
+          fontFamily: FONT_MONO,
           fontSize: 12,
           lineHeight: 1.6,
           color: "rgba(0,212,255,0.8)",
@@ -92,7 +93,7 @@ export function DecisionCard({
       {!chosenOption && (
         <div
           style={{
-            fontFamily: "Share Tech Mono, monospace",
+            fontFamily: FONT_MONO,
             fontSize: 10,
             color: "rgba(255,140,0,0.5)",
             borderTop: "1px solid rgba(255,140,0,0.1)",
@@ -122,7 +123,7 @@ function OptionButtons({
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
       <div
         style={{
-          fontFamily: "Share Tech Mono, monospace",
+          fontFamily: FONT_MONO,
           fontSize: 9,
           letterSpacing: "0.12em",
           color: "rgba(0,212,255,0.3)",
@@ -164,7 +165,7 @@ function OptionButtons({
           >
             <span
               style={{
-                fontFamily: "Orbitron, sans-serif",
+                fontFamily: FONT_DISPLAY,
                 fontSize: 9,
                 color: isRecommended ? "#00d4ff" : "rgba(0,212,255,0.35)",
                 flexShrink: 0,
@@ -175,7 +176,7 @@ function OptionButtons({
             </span>
             <span
               style={{
-                fontFamily: "Share Tech Mono, monospace",
+                fontFamily: FONT_MONO,
                 fontSize: 12,
                 color: isRecommended ? "#00d4ff" : "rgba(0,212,255,0.75)",
                 flex: 1,
@@ -187,7 +188,7 @@ function OptionButtons({
             {isRecommended && (
               <span
                 style={{
-                  fontFamily: "Share Tech Mono, monospace",
+                  fontFamily: FONT_MONO,
                   fontSize: 8,
                   letterSpacing: "0.12em",
                   color: "rgba(0,212,255,0.5)",
@@ -225,7 +226,7 @@ function ResolvedState({ chosenOption }: { chosenOption: string }) {
       <div>
         <div
           style={{
-            fontFamily: "Share Tech Mono, monospace",
+            fontFamily: FONT_MONO,
             fontSize: 9,
             letterSpacing: "0.12em",
             color: "rgba(0,255,136,0.5)",
@@ -236,7 +237,7 @@ function ResolvedState({ chosenOption }: { chosenOption: string }) {
         </div>
         <div
           style={{
-            fontFamily: "Share Tech Mono, monospace",
+            fontFamily: FONT_MONO,
             fontSize: 12,
             color: "rgba(0,255,136,0.7)",
           }}

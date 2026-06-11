@@ -8,6 +8,7 @@ import {
   type Priority,
 } from "../lib/notificationPriority.js";
 import { MdMessage } from "./MdMessage.js";
+import { FONT_MONO } from "../theme/tokens.js";
 
 const MAX_VISIBLE_ACTIVITY_ENTRIES = 7;
 const EMPTY_AGENT_IDS = new Set<string>();
@@ -363,7 +364,7 @@ const shellStyle: CSSProperties = {
   width: 260,
   maxWidth: "34vw",
   pointerEvents: "auto",
-  fontFamily: '"Share Tech Mono", monospace',
+  fontFamily: FONT_MONO,
   color: "rgba(157, 244, 255, 0.72)",
   textShadow: "0 0 10px rgba(0, 212, 255, 0.22)",
 };

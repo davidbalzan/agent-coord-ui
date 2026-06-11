@@ -1,5 +1,6 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { useBusStore, type NotificationItem } from "../store/bus.js";
+import { PRIORITY_ACCENT, FONT_MONO, FONT_DISPLAY } from "../theme/tokens.js";
 
 type NotificationLocation = "popup" | "dock";
 type PopupStyle = CSSProperties & {
@@ -188,12 +189,7 @@ function NotificationActions({
 }
 
 function dockItemStyle(item: NotificationItem): CSSProperties {
-  const accent =
-    item.priority === "loud"
-      ? "rgba(255,64,129,0.8)"
-      : item.priority === "dock"
-        ? "rgba(255,176,0,0.75)"
-        : "rgba(0,212,255,0.35)";
+  const accent = PRIORITY_ACCENT[item.priority];
 
   return {
     border: `1px solid ${accent}`,
@@ -227,7 +223,7 @@ const popupShell: CSSProperties = {
     "0 0 70px rgba(255,64,129,0.35), inset 0 0 24px rgba(0,212,255,0.08)",
   color: "#dff9ff",
   padding: 18,
-  fontFamily: "Share Tech Mono, monospace",
+  fontFamily: FONT_MONO,
   pointerEvents: "auto",
 };
 
@@ -238,7 +234,7 @@ const popupHeader: CSSProperties = {
   gap: 12,
   marginBottom: 14,
   color: "#ff4081",
-  fontFamily: "Orbitron, sans-serif",
+  fontFamily: FONT_DISPLAY,
   fontSize: 11,
   fontWeight: 700,
   letterSpacing: "0.22em",
@@ -283,7 +279,7 @@ const actionButton: CSSProperties = {
   background: "rgba(0,212,255,0.14)",
   color: "#8ff3ff",
   cursor: "pointer",
-  fontFamily: "Share Tech Mono, monospace",
+  fontFamily: FONT_MONO,
   fontSize: 10,
   letterSpacing: "0.14em",
   padding: "5px 9px",
@@ -304,7 +300,7 @@ const dockShell: CSSProperties = {
   maxHeight: "42vh",
   zIndex: 650,
   pointerEvents: "auto",
-  fontFamily: "Share Tech Mono, monospace",
+  fontFamily: FONT_MONO,
 };
 
 const dockHeader: CSSProperties = {
@@ -316,7 +312,7 @@ const dockHeader: CSSProperties = {
   color: "#00d4ff",
   border: "1px solid rgba(0,212,255,0.28)",
   background: "rgba(0,10,24,0.82)",
-  fontFamily: "Orbitron, sans-serif",
+  fontFamily: FONT_DISPLAY,
   fontSize: 10,
   fontWeight: 700,
   letterSpacing: "0.18em",
