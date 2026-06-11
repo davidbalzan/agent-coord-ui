@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { useBusStore } from "../store/bus.js";
 import type { LauncherPrefill } from "../store/bus.js";
 import { PresetEditor } from "./PresetEditor.js";
+import { GlassPanel } from "./primitives/GlassPanel.js";
 
 const AGENT_ID_RE = /^[\w-]{1,64}$/;
 
@@ -463,8 +464,11 @@ function LauncherShell({
   children: React.ReactNode;
 }) {
   return (
-    <div
-      className="holo-panel"
+    <GlassPanel
+      background="rgba(0,8,22,0.55)"
+      blur={20}
+      saturate={180}
+      cornerBrackets
       style={{
         position: "fixed",
         top: 64,
@@ -475,6 +479,8 @@ function LauncherShell({
         zIndex: 200,
         display: "flex",
         flexDirection: "column",
+        border: "1px solid rgba(0,212,255,0.2)",
+        animation: "border-glow 3s ease-in-out infinite",
       }}
     >
       {/* Header */}
@@ -517,7 +523,7 @@ function LauncherShell({
         </button>
       </div>
       {children}
-    </div>
+    </GlassPanel>
   );
 }
 

@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { useBusStore } from "../store/bus.js";
 import type { BacklogQueueItem, BacklogDoneItem } from "@coord-ui/shared";
 import { matchQueueToDone } from "../lib/matchQueueToDone.js";
+import { GlassPanel } from "./primitives/GlassPanel.js";
 
 const PRIORITY_COLOR: Record<string, string> = {
   P1: "#ff4e4e",
@@ -543,15 +544,14 @@ export function BacklogPanel() {
   const completedCount = doneMatches.filter(Boolean).length;
 
   return (
-    <div
+    <GlassPanel
+      background="linear-gradient(180deg, rgba(0,8,22,0.98) 0%, rgba(0,4,14,0.99) 100%)"
       style={{
         position: "fixed",
         top: 56,
         right: 0,
         width: 520,
         height: "calc(100vh - 56px)",
-        background:
-          "linear-gradient(180deg, rgba(0,8,22,0.98) 0%, rgba(0,4,14,0.99) 100%)",
         borderLeft: "1px solid rgba(0,212,255,0.2)",
         boxShadow: "-6px 0 40px rgba(0,212,255,0.07)",
         display: "flex",
@@ -782,7 +782,7 @@ export function BacklogPanel() {
           </>
         )}
       </div>
-    </div>
+    </GlassPanel>
   );
 }
 

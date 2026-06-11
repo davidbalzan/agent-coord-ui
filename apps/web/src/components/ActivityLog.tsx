@@ -9,6 +9,7 @@ import {
 } from "../lib/notificationPriority.js";
 import { MdMessage } from "./MdMessage.js";
 import { FONT_MONO } from "../theme/tokens.js";
+import { GlassPanel } from "./primitives/GlassPanel.js";
 
 const MAX_VISIBLE_ACTIVITY_ENTRIES = 7;
 const EMPTY_AGENT_IDS = new Set<string>();
@@ -325,7 +326,15 @@ function ActivityEventDetailPanel({ entry }: { entry: ActivityLogEntry }) {
   const detail = activityEventDetail(entry);
 
   return (
-    <section style={detailPanelStyle}>
+    // GlassPanel renders as a fixed element OUTSIDE the mixBlendMode subtree so
+    // backdrop-filter composites correctly against the graph (PR #35 invariant).
+    <GlassPanel
+      as="section"
+      background="rgba(0, 8, 22, 0.62)"
+      blur={26}
+      saturate={160}
+      style={detailPanelStyle}
+    >
       <div style={detailEyebrowStyle}>
         <span>{detail.channelType}</span>
         <span>{detail.prefix ?? "NO PREFIX"}</span>
@@ -343,7 +352,7 @@ function ActivityEventDetailPanel({ entry }: { entry: ActivityLogEntry }) {
       <div className="activity-detail-body" style={detailBodyStyle}>
         <MdMessage body={detail.body} agentIds={EMPTY_AGENT_IDS} />
       </div>
-    </section>
+    </GlassPanel>
   );
 }
 
@@ -420,6 +429,7 @@ const coordMarkStyle: CSSProperties = {
   textShadow: "0 0 8px rgba(255, 209, 102, 0.42)",
 };
 
+// Non-glass layout props for the detail panel; glass surface handled by GlassPanel.
 const detailPanelStyle: CSSProperties = {
   position: "fixed",
   top: "50%",
@@ -432,14 +442,7 @@ const detailPanelStyle: CSSProperties = {
   padding: "20px 22px",
   border: "1px solid rgba(0, 212, 255, 0.28)",
   borderRadius: 12,
-  // Frosted glass: translucent enough that the heavy backdrop-blur is actually
-  // visible (the graph behind reads as a soft wash), kept legible by the dark
-  // tint + strong text-shadow. At ~0.97 the blur was invisible (nothing showed
-  // through); at ~0.4 it was unreadable — ~0.62 is the frosted middle.
-  background: "rgba(0, 8, 22, 0.62)",
   boxShadow: "0 20px 60px rgba(0,0,0,0.62), 0 0 24px rgba(0,212,255,0.10)",
-  backdropFilter: "blur(26px) saturate(160%)",
-  WebkitBackdropFilter: "blur(26px) saturate(160%)",
   color: "rgba(242, 253, 255, 0.97)",
   textShadow: "0 1px 3px rgba(0, 0, 0, 0.9), 0 0 10px rgba(0, 212, 255, 0.16)",
 };

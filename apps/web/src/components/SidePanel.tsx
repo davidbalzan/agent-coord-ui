@@ -3,6 +3,7 @@ import { useBusStore } from "../store/bus.js";
 import { DMPanel } from "./DMPanel.js";
 import { RoomPanel } from "./RoomPanel.js";
 import { X } from "lucide-react";
+import { GlassPanel } from "./primitives/GlassPanel.js";
 
 const MIN_W = 260;
 const MAX_W = 560;
@@ -44,8 +45,12 @@ export function SidePanel() {
   if (!isOpen) return null;
 
   return (
-    <aside
-      className="flex flex-col glass-surface"
+    <GlassPanel
+      as="aside"
+      background="rgba(0,8,22,0.52)"
+      blur={22}
+      saturate={160}
+      className="flex flex-col"
       style={{
         position: "fixed",
         top: 48,
@@ -54,6 +59,9 @@ export function SidePanel() {
         bottom: 28,
         width,
         zIndex: 50,
+        borderLeft: "1px solid rgba(0,212,255,0.18)",
+        boxShadow:
+          "-2px 0 40px rgba(0,212,255,0.06), inset 1px 0 0 rgba(0,212,255,0.04)",
       }}
     >
       {/* Left edge resize handle */}
@@ -182,6 +190,6 @@ export function SidePanel() {
 
       {selection.kind === "agent" && <DMPanel agentId={selection.id} />}
       {selection.kind === "room" && <RoomPanel roomId={selection.id} />}
-    </aside>
+    </GlassPanel>
   );
 }
