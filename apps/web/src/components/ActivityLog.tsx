@@ -1,6 +1,12 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import type { AgentSnapshot, MessageSnapshot } from "@coord-ui/shared";
 import { useBusStore } from "../store/bus.js";
+import {
+  classifyPriority,
+  extractPrefix,
+  type BusPrefix,
+  type Priority,
+} from "../lib/notificationPriority.js";
 
 const MAX_VISIBLE_ACTIVITY_ENTRIES = 7;
 export const MAX_RETAINED_ACTIVITY_ENTRIES = 18;
@@ -13,8 +19,20 @@ export interface ActivityLogEntry {
   id: string;
   label: string;
   isCoordinator: boolean;
+  message: MessageSnapshot;
   createdAt: number;
   pausedAgeMs?: number;
+}
+
+export interface ActivityEventDetail {
+  route: string;
+  sender: string;
+  recipient: string;
+  channelType: "DM" | "ROOM";
+  body: string;
+  timestamp: string;
+  prefix: BusPrefix | null;
+  severity: Priority;
 }
 
 interface LastSeenMessage {
@@ -25,6 +43,30 @@ interface LastSeenMessage {
 export function formatActivityLabel(msg: MessageSnapshot): string {
   if (msg.isDM) return `${msg.from} → ${msg.to}`;
   return `${msg.from} → #${msg.to.replace(/^#/, "")}`;
+}
+
+export function formatActivityTimestamp(timestamp: number): string {
+  return new Date(timestamp).toISOString().replace("T", " ").slice(0, 19);
+}
+
+export function activityEventDetail(
+  entry: ActivityLogEntry
+): ActivityEventDetail {
+  const message = entry.message;
+  const recipient = message.isDM
+    ? message.to
+    : `#${message.to.replace(/^#/, "")}`;
+
+  return {
+    route: `${message.from} → ${recipient}`,
+    sender: message.from,
+    recipient,
+    channelType: message.isDM ? "DM" : "ROOM",
+    body: message.body,
+    timestamp: formatActivityTimestamp(message.timestamp),
+    prefix: extractPrefix(message.body),
+    severity: classifyPriority(message.body),
+  };
 }
 
 export function isCoordinatorSender(
@@ -64,6 +106,7 @@ export function appendActivityEntries(
     id: `${msg.id}:${now}:${index}`,
     label: formatActivityLabel(msg),
     isCoordinator: isCoordinatorSender(msg.from, agents),
+    message: msg,
     createdAt: now,
   }));
 
@@ -130,6 +173,7 @@ export function ActivityLog() {
   const agents = useBusStore((s) => s.agents);
   const [entries, setEntries] = useState<ActivityLogEntry[]>([]);
   const [isHovered, setIsHovered] = useState(false);
+  const [hoveredEntryId, setHoveredEntryId] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const lastSeenRef = useRef<LastSeenMessage | null>(null);
 
@@ -189,9 +233,14 @@ export function ActivityLog() {
     const leaveNow = Date.now();
     setNow(leaveNow);
     setIsHovered(false);
+    setHoveredEntryId(null);
     setEntries((current) => resumeActivityEntries(current, leaveNow));
   };
   const renderedEntries = visibleActivityEntries(entries, isHovered);
+  const hoveredEntry =
+    hoveredEntryId === null
+      ? null
+      : (entries.find((entry) => entry.id === hoveredEntryId) ?? null);
 
   return (
     <aside
@@ -208,7 +257,16 @@ export function ActivityLog() {
             const opacity = activityEntryOpacity(ageMs, isHovered);
 
             return (
-              <div key={entry.id} style={{ ...entryStyle, opacity }}>
+              <div
+                key={entry.id}
+                style={{ ...entryStyle, opacity }}
+                onMouseEnter={() => setHoveredEntryId(entry.id)}
+                onMouseLeave={() =>
+                  setHoveredEntryId((current) =>
+                    current === entry.id ? null : current
+                  )
+                }
+              >
                 {entry.isCoordinator ? (
                   <span style={coordMarkStyle}>◆</span>
                 ) : null}
@@ -218,6 +276,7 @@ export function ActivityLog() {
           })}
         </div>
       ) : null}
+      {hoveredEntry ? <ActivityEventDetailPanel entry={hoveredEntry} /> : null}
       <style>{`
         @keyframes activity-log-enter {
           0% {
@@ -233,6 +292,39 @@ export function ActivityLog() {
         }
       `}</style>
     </aside>
+  );
+}
+
+function ActivityEventDetailPanel({ entry }: { entry: ActivityLogEntry }) {
+  const detail = activityEventDetail(entry);
+
+  return (
+    <section style={detailPanelStyle}>
+      <div style={detailEyebrowStyle}>
+        <span>{detail.channelType}</span>
+        <span>{detail.prefix ?? "NO PREFIX"}</span>
+        <span>{detail.severity.toUpperCase()}</span>
+      </div>
+      <div style={detailRouteStyle}>{detail.route}</div>
+      <div style={detailMetaGridStyle}>
+        <DetailDatum label="SENDER" value={detail.sender} />
+        <DetailDatum
+          label={detail.channelType === "DM" ? "RECIPIENT" : "ROOM"}
+          value={detail.recipient}
+        />
+        <DetailDatum label="TIME" value={detail.timestamp} />
+      </div>
+      <div style={detailBodyStyle}>{detail.body}</div>
+    </section>
+  );
+}
+
+function DetailDatum({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div style={detailDatumLabelStyle}>{label}</div>
+      <div style={detailDatumValueStyle}>{value}</div>
+    </div>
   );
 }
 
@@ -295,4 +387,74 @@ const entryStyle: CSSProperties = {
 const coordMarkStyle: CSSProperties = {
   color: "rgba(255, 209, 102, 0.8)",
   textShadow: "0 0 8px rgba(255, 209, 102, 0.42)",
+};
+
+const detailPanelStyle: CSSProperties = {
+  position: "fixed",
+  top: "50%",
+  left: "50%",
+  zIndex: 80,
+  width: 420,
+  maxWidth: "min(420px, calc(100vw - 48px))",
+  transform: "translate(-50%, -50%)",
+  pointerEvents: "none",
+  padding: "16px 18px",
+  border: "1px solid rgba(0, 212, 255, 0.24)",
+  borderRadius: 12,
+  background:
+    "linear-gradient(145deg, rgba(8, 24, 48, 0.72), rgba(0, 8, 22, 0.54))",
+  boxShadow:
+    "inset 0 1px 0 rgba(255,255,255,0.07), 0 18px 55px rgba(0,0,0,0.45), 0 0 34px rgba(0,212,255,0.12)",
+  backdropFilter: "blur(18px) saturate(155%)",
+  WebkitBackdropFilter: "blur(18px) saturate(155%)",
+  color: "rgba(210, 250, 255, 0.9)",
+  textShadow: "0 0 10px rgba(0, 212, 255, 0.18)",
+};
+
+const detailEyebrowStyle: CSSProperties = {
+  display: "flex",
+  gap: 8,
+  flexWrap: "wrap",
+  marginBottom: 10,
+  fontSize: 9,
+  letterSpacing: "0.18em",
+  color: "rgba(0, 212, 255, 0.62)",
+};
+
+const detailRouteStyle: CSSProperties = {
+  marginBottom: 14,
+  fontSize: 15,
+  color: "rgba(157, 244, 255, 0.95)",
+  letterSpacing: "0.04em",
+};
+
+const detailMetaGridStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+  gap: 10,
+  marginBottom: 14,
+};
+
+const detailDatumLabelStyle: CSSProperties = {
+  marginBottom: 3,
+  fontSize: 8,
+  letterSpacing: "0.2em",
+  color: "rgba(0, 212, 255, 0.38)",
+};
+
+const detailDatumValueStyle: CSSProperties = {
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+  fontSize: 11,
+  color: "rgba(210, 250, 255, 0.72)",
+};
+
+const detailBodyStyle: CSSProperties = {
+  maxHeight: 180,
+  overflow: "hidden",
+  whiteSpace: "pre-wrap",
+  fontSize: 12,
+  lineHeight: 1.45,
+  color: "rgba(235, 252, 255, 0.88)",
 };
