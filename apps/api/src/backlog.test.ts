@@ -3,15 +3,44 @@ import type { PaneSnapshot } from "@coord-ui/shared";
 
 // ─── Module mocks ─────────────────────────────────────────────────────────────
 
+// readFile: fallback content (null → ENOENT); readFileSequence overrides per-call
 let readFileContent: string | null = null;
+let readFileSequence: Array<string | null> = [];
+let readFileCallCount = 0;
+
+// stat: sequence of identities; falls back to DEFAULT_IDENTITY when exhausted
+let statResponses: Array<{ mtimeMs: number; size: number }> = [];
+let statCallCount = 0;
+
+// write/rename tracking
+let writtenContents: string[] = [];
+let renameCallCount = 0;
+
+const DEFAULT_IDENTITY = { mtimeMs: 1000, size: 500 };
 
 vi.mock("node:fs/promises", () => ({
   readFile: (_path: string, _enc: string) => {
-    if (readFileContent === null)
+    const idx = readFileCallCount++;
+    const override = readFileSequence[idx];
+    const content = override !== undefined ? override : readFileContent;
+    if (content === null)
       return Promise.reject(
         Object.assign(new Error("ENOENT"), { code: "ENOENT" })
       );
-    return Promise.resolve(readFileContent);
+    return Promise.resolve(content);
+  },
+  stat: (_path: string) => {
+    const response = statResponses[statCallCount] ?? DEFAULT_IDENTITY;
+    statCallCount++;
+    return Promise.resolve(response);
+  },
+  writeFile: (_path: string, content: string, _enc: string) => {
+    writtenContents.push(content as string);
+    return Promise.resolve();
+  },
+  rename: (_src: string, _dst: string) => {
+    renameCallCount++;
+    return Promise.resolve();
   },
 }));
 
@@ -56,6 +85,7 @@ const {
   gitRoot,
   getAgentPaneRoots,
   getAgentRootsWithAgents,
+  rewriteQueueRegion,
 } = await import("./backlog.js");
 
 // ─── Real-file fixture (lines copied from shadowGuard/docs/BACKLOG.md) ────────
@@ -487,5 +517,131 @@ describe("getProjectRepoPaths", () => {
   it("returns empty array when env is unset", () => {
     delete process.env.AGENT_COORD_PROJECT_REPOS;
     expect(getProjectRepoPaths()).toEqual([]);
+  });
+});
+
+// ─── rewriteQueueRegion — CAS ────────────────────────────────────────────────
+
+const BASE_BACKLOG = `# BACKLOG
+
+## Queue
+
+- [ ] (P1) Original task one
+- [ ] (P2) Original task two
+
+## Done
+
+- [x] Completed task — coord/repo#1 · 2026-06-01
+`;
+
+const NEW_ITEMS = [
+  {
+    priority: "P1" as const,
+    text: "Updated task one",
+    refs: "",
+    checked: false as const,
+  },
+  {
+    priority: "P3" as const,
+    text: "Brand new task",
+    refs: "",
+    checked: false as const,
+  },
+];
+
+describe("rewriteQueueRegion — CAS write", () => {
+  beforeEach(() => {
+    readFileContent = BASE_BACKLOG;
+    readFileSequence = [];
+    readFileCallCount = 0;
+    statResponses = [];
+    statCallCount = 0;
+    writtenContents = [];
+    renameCallCount = 0;
+  });
+
+  it("writes new queue items, preserves ## Done region byte-for-byte", async () => {
+    const result = await rewriteQueueRegion("/repo", NEW_ITEMS);
+    expect(result.queue).toHaveLength(2);
+    expect(result.queue[0]!.text).toBe("Updated task one");
+    expect(result.queue[1]!.text).toBe("Brand new task");
+    const committed = writtenContents[writtenContents.length - 1]!;
+    expect(committed).toContain("## Done");
+    expect(committed).toContain(
+      "- [x] Completed task — coord/repo#1 · 2026-06-01"
+    );
+    expect(renameCallCount).toBe(1);
+  });
+
+  it("stable file: completes in one attempt (one rename)", async () => {
+    // Default identity is stable → no retry
+    await rewriteQueueRegion("/repo", NEW_ITEMS);
+    expect(renameCallCount).toBe(1);
+    // Only 2 stat calls (before + after) from a single attempt
+    expect(statCallCount).toBe(2);
+  });
+
+  it("retries when stat detects concurrent modification, does NOT clobber the out-of-region change", async () => {
+    // Concurrent modification scenario:
+    // attempt 0: stat-before=A, stat-after=B (coordinator appended to Done) → retry
+    // attempt 1: stat-before=B, stat-after=B (stable) → rename succeeds
+    const identityA = { mtimeMs: 1000, size: 500 };
+    const identityB = { mtimeMs: 2000, size: 560 };
+    statResponses = [identityA, identityB, identityB, identityB];
+
+    // Coordinator's concurrent Done append — added between attempt 0's read and stat-after
+    const modifiedBacklog =
+      BASE_BACKLOG +
+      "- [x] Coordinator appended done — coord/repo#2 · 2026-06-11\n";
+
+    // readFileSequence: first read (attempt 0) = original; second read (retry) = modified
+    readFileSequence = [BASE_BACKLOG, modifiedBacklog];
+
+    const result = await rewriteQueueRegion("/repo", NEW_ITEMS);
+
+    // Queue contains our new items
+    expect(result.queue[0]!.text).toBe("Updated task one");
+    expect(result.queue[1]!.text).toBe("Brand new task");
+
+    // Final committed content must preserve BOTH Done entries — original + coordinator append
+    const committed = writtenContents[writtenContents.length - 1]!;
+    expect(committed).toContain(
+      "- [x] Completed task — coord/repo#1 · 2026-06-01"
+    );
+    expect(committed).toContain(
+      "- [x] Coordinator appended done — coord/repo#2"
+    );
+
+    // Exactly one successful rename (attempt 1), not attempt 0
+    expect(renameCallCount).toBe(1);
+    // 4 stat calls: 2 per attempt × 2 attempts
+    expect(statCallCount).toBe(4);
+  });
+
+  it("throws after max attempts when file keeps changing", async () => {
+    // Every stat-after differs from stat-before → never settles
+    statResponses = Array.from({ length: 12 }, (_, i) => ({
+      mtimeMs: 1000 + i * 100,
+      size: 500 + i,
+    }));
+    // Provide enough readFile responses for all retries
+    readFileSequence = Array(6).fill(BASE_BACKLOG);
+    await expect(rewriteQueueRegion("/repo", NEW_ITEMS)).rejects.toThrow(
+      /failed after \d+ attempts/
+    );
+    expect(renameCallCount).toBe(0);
+  });
+
+  it("succeeds on second attempt when only first attempt races", async () => {
+    statResponses = [
+      { mtimeMs: 1000, size: 500 }, // attempt 0 stat-before
+      { mtimeMs: 2000, size: 550 }, // attempt 0 stat-after (changed) → retry
+      { mtimeMs: 2000, size: 550 }, // attempt 1 stat-before
+      { mtimeMs: 2000, size: 550 }, // attempt 1 stat-after (stable) → rename
+    ];
+    readFileSequence = [BASE_BACKLOG, BASE_BACKLOG];
+    const result = await rewriteQueueRegion("/repo", NEW_ITEMS);
+    expect(result.queue).toHaveLength(2);
+    expect(renameCallCount).toBe(1);
   });
 });
