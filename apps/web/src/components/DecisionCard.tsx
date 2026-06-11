@@ -40,7 +40,13 @@ export function DecisionCard({
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         <SeverityBadge
           prefix="DAVID_DECISION"
-          style={{ letterSpacing: "0.15em", padding: "2px 7px", flexShrink: 0 }}
+          style={{
+            letterSpacing: "0.15em",
+            padding: "2px 7px",
+            flexShrink: 0,
+            border: "1px solid rgba(255,78,78,0.5)",
+            opacity: 1,
+          }}
         />
         <span
           style={{
