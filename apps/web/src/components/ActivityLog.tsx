@@ -481,6 +481,6 @@ const detailBodyStyle: CSSProperties = {
   padding: "10px 12px",
   border: "1px solid rgba(0, 212, 255, 0.14)",
   borderRadius: 8,
-  background: "rgba(0, 8, 22, 0.38)",
+  background: "rgba(0, 8, 22, 0.97)",
   color: "rgba(250, 254, 255, 0.96)",
 };
