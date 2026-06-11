@@ -1,5 +1,5 @@
 import { exec } from "node:child_process";
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile, rename } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import type {
@@ -162,6 +162,46 @@ export async function loadBacklog(
   } catch {
     return null; // file absent or unreadable — not an error
   }
+}
+
+export async function rewriteQueueRegion(
+  repoPath: string,
+  items: BacklogQueueItem[]
+): Promise<ProjectBacklog> {
+  const filePath = join(repoPath, "docs", "BACKLOG.md");
+  const content = await readFile(filePath, "utf8");
+  const lines = content.split("\n");
+
+  let queueStart = -1;
+  let queueEnd = lines.length;
+  for (let i = 0; i < lines.length; i++) {
+    const trimmed = lines[i].trim();
+    if (/^##\s+Queue/i.test(trimmed)) {
+      queueStart = i;
+    } else if (queueStart !== -1 && /^##/.test(trimmed)) {
+      queueEnd = i;
+      break;
+    }
+  }
+  if (queueStart === -1) throw new Error(`No ## Queue section found in ${filePath}`);
+
+  const heading = lines[queueStart];
+  const newQueueLines = [
+    heading,
+    "",
+    ...items.map((item) => `- [ ] (${item.priority}) ${item.text}`),
+    "",
+  ];
+  const newContent = [
+    ...lines.slice(0, queueStart),
+    ...newQueueLines,
+    ...lines.slice(queueEnd),
+  ].join("\n");
+
+  const tmpPath = `${filePath}.tmp`;
+  await writeFile(tmpPath, newContent, "utf8");
+  await rename(tmpPath, filePath);
+  return parseBacklog(repoPath, newContent);
 }
 
 export async function loadAllBacklogs(): Promise<ProjectBacklog[]> {
