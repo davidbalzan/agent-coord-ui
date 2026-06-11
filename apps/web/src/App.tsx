@@ -6,6 +6,7 @@ import { StatusTicker } from "./components/StatusTicker.js";
 import { NexusOverlay } from "./components/NexusOverlay.js";
 import { BacklogPanel } from "./components/BacklogPanel.js";
 import { InboxPanel } from "./components/InboxPanel.js";
+import { NotificationLayer } from "./components/NotificationLayer.js";
 
 export function App() {
   return (
@@ -34,6 +35,7 @@ export function App() {
         <SidePanel />
         <BacklogPanel />
         <InboxPanel />
+        <NotificationLayer />
       </main>
       <StatusTicker />
     </div>
