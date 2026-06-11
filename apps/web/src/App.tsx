@@ -7,6 +7,7 @@ import { NexusOverlay } from "./components/NexusOverlay.js";
 import { BacklogPanel } from "./components/BacklogPanel.js";
 import { InboxPanel } from "./components/InboxPanel.js";
 import { NotificationLayer } from "./components/NotificationLayer.js";
+import { ActivityLog } from "./components/ActivityLog.js";
 
 export function App() {
   return (
@@ -31,6 +32,7 @@ export function App() {
       >
         <NexusOverlay />
         <Graph3D />
+        <ActivityLog />
         <FloatingTerminal />
         <SidePanel />
         <BacklogPanel />
