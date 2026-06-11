@@ -7,8 +7,10 @@ import {
   type BusPrefix,
   type Priority,
 } from "../lib/notificationPriority.js";
+import { MdMessage } from "./MdMessage.js";
 
 const MAX_VISIBLE_ACTIVITY_ENTRIES = 7;
+const EMPTY_AGENT_IDS = new Set<string>();
 export const MAX_RETAINED_ACTIVITY_ENTRIES = 18;
 export const ACTIVITY_LOG_TILE_LABEL = "◇ BUS ACTIVITY";
 export const ACTIVITY_HOLD_MS = 8000;
@@ -290,6 +292,27 @@ export function ActivityLog() {
             filter: blur(0);
           }
         }
+        .activity-detail-body .md-body {
+          color: rgba(250, 254, 255, 0.96);
+          font-size: 13px;
+          line-height: 1.62;
+          text-shadow: 0 1px 2px rgba(0, 0, 0, 0.72);
+        }
+        .activity-detail-body .md-body strong,
+        .activity-detail-body .md-body h1,
+        .activity-detail-body .md-body h2,
+        .activity-detail-body .md-body h3 {
+          color: rgba(255, 255, 255, 0.98);
+        }
+        .activity-detail-body .md-body code {
+          color: rgba(130, 245, 255, 0.98);
+          background: rgba(0, 212, 255, 0.16);
+          border-color: rgba(0, 212, 255, 0.24);
+        }
+        .activity-detail-body .md-body pre {
+          background: rgba(0, 0, 0, 0.52);
+          border-color: rgba(0, 212, 255, 0.28);
+        }
       `}</style>
     </aside>
   );
@@ -314,7 +337,9 @@ function ActivityEventDetailPanel({ entry }: { entry: ActivityLogEntry }) {
         />
         <DetailDatum label="TIME" value={detail.timestamp} />
       </div>
-      <div style={detailBodyStyle}>{detail.body}</div>
+      <div className="activity-detail-body" style={detailBodyStyle}>
+        <MdMessage body={detail.body} agentIds={EMPTY_AGENT_IDS} />
+      </div>
     </section>
   );
 }
@@ -394,11 +419,11 @@ const detailPanelStyle: CSSProperties = {
   top: "50%",
   left: "50%",
   zIndex: 80,
-  width: 420,
-  maxWidth: "min(420px, calc(100vw - 48px))",
+  width: 560,
+  maxWidth: "min(560px, calc(100vw - 48px))",
   transform: "translate(-50%, -50%)",
   pointerEvents: "none",
-  padding: "16px 18px",
+  padding: "20px 22px",
   border: "1px solid rgba(0, 212, 255, 0.34)",
   borderRadius: 12,
   background:
@@ -432,7 +457,7 @@ const detailMetaGridStyle: CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
   gap: 10,
-  marginBottom: 14,
+  marginBottom: 16,
 };
 
 const detailDatumLabelStyle: CSSProperties = {
@@ -451,10 +476,11 @@ const detailDatumValueStyle: CSSProperties = {
 };
 
 const detailBodyStyle: CSSProperties = {
-  maxHeight: 180,
+  maxHeight: "42vh",
   overflow: "hidden",
-  whiteSpace: "pre-wrap",
-  fontSize: 12,
-  lineHeight: 1.45,
+  padding: "10px 12px",
+  border: "1px solid rgba(0, 212, 255, 0.14)",
+  borderRadius: 8,
+  background: "rgba(0, 8, 22, 0.38)",
   color: "rgba(250, 254, 255, 0.96)",
 };
