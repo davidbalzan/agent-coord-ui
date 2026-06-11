@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { MdMessage } from "./MdMessage.js";
 import { useBusStore, roomMessages } from "../store/bus.js";
+import { HoloButton } from "./primitives/HoloButton.js";
 
 const STATUS_COLOR: Record<string, string> = {
   active: "#00ff88",
@@ -206,9 +207,7 @@ export function RoomPanel({ roomId }: Props) {
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && send()}
         />
-        <button className="holo-btn" onClick={send}>
-          POST
-        </button>
+        <HoloButton onClick={send}>POST</HoloButton>
       </div>
     </div>
   );

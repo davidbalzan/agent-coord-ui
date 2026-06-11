@@ -3,6 +3,7 @@ import { useBusStore } from "../store/bus.js";
 import type { LauncherPrefill } from "../store/bus.js";
 import { PresetEditor } from "./PresetEditor.js";
 import { GlassPanel } from "./primitives/GlassPanel.js";
+import { HoloButton } from "./primitives/HoloButton.js";
 
 const AGENT_ID_RE = /^[\w-]{1,64}$/;
 
@@ -152,13 +153,12 @@ export function AgentLauncher({ onClose, prefill }: Props) {
               </option>
             ))}
           </select>
-          <button
-            className="holo-btn"
+          <HoloButton
             style={{ fontSize: 9, padding: "3px 8px", flexShrink: 0 }}
             onClick={() => setShowPresetEditor(true)}
           >
             EDIT
-          </button>
+          </HoloButton>
         </div>
         {selectedPresetId &&
           (() => {
@@ -335,8 +335,7 @@ export function AgentLauncher({ onClose, prefill }: Props) {
       )}
 
       <div style={{ padding: "8px 12px" }}>
-        <button
-          className="holo-btn"
+        <HoloButton
           style={{
             width: "100%",
             padding: "7px 0",
@@ -348,7 +347,7 @@ export function AgentLauncher({ onClose, prefill }: Props) {
           onClick={handleLaunch}
         >
           ▶ LAUNCH AGENT
-        </button>
+        </HoloButton>
       </div>
 
       {/* ── In-flight progress ── */}

@@ -3,6 +3,7 @@ import { useBusStore } from "../store/bus.js";
 import type { BacklogQueueItem, BacklogDoneItem } from "@coord-ui/shared";
 import { matchQueueToDone } from "../lib/matchQueueToDone.js";
 import { GlassPanel } from "./primitives/GlassPanel.js";
+import { SectionLabel } from "./primitives/SectionLabel.js";
 
 const PRIORITY_COLOR: Record<string, string> = {
   P1: "#ff4e4e",
@@ -705,7 +706,7 @@ export function BacklogPanel() {
           <>
             {/* Queue section */}
             <div style={{ marginBottom: 28 }}>
-              <div style={sectionHeadStyle}>
+              <SectionLabel>
                 QUEUE
                 <span style={{ color: "rgba(0,212,255,0.3)", marginLeft: 8 }}>
                   · {displayQueue.length}
@@ -733,7 +734,7 @@ export function BacklogPanel() {
                     {pruning ? "…" : `CLEAR ${completedCount} DONE`}
                   </button>
                 )}
-              </div>
+              </SectionLabel>
               {displayQueue.length === 0 && (
                 <div style={emptyStyle}>Queue is empty</div>
               )}
@@ -758,7 +759,7 @@ export function BacklogPanel() {
 
             {/* Done section */}
             <div>
-              <div style={sectionHeadStyle}>
+              <SectionLabel>
                 DONE
                 <span style={{ color: "rgba(0,212,255,0.3)", marginLeft: 8 }}>
                   · {displayDone.length}
@@ -774,7 +775,7 @@ export function BacklogPanel() {
                 >
                   [coordinator-owned · read-only]
                 </span>
-              </div>
+              </SectionLabel>
               {displayDone.map((item, i) => (
                 <DoneItemRow key={i} item={item} />
               ))}
@@ -787,16 +788,6 @@ export function BacklogPanel() {
 }
 
 // ─── Style helpers ────────────────────────────────────────────────────────────
-
-const sectionHeadStyle: React.CSSProperties = {
-  fontFamily: "Share Tech Mono, monospace",
-  fontSize: 9,
-  letterSpacing: "0.2em",
-  color: "rgba(0,212,255,0.4)",
-  marginBottom: 8,
-  display: "flex",
-  alignItems: "center",
-};
 
 const emptyStyle: React.CSSProperties = {
   fontFamily: "Share Tech Mono, monospace",
