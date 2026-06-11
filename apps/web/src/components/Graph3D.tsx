@@ -44,6 +44,7 @@ const STATUS_GLOW: Record<string, number> = {
 
 const ROOM_COLOR = 0x7b6fff;
 const BACKLOG_COLOR = 0xffaa00; // amber — distinct from agent/room
+const COORDINATOR_ACCENT = 0xffd166; // command accent; status glow remains separate
 
 const SPEED_BASE = 0.004;
 const SPEED_BOOST = 0.04;
@@ -187,6 +188,53 @@ function buildGlowNode(
   }
 
   return group;
+}
+
+function isCoordinatorAgent(agent: AgentSnapshot): boolean {
+  const role = agent.metadata?.role;
+  if (typeof role === "string") {
+    return role.toLowerCase() === "coordinator";
+  }
+
+  return /(^coord|-coordinator$)/i.test(agent.name);
+}
+
+function addCoordinatorMarker(group: THREE.Group): void {
+  const ringMat = new THREE.MeshBasicMaterial({
+    color: COORDINATOR_ACCENT,
+    transparent: true,
+    opacity: 0.52,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+  const crownRing = new THREE.Mesh(
+    new THREE.TorusGeometry(8.4, 0.28, 8, 72),
+    ringMat
+  );
+  crownRing.rotation.x = Math.PI / 2;
+  crownRing.userData.coordinatorMarker = true;
+  group.add(crownRing);
+
+  for (let i = 0; i < 3; i++) {
+    const tickMat = new THREE.MeshBasicMaterial({
+      color: COORDINATOR_ACCENT,
+      transparent: true,
+      opacity: 0.72,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    const tick = new THREE.Mesh(new THREE.ConeGeometry(0.8, 2.2, 3), tickMat);
+    const angle = -Math.PI / 2 + i * (Math.PI / 5);
+    tick.position.set(Math.cos(angle) * 8.8, 7.2, Math.sin(angle) * 8.8);
+    tick.rotation.z = -angle;
+    tick.userData.coordinatorMarker = true;
+    group.add(tick);
+  }
+
+  const tag = makeTextSprite("◆ COORD", "#ffd166", 4.2, 0.86);
+  tag.position.set(0, 15.5, 0);
+  tag.userData.coordinatorMarker = true;
+  group.add(tag);
 }
 
 function nodeId(n: string | GraphNode): string {
@@ -921,6 +969,8 @@ export function Graph3D() {
         const agent = node.data as AgentSnapshot;
         const hex = STATUS_GLOW[agent.status] ?? STATUS_GLOW["unknown"]!;
         const group = buildGlowNode(hex, 5, agent.status === "stale", agent.id);
+        const isCoordinator = isCoordinatorAgent(agent);
+        if (isCoordinator) addCoordinatorMarker(group);
         if (group.userData.setColor) {
           colorSetters.current.set(
             agent.id,
@@ -939,7 +989,7 @@ export function Graph3D() {
         );
         // Subtle agent label — smaller and dimmer than channel names
         const agentLabel = makeTextSprite(agent.name, "#8fffc4", 5, 0.6);
-        agentLabel.position.set(0, 10, 0);
+        agentLabel.position.set(0, isCoordinator ? 20.5 : 10, 0);
         group.add(agentLabel);
         agentLabelSetters.current.set(agent.id, (v: boolean) => {
           agentLabel.visible = v;
