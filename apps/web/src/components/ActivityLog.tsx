@@ -399,16 +399,16 @@ const detailPanelStyle: CSSProperties = {
   transform: "translate(-50%, -50%)",
   pointerEvents: "none",
   padding: "16px 18px",
-  border: "1px solid rgba(0, 212, 255, 0.24)",
+  border: "1px solid rgba(0, 212, 255, 0.34)",
   borderRadius: 12,
   background:
-    "linear-gradient(145deg, rgba(8, 24, 48, 0.72), rgba(0, 8, 22, 0.54))",
+    "linear-gradient(145deg, rgba(8, 24, 48, 0.91), rgba(0, 8, 22, 0.88))",
   boxShadow:
-    "inset 0 1px 0 rgba(255,255,255,0.07), 0 18px 55px rgba(0,0,0,0.45), 0 0 34px rgba(0,212,255,0.12)",
+    "inset 0 1px 0 rgba(255,255,255,0.09), inset 0 0 38px rgba(0,8,22,0.58), 0 20px 60px rgba(0,0,0,0.62), 0 0 34px rgba(0,212,255,0.16)",
   backdropFilter: "blur(18px) saturate(155%)",
   WebkitBackdropFilter: "blur(18px) saturate(155%)",
-  color: "rgba(210, 250, 255, 0.9)",
-  textShadow: "0 0 10px rgba(0, 212, 255, 0.18)",
+  color: "rgba(242, 253, 255, 0.96)",
+  textShadow: "0 1px 2px rgba(0, 0, 0, 0.72), 0 0 10px rgba(0, 212, 255, 0.16)",
 };
 
 const detailEyebrowStyle: CSSProperties = {
@@ -418,13 +418,13 @@ const detailEyebrowStyle: CSSProperties = {
   marginBottom: 10,
   fontSize: 9,
   letterSpacing: "0.18em",
-  color: "rgba(0, 212, 255, 0.62)",
+  color: "rgba(96, 232, 255, 0.82)",
 };
 
 const detailRouteStyle: CSSProperties = {
   marginBottom: 14,
   fontSize: 15,
-  color: "rgba(157, 244, 255, 0.95)",
+  color: "rgba(232, 253, 255, 0.98)",
   letterSpacing: "0.04em",
 };
 
@@ -439,7 +439,7 @@ const detailDatumLabelStyle: CSSProperties = {
   marginBottom: 3,
   fontSize: 8,
   letterSpacing: "0.2em",
-  color: "rgba(0, 212, 255, 0.38)",
+  color: "rgba(96, 232, 255, 0.62)",
 };
 
 const detailDatumValueStyle: CSSProperties = {
@@ -447,7 +447,7 @@ const detailDatumValueStyle: CSSProperties = {
   textOverflow: "ellipsis",
   whiteSpace: "nowrap",
   fontSize: 11,
-  color: "rgba(210, 250, 255, 0.72)",
+  color: "rgba(232, 253, 255, 0.88)",
 };
 
 const detailBodyStyle: CSSProperties = {
@@ -456,5 +456,5 @@ const detailBodyStyle: CSSProperties = {
   whiteSpace: "pre-wrap",
   fontSize: 12,
   lineHeight: 1.45,
-  color: "rgba(235, 252, 255, 0.88)",
+  color: "rgba(250, 254, 255, 0.96)",
 };
