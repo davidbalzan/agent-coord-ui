@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useBusStore } from "../store/bus.js";
 import type { BacklogQueueItem, BacklogDoneItem } from "@coord-ui/shared";
+import { matchQueueToDone } from "../lib/matchQueueToDone.js";
 
 const PRIORITY_COLOR: Record<string, string> = {
   P1: "#ff4e4e",
@@ -34,6 +35,7 @@ function PriorityBadge({ p }: { p: string }) {
 function QueueItemRow({
   item,
   editMode,
+  doneMatch,
   onEdit,
   onMoveUp,
   onMoveDown,
@@ -43,6 +45,7 @@ function QueueItemRow({
 }: {
   item: BacklogQueueItem;
   editMode: boolean;
+  doneMatch: BacklogDoneItem | null;
   onEdit: (field: "priority" | "text", value: string) => void;
   onMoveUp: () => void;
   onMoveDown: () => void;
@@ -58,6 +61,7 @@ function QueueItemRow({
         gap: 10,
         padding: "8px 0",
         borderBottom: "1px solid rgba(0,212,255,0.07)",
+        opacity: doneMatch && !editMode ? 0.65 : 1,
       }}
     >
       <span
@@ -119,15 +123,84 @@ function QueueItemRow({
             style={{
               fontFamily: "Share Tech Mono, monospace",
               fontSize: 13,
-              color: "rgba(0,212,255,0.9)",
+              color: doneMatch ? "rgba(0,212,255,0.55)" : "rgba(0,212,255,0.9)",
               lineHeight: 1.5,
               wordBreak: "break-word",
+              textDecoration: doneMatch ? "line-through" : "none",
             }}
           >
             {item.text}
           </div>
         )}
+        {doneMatch && !editMode && (
+          <div
+            style={{
+              marginTop: 4,
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+            }}
+          >
+            <span
+              style={{
+                fontFamily: "Share Tech Mono, monospace",
+                fontSize: 8,
+                letterSpacing: "0.12em",
+                color: "#00ff88",
+                border: "1px solid rgba(0,255,136,0.35)",
+                borderRadius: 2,
+                padding: "1px 6px",
+              }}
+            >
+              DONE ✓
+            </span>
+            {doneMatch.ref && (
+              <span
+                style={{
+                  fontFamily: "Share Tech Mono, monospace",
+                  fontSize: 9,
+                  color: "rgba(0,255,136,0.45)",
+                }}
+              >
+                {doneMatch.ref}
+              </span>
+            )}
+            {doneMatch.date && (
+              <span
+                style={{
+                  fontFamily: "Share Tech Mono, monospace",
+                  fontSize: 9,
+                  color: "rgba(0,212,255,0.25)",
+                }}
+              >
+                {doneMatch.date}
+              </span>
+            )}
+          </div>
+        )}
       </div>
+      {/* Per-item prune button (read-only mode, matched items only) */}
+      {!editMode && doneMatch && (
+        <button
+          onClick={onRemove}
+          title="Remove from queue"
+          style={{
+            flexShrink: 0,
+            background: "none",
+            border: "1px solid rgba(0,255,136,0.25)",
+            color: "rgba(0,255,136,0.55)",
+            fontFamily: "Share Tech Mono, monospace",
+            fontSize: 9,
+            padding: "2px 8px",
+            cursor: "pointer",
+            borderRadius: 2,
+            letterSpacing: "0.08em",
+            marginTop: 2,
+          }}
+        >
+          PRUNE
+        </button>
+      )}
       {editMode && (
         <div
           style={{
@@ -365,6 +438,7 @@ export function BacklogPanel() {
   const [editMode, setEditMode] = useState(false);
   const [draftQueue, setDraftQueue] = useState<BacklogQueueItem[]>([]);
   const [saving, setSaving] = useState(false);
+  const [pruning, setPruning] = useState(false);
 
   // Reset edit state whenever the project changes or panel closes
   useEffect(() => {
@@ -422,12 +496,51 @@ export function BacklogPanel() {
     setDraftQueue((q) => [...q, item]);
   };
 
+  // Prune a single matched item immediately (no edit mode needed)
+  const pruneItem = async (idx: number) => {
+    if (!openBacklogProject || !backlog) return;
+    const newQueue = backlog.queue.filter((_, i) => i !== idx);
+    setPruning(true);
+    try {
+      await saveBacklogQueue(openBacklogProject, newQueue);
+    } finally {
+      setPruning(false);
+    }
+  };
+
+  // Bulk-prune all matched items after confirmation
+  const clearCompleted = async () => {
+    if (!openBacklogProject || !backlog) return;
+    const matches = matchQueueToDone(backlog.queue, backlog.done);
+    const matchCount = matches.filter(Boolean).length;
+    if (matchCount === 0) return;
+    if (
+      !window.confirm(
+        `Remove ${matchCount} completed item${matchCount !== 1 ? "s" : ""} from ## Queue? ## Done is untouched.`
+      )
+    )
+      return;
+    const newQueue = backlog.queue.filter((_, i) => matches[i] === null);
+    setPruning(true);
+    try {
+      await saveBacklogQueue(openBacklogProject, newQueue);
+    } finally {
+      setPruning(false);
+    }
+  };
+
   if (!openBacklogProject) return null;
 
   const projectName =
     openBacklogProject.split("/").filter(Boolean).pop() ?? openBacklogProject;
   const displayQueue = editMode ? draftQueue : (backlog?.queue ?? []);
   const displayDone = backlog?.done ?? [];
+
+  // Match live queue against done for badge/prune affordances (read-only mode only)
+  const doneMatches = editMode
+    ? displayQueue.map(() => null)
+    : matchQueueToDone(displayQueue, displayDone);
+  const completedCount = doneMatches.filter(Boolean).length;
 
   return (
     <div
@@ -597,6 +710,29 @@ export function BacklogPanel() {
                 <span style={{ color: "rgba(0,212,255,0.3)", marginLeft: 8 }}>
                   · {displayQueue.length}
                 </span>
+                {!editMode && completedCount > 0 && (
+                  <button
+                    onClick={() => void clearCompleted()}
+                    disabled={pruning}
+                    title={`Remove ${completedCount} completed item${completedCount !== 1 ? "s" : ""} from queue`}
+                    style={{
+                      marginLeft: "auto",
+                      background: pruning
+                        ? "rgba(0,255,136,0.04)"
+                        : "rgba(0,255,136,0.08)",
+                      border: "1px solid rgba(0,255,136,0.3)",
+                      color: pruning ? "rgba(0,255,136,0.35)" : "#00ff88",
+                      fontFamily: "Share Tech Mono, monospace",
+                      fontSize: 8,
+                      letterSpacing: "0.12em",
+                      padding: "2px 10px",
+                      cursor: pruning ? "default" : "pointer",
+                      borderRadius: 2,
+                    }}
+                  >
+                    {pruning ? "…" : `CLEAR ${completedCount} DONE`}
+                  </button>
+                )}
               </div>
               {displayQueue.length === 0 && (
                 <div style={emptyStyle}>Queue is empty</div>
@@ -606,10 +742,13 @@ export function BacklogPanel() {
                   key={i}
                   item={item}
                   editMode={editMode}
+                  doneMatch={doneMatches[i] ?? null}
                   onEdit={(f, v) => updateItem(i, f, v)}
                   onMoveUp={() => moveItem(i, -1)}
                   onMoveDown={() => moveItem(i, 1)}
-                  onRemove={() => removeItem(i)}
+                  onRemove={
+                    editMode ? () => removeItem(i) : () => void pruneItem(i)
+                  }
                   isFirst={i === 0}
                   isLast={i === displayQueue.length - 1}
                 />
