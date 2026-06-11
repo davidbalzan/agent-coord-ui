@@ -1,5 +1,5 @@
 import { exec } from "node:child_process";
-import { readFile, writeFile, rename } from "node:fs/promises";
+import { readFile, writeFile, rename, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import type {
@@ -43,9 +43,7 @@ export async function getAgentPaneRoots(): Promise<string[]> {
 
 /** Build a root→agentIds map from live panes. Preserves the agentId→root link
  *  that getAgentPaneRoots discards. Multiple agents at the same root accumulate. */
-export async function getAgentRootsWithAgents(): Promise<
-  Map<string, string[]>
-> {
+export async function getAgentRootsWithAgents(): Promise<Map<string, string[]>> {
   const agentPanes = tmuxWatcher.panes.filter(
     (p): p is typeof p & { agentId: string } => !!p.agentId && !!p.cwd
   );
@@ -164,16 +162,29 @@ export async function loadBacklog(
   }
 }
 
-export async function rewriteQueueRegion(
-  repoPath: string,
-  items: BacklogQueueItem[]
-): Promise<ProjectBacklog> {
-  const filePath = join(repoPath, "docs", "BACKLOG.md");
-  const content = await readFile(filePath, "utf8");
-  const lines = content.split("\n");
+interface FileIdentity {
+  mtimeMs: number;
+  size: number;
+}
 
+async function fileIdentity(filePath: string): Promise<FileIdentity> {
+  const s = await stat(filePath);
+  return { mtimeMs: s.mtimeMs, size: s.size };
+}
+
+function identityEqual(a: FileIdentity, b: FileIdentity): boolean {
+  return a.mtimeMs === b.mtimeMs && a.size === b.size;
+}
+
+/**
+ * Replace only the ## Queue region in a BACKLOG.md content string.
+ * Throws if no ## Queue section is found.
+ */
+function applyQueueItems(content: string, items: BacklogQueueItem[]): string {
+  const lines = content.split("\n");
   let queueStart = -1;
   let queueEnd = lines.length;
+
   for (let i = 0; i < lines.length; i++) {
     const trimmed = lines[i].trim();
     if (/^##\s+Queue/i.test(trimmed)) {
@@ -183,7 +194,8 @@ export async function rewriteQueueRegion(
       break;
     }
   }
-  if (queueStart === -1) throw new Error(`No ## Queue section found in ${filePath}`);
+
+  if (queueStart === -1) throw new Error("No ## Queue section found");
 
   const heading = lines[queueStart];
   const newQueueLines = [
@@ -192,16 +204,57 @@ export async function rewriteQueueRegion(
     ...items.map((item) => `- [ ] (${item.priority}) ${item.text}`),
     "",
   ];
-  const newContent = [
+
+  return [
     ...lines.slice(0, queueStart),
     ...newQueueLines,
     ...lines.slice(queueEnd),
   ].join("\n");
+}
 
+const CAS_MAX_ATTEMPTS = 5;
+
+/**
+ * Atomically replace the ## Queue region of a BACKLOG.md file using
+ * compare-and-swap to prevent clobbering concurrent ## Done appends.
+ *
+ * Read → capture identity → build content → re-stat before rename →
+ * if changed: re-read + re-apply → retry (max 5 attempts).
+ * Only renames when the base file is verified unchanged since the read.
+ */
+export async function rewriteQueueRegion(
+  repoPath: string,
+  items: BacklogQueueItem[]
+): Promise<ProjectBacklog> {
+  const filePath = join(repoPath, "docs", "BACKLOG.md");
   const tmpPath = `${filePath}.tmp`;
-  await writeFile(tmpPath, newContent, "utf8");
-  await rename(tmpPath, filePath);
-  return parseBacklog(repoPath, newContent);
+
+  for (let attempt = 0; attempt < CAS_MAX_ATTEMPTS; attempt++) {
+    // 1. Capture identity, then read
+    const identityBefore = await fileIdentity(filePath);
+    const content = await readFile(filePath, "utf8");
+
+    // 2. Build new content with only ## Queue replaced
+    const newContent = applyQueueItems(content, items);
+
+    // 3. Stage to .tmp
+    await writeFile(tmpPath, newContent, "utf8");
+
+    // 4. Re-stat: verify file unchanged since our read
+    const identityAfter = await fileIdentity(filePath);
+    if (!identityEqual(identityBefore, identityAfter)) {
+      // File changed (concurrent Done append or other write) — retry with fresh read
+      continue;
+    }
+
+    // 5. Commit: rename is atomic on POSIX
+    await rename(tmpPath, filePath);
+    return parseBacklog(repoPath, newContent);
+  }
+
+  throw new Error(
+    `rewriteQueueRegion: failed after ${CAS_MAX_ATTEMPTS} attempts due to concurrent modifications`
+  );
 }
 
 export async function loadAllBacklogs(): Promise<ProjectBacklog[]> {
