@@ -1,19 +1,44 @@
+import { exec } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { promisify } from "node:util";
 import type {
   ProjectBacklog,
   BacklogQueueItem,
   BacklogDoneItem,
   BacklogPriority,
 } from "@coord-ui/shared";
+import { tmuxWatcher } from "./tmux.js";
 
-// AGENT_COORD_PROJECT_REPOS = comma-separated absolute repo paths
+const execAsync = promisify(exec);
+
+// AGENT_COORD_PROJECT_REPOS = comma-separated absolute repo paths (additive)
 export function getProjectRepoPaths(): string[] {
   const raw = process.env.AGENT_COORD_PROJECT_REPOS ?? "";
   return raw
     .split(",")
     .map((p) => p.trim())
     .filter(Boolean);
+}
+
+/** Resolve a directory to its git repo root. Returns null if not in a git repo. */
+export async function gitRoot(cwd: string): Promise<string | null> {
+  try {
+    const escaped = cwd.replace(/'/g, "'\\''");
+    const { stdout } = await execAsync(
+      `git -C '${escaped}' rev-parse --show-toplevel`
+    );
+    return stdout.trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+/** Collect unique git roots from panes that are matched to a live agent. */
+export async function getAgentPaneRoots(): Promise<string[]> {
+  const agentPanes = tmuxWatcher.panes.filter((p) => p.agentId && p.cwd);
+  const roots = await Promise.all(agentPanes.map((p) => gitRoot(p.cwd)));
+  return [...new Set(roots.filter((r): r is string => r !== null))];
 }
 
 const QUEUE_RE = /^-\s+\[\s*\]\s+(P[123])\s+(.+?)\s*(?:—|-{1,2})\s*(.*)$/;
@@ -81,7 +106,8 @@ export async function loadBacklog(
 }
 
 export async function loadAllBacklogs(): Promise<ProjectBacklog[]> {
-  const paths = getProjectRepoPaths();
-  const results = await Promise.all(paths.map(loadBacklog));
+  const [panePaths] = await Promise.all([getAgentPaneRoots()]);
+  const allPaths = [...new Set([...getProjectRepoPaths(), ...panePaths])];
+  const results = await Promise.all(allPaths.map(loadBacklog));
   return results.filter((b): b is ProjectBacklog => b !== null);
 }
