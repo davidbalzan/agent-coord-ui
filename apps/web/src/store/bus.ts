@@ -9,6 +9,13 @@ import type {
   ProjectBacklog,
 } from "@coord-ui/shared";
 import { busSocket } from "../lib/ws.js";
+import {
+  buildDavidThreads,
+  globalUnreadCount,
+  loadReadState,
+  saveReadState,
+} from "../lib/inbox.js";
+export type { DmThread } from "../lib/inbox.js";
 
 export type SelectionKind = "agent" | "room" | "dm-edge" | "pane";
 
@@ -48,6 +55,9 @@ interface BusState {
   launcherPrefill: LauncherPrefill | null;
   backlogs: ProjectBacklog[];
   openBacklogProject: string | null; // project path of the backlog panel currently open
+  inboxOpen: boolean;
+  activeInboxThread: string | null; // counterpart agent id currently viewed
+  readState: Record<string, number>; // counterpart → last-read timestamp
   setSelection: (s: Selection | null) => void;
   setPaneSelection: (id: string | null) => void;
   setNameFilter: (f: string) => void;
@@ -56,6 +66,9 @@ interface BusState {
   setLauncherOpen: (v: boolean) => void;
   setLauncherPrefill: (v: LauncherPrefill | null) => void;
   setOpenBacklogProject: (project: string | null) => void;
+  setInboxOpen: (v: boolean) => void;
+  setActiveInboxThread: (counterpart: string | null) => void;
+  markThreadRead: (counterpart: string) => void;
   fetchBacklogs: () => Promise<void>;
   saveBacklogQueue: (
     project: string,
@@ -172,6 +185,9 @@ export const useBusStore = create<BusState>((set) => {
     launcherPrefill: null,
     backlogs: [],
     openBacklogProject: null,
+    inboxOpen: false,
+    activeInboxThread: null,
+    readState: loadReadState(),
     setSelection: (selection) => set({ selection }),
     setPaneSelection: (paneSelection) => set({ paneSelection }),
     setNameFilter: (nameFilter) => set({ nameFilter }),
@@ -180,6 +196,14 @@ export const useBusStore = create<BusState>((set) => {
     setLauncherOpen: (launcherOpen) => set({ launcherOpen }),
     setLauncherPrefill: (launcherPrefill) => set({ launcherPrefill }),
     setOpenBacklogProject: (openBacklogProject) => set({ openBacklogProject }),
+    setInboxOpen: (inboxOpen) => set({ inboxOpen }),
+    setActiveInboxThread: (activeInboxThread) => set({ activeInboxThread }),
+    markThreadRead: (counterpart) =>
+      set((s) => {
+        const readState = { ...s.readState, [counterpart]: Date.now() };
+        saveReadState(readState);
+        return { readState };
+      }),
     fetchBacklogs: async () => {
       const res = await fetch("/api/backlogs");
       if (res.ok) {
@@ -255,6 +279,14 @@ export const dmMessages = (s: BusState, a: string, b: string) =>
   );
 export const roomMessages = (s: BusState, roomId: string) =>
   s.messages.filter((m) => !m.isDM && m.to === roomId);
+
+/** David's DM threads, sorted: unread first, then by latest message desc. */
+export const davidThreads = (s: BusState) =>
+  buildDavidThreads(s.messages, s.readState);
+
+/** Total unread count across all David's DM threads. */
+export const davidGlobalUnread = (s: BusState) =>
+  globalUnreadCount(buildDavidThreads(s.messages, s.readState));
 
 /** Derive TerminalGroup list from pane session metadata. */
 export const terminalGroups = (s: BusState): TerminalGroup[] => {
