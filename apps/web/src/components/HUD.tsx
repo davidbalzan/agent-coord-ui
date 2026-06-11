@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { useBusStore } from "../store/bus.js";
 import { AgentLauncher } from "./AgentLauncher.js";
+import { BacklogPanel } from "./BacklogPanel.js";
 
 export function HUD() {
   const agentsMap = useBusStore((s) => s.agents);
@@ -11,6 +12,8 @@ export function HUD() {
   const setLauncherOpen = useBusStore((s) => s.setLauncherOpen);
   const launcherPrefill = useBusStore((s) => s.launcherPrefill);
   const setLauncherPrefill = useBusStore((s) => s.setLauncherPrefill);
+  const backlogOpen = useBusStore((s) => s.backlogOpen);
+  const setBacklogOpen = useBusStore((s) => s.setBacklogOpen);
   const agents = Object.values(agentsMap);
   const rooms = Object.values(roomsMap);
   const active = agents.filter((a) => a.status === "active").length;
@@ -312,8 +315,24 @@ export function HUD() {
           </div>
         </div>
 
-        {/* Right side: launch button + sys hint */}
+        {/* Right side: launch button + backlog + sys hint */}
         <div className="ml-auto flex items-center gap-3 flex-shrink-0">
+          <button
+            className="holo-btn"
+            style={{
+              fontSize: "9px",
+              padding: "3px 10px",
+              background: backlogOpen ? "rgba(123,111,255,0.2)" : undefined,
+              boxShadow: backlogOpen
+                ? "0 0 12px rgba(123,111,255,0.4)"
+                : undefined,
+              borderColor: backlogOpen ? "rgba(123,111,255,0.6)" : undefined,
+              color: backlogOpen ? "#b090ff" : undefined,
+            }}
+            onClick={() => setBacklogOpen(!backlogOpen)}
+          >
+            ≡ BACKLOG
+          </button>
           <button
             className="holo-btn"
             style={{
@@ -359,6 +378,7 @@ export function HUD() {
           }}
         />
       )}
+      {backlogOpen && <BacklogPanel />}
     </header>
   );
 }

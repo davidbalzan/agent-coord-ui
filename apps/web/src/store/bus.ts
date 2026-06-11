@@ -6,6 +6,7 @@ import type {
   PaneSnapshot,
   AgentPreset,
   TerminalGroup,
+  ProjectBacklog,
 } from "@coord-ui/shared";
 import { busSocket } from "../lib/ws.js";
 
@@ -45,6 +46,8 @@ interface BusState {
   spawnProgress: Record<string, SpawnProgressRecord>; // keyed by agentId
   launcherOpen: boolean;
   launcherPrefill: LauncherPrefill | null;
+  backlogs: ProjectBacklog[];
+  backlogOpen: boolean;
   setSelection: (s: Selection | null) => void;
   setPaneSelection: (id: string | null) => void;
   setNameFilter: (f: string) => void;
@@ -52,6 +55,8 @@ interface BusState {
   setSidePanelWidth: (w: number) => void;
   setLauncherOpen: (v: boolean) => void;
   setLauncherPrefill: (v: LauncherPrefill | null) => void;
+  setBacklogOpen: (v: boolean) => void;
+  fetchBacklogs: () => Promise<void>;
   sendMessage: (to: string, body: string, isDM: boolean) => void;
   sendPaneKeys: (paneId: string, keys: string) => void;
   requestPaneOutput: (paneId: string) => void;
@@ -161,6 +166,8 @@ export const useBusStore = create<BusState>((set) => {
     spawnProgress: {},
     launcherOpen: false,
     launcherPrefill: null,
+    backlogs: [],
+    backlogOpen: false,
     setSelection: (selection) => set({ selection }),
     setPaneSelection: (paneSelection) => set({ paneSelection }),
     setNameFilter: (nameFilter) => set({ nameFilter }),
@@ -168,6 +175,14 @@ export const useBusStore = create<BusState>((set) => {
     setSidePanelWidth: (sidePanelWidth) => set({ sidePanelWidth }),
     setLauncherOpen: (launcherOpen) => set({ launcherOpen }),
     setLauncherPrefill: (launcherPrefill) => set({ launcherPrefill }),
+    setBacklogOpen: (backlogOpen) => set({ backlogOpen }),
+    fetchBacklogs: async () => {
+      const res = await fetch("/api/backlogs");
+      if (res.ok) {
+        const data = (await res.json()) as ProjectBacklog[];
+        set({ backlogs: data });
+      }
+    },
     sendMessage: (to, body, isDM) => {
       busSocket.send({ type: "send_message", to, body, isDM });
     },
