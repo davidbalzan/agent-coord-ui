@@ -47,7 +47,7 @@ interface BusState {
   launcherOpen: boolean;
   launcherPrefill: LauncherPrefill | null;
   backlogs: ProjectBacklog[];
-  backlogOpen: boolean;
+  openBacklogProject: string | null; // project path of the backlog panel currently open
   setSelection: (s: Selection | null) => void;
   setPaneSelection: (id: string | null) => void;
   setNameFilter: (f: string) => void;
@@ -55,8 +55,12 @@ interface BusState {
   setSidePanelWidth: (w: number) => void;
   setLauncherOpen: (v: boolean) => void;
   setLauncherPrefill: (v: LauncherPrefill | null) => void;
-  setBacklogOpen: (v: boolean) => void;
+  setOpenBacklogProject: (project: string | null) => void;
   fetchBacklogs: () => Promise<void>;
+  saveBacklogQueue: (
+    project: string,
+    items: import("@coord-ui/shared").BacklogQueueItem[]
+  ) => Promise<void>;
   sendMessage: (to: string, body: string, isDM: boolean) => void;
   sendPaneKeys: (paneId: string, keys: string) => void;
   requestPaneOutput: (paneId: string) => void;
@@ -167,7 +171,7 @@ export const useBusStore = create<BusState>((set) => {
     launcherOpen: false,
     launcherPrefill: null,
     backlogs: [],
-    backlogOpen: false,
+    openBacklogProject: null,
     setSelection: (selection) => set({ selection }),
     setPaneSelection: (paneSelection) => set({ paneSelection }),
     setNameFilter: (nameFilter) => set({ nameFilter }),
@@ -175,12 +179,28 @@ export const useBusStore = create<BusState>((set) => {
     setSidePanelWidth: (sidePanelWidth) => set({ sidePanelWidth }),
     setLauncherOpen: (launcherOpen) => set({ launcherOpen }),
     setLauncherPrefill: (launcherPrefill) => set({ launcherPrefill }),
-    setBacklogOpen: (backlogOpen) => set({ backlogOpen }),
+    setOpenBacklogProject: (openBacklogProject) => set({ openBacklogProject }),
     fetchBacklogs: async () => {
       const res = await fetch("/api/backlogs");
       if (res.ok) {
         const data = (await res.json()) as ProjectBacklog[];
         set({ backlogs: data });
+      }
+    },
+    saveBacklogQueue: async (project, items) => {
+      const projectId = encodeURIComponent(project);
+      const res = await fetch(`/api/backlogs/${projectId}/queue`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ queue: items }),
+      });
+      if (res.ok) {
+        const updated = (await res.json()) as ProjectBacklog;
+        set((s) => ({
+          backlogs: s.backlogs.map((b) =>
+            b.project === project ? { ...updated, agentIds: b.agentIds } : b
+          ),
+        }));
       }
     },
     sendMessage: (to, body, isDM) => {

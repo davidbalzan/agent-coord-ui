@@ -17,4 +17,6 @@ export interface ProjectBacklog {
   project: string; // absolute repo path
   queue: BacklogQueueItem[];
   done: BacklogDoneItem[];
+  /** Agent IDs whose pane cwd resolves to this project's git root. Populated by the API. */
+  agentIds?: string[];
 }

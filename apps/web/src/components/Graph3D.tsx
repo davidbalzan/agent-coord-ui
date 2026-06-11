@@ -8,15 +8,16 @@ import type {
   RoomSnapshot,
   MessageSnapshot,
   PaneSnapshot,
+  ProjectBacklog,
 } from "@coord-ui/shared";
 
-type NodeType = "agent" | "room" | "pane";
+type NodeType = "agent" | "room" | "pane" | "backlog";
 
 interface GraphNode {
   id: string;
   kind: NodeType;
   label: string;
-  data: AgentSnapshot | RoomSnapshot | PaneSnapshot;
+  data: AgentSnapshot | RoomSnapshot | PaneSnapshot | ProjectBacklog;
   x?: number;
   y?: number;
   z?: number;
@@ -25,7 +26,13 @@ interface GraphNode {
 interface GraphLink {
   source: string | GraphNode;
   target: string | GraphNode;
-  kind: "membership" | "dm" | "pane-agent" | "pane-h" | "pane-v";
+  kind:
+    | "membership"
+    | "dm"
+    | "pane-agent"
+    | "pane-h"
+    | "pane-v"
+    | "backlog-agent";
 }
 
 const STATUS_GLOW: Record<string, number> = {
@@ -36,6 +43,7 @@ const STATUS_GLOW: Record<string, number> = {
 };
 
 const ROOM_COLOR = 0x7b6fff;
+const BACKLOG_COLOR = 0xffaa00; // amber — distinct from agent/room
 
 const SPEED_BASE = 0.004;
 const SPEED_BOOST = 0.04;
@@ -283,6 +291,9 @@ export function Graph3D() {
   const messages = useBusStore((s) => s.messages);
   const nameFilter = useBusStore((s) => s.nameFilter);
   const paneSelection = useBusStore((s) => s.paneSelection);
+  const backlogs = useBusStore((s) => s.backlogs);
+  const fetchBacklogs = useBusStore((s) => s.fetchBacklogs);
+  const setOpenBacklogProject = useBusStore((s) => s.setOpenBacklogProject);
   const agents = Object.values(agentsMap);
   const rooms = Object.values(roomsMap);
   const panes = Object.values(panesMap);
@@ -290,6 +301,15 @@ export function Graph3D() {
   const setPaneSelection = useBusStore((s) => s.setPaneSelection);
   const hoveredAgentId = useBusStore((s) => s.hoveredAgentId);
   const sidePanelWidth = useBusStore((s) => s.sidePanelWidth);
+
+  // Fetch backlogs on mount and every 30 s so graph nodes stay in sync with running agents
+  useEffect(() => {
+    void fetchBacklogs();
+    const interval = setInterval(() => {
+      void fetchBacklogs();
+    }, 30_000);
+    return () => clearInterval(interval);
+  }, [fetchBacklogs]);
 
   // Always-current refs so color updater doesn't need store values as deps
   const agentsMapRef = useRef(agentsMap);
@@ -414,6 +434,11 @@ export function Graph3D() {
         .map((p) =>
           upsert(`pane:${p.id}`, "pane", `${p.session} ${p.command}`, p)
         ),
+      ...backlogs.map((b) => {
+        const shortName =
+          b.project.split("/").filter(Boolean).pop() ?? b.project;
+        return upsert(`backlog:${b.project}`, "backlog", shortName, b);
+      }),
     ];
 
     // Drop cached objects for ids no longer present so the cache can't grow
@@ -498,6 +523,19 @@ export function Graph3D() {
       }
     }
 
+    // Backlog → agent edges (agents whose pane cwd resolves to this repo root)
+    for (const backlog of backlogs) {
+      for (const agentId of backlog.agentIds ?? []) {
+        if (agentIds.has(agentId)) {
+          links.push({
+            source: `backlog:${backlog.project}`,
+            target: agentId,
+            kind: "backlog-agent",
+          });
+        }
+      }
+    }
+
     // Guard: drop any link whose endpoints aren't both present as nodes.
     // Pane nodes are filtered (only panes matched to a live agent are added),
     // but pane-adjacency links are generated for every pane in a window — so a
@@ -511,7 +549,7 @@ export function Graph3D() {
     );
 
     return { nodes, links: safeLinks };
-  }, [agents, rooms, panes, messages]);
+  }, [agents, rooms, panes, messages, backlogs]);
 
   // Force layout. Two concerns, solved independently:
   //   1) SPACING — moderate charge + link distance so connected nodes sit close
@@ -725,6 +763,97 @@ export function Graph3D() {
 
           return group;
         }
+        if (node.kind === "backlog") {
+          const group = new THREE.Group();
+
+          // Document icon: canvas sprite with amber glyph
+          const SIZE = 64;
+          const cv = document.createElement("canvas");
+          cv.width = SIZE;
+          cv.height = SIZE;
+          const ctx = cv.getContext("2d")!;
+          // Rounded rect background
+          const r = 8;
+          ctx.beginPath();
+          ctx.moveTo(r, 0);
+          ctx.lineTo(SIZE - r - 12, 0); // leave room for folded corner
+          ctx.lineTo(SIZE - 12, r);
+          ctx.lineTo(SIZE - 12, SIZE - r);
+          ctx.quadraticCurveTo(SIZE - 12, SIZE, SIZE - 12 - r, SIZE);
+          ctx.lineTo(r, SIZE);
+          ctx.quadraticCurveTo(0, SIZE, 0, SIZE - r);
+          ctx.lineTo(0, r);
+          ctx.quadraticCurveTo(0, 0, r, 0);
+          ctx.closePath();
+          ctx.fillStyle = "rgba(30,16,0,0.88)";
+          ctx.fill();
+          ctx.strokeStyle = "#ffaa00";
+          ctx.lineWidth = 2;
+          ctx.stroke();
+          // Folded corner
+          ctx.beginPath();
+          ctx.moveTo(SIZE - 12 - 10, 0);
+          ctx.lineTo(SIZE - 12 - 10, 10);
+          ctx.lineTo(SIZE - 12, 10);
+          ctx.strokeStyle = "rgba(255,170,0,0.6)";
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+          // Text lines (document content suggestion)
+          ctx.fillStyle = "rgba(255,170,0,0.55)";
+          for (let i = 0; i < 3; i++) {
+            const y = 22 + i * 12;
+            const w = i === 2 ? 20 : 30;
+            ctx.fillRect(8, y, w, 3);
+          }
+          // Checkmark bullet on first line
+          ctx.font = "bold 11px monospace";
+          ctx.fillStyle = "#ffaa00";
+          ctx.shadowColor = "#ffaa00";
+          ctx.shadowBlur = 6;
+          ctx.fillText("✓", 8, 21);
+
+          const tex = new THREE.CanvasTexture(cv);
+          const spriteMat = new THREE.SpriteMaterial({
+            map: tex,
+            transparent: true,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+          });
+          const sprite = new THREE.Sprite(spriteMat);
+          sprite.scale.set(10, 10, 1);
+          group.add(sprite);
+
+          // Amber ambient glow
+          const glowMat = new THREE.MeshBasicMaterial({
+            color: BACKLOG_COLOR,
+            transparent: true,
+            opacity: 0.12,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+          });
+          group.add(
+            new THREE.Mesh(new THREE.SphereGeometry(8, 10, 10), glowMat)
+          );
+
+          const light = new THREE.PointLight(BACKLOG_COLOR, 0.8, 40);
+          group.add(light);
+
+          // Label
+          const label = makeTextSprite(node.label, "#ffaa00", 7, 0.75);
+          label.position.set(0, 14, 0);
+          group.add(label);
+
+          nodeDimSetters.current.set(
+            `backlog:${(node.data as ProjectBacklog).project}`,
+            (dimmed: boolean) => {
+              sprite.material.opacity = dimmed ? 0.08 : 1;
+              glowMat.opacity = dimmed ? 0.02 : 0.12;
+              light.intensity = dimmed ? 0 : 0.8;
+            }
+          );
+
+          return group;
+        }
         const agent = node.data as AgentSnapshot;
         const hex = STATUS_GLOW[agent.status] ?? STATUS_GLOW["unknown"]!;
         const group = buildGlowNode(hex, 5, agent.status === "stale", agent.id);
@@ -790,6 +919,7 @@ export function Graph3D() {
         if (kind === "pane-agent") return "rgba(0,255,65,0.6)";
         if (kind === "pane-h") return "rgba(0,255,65,0.25)";
         if (kind === "pane-v") return "rgba(0,200,50,0.18)";
+        if (kind === "backlog-agent") return "rgba(255,170,0,0.3)";
         return "rgba(0,212,255,0.25)";
       })
       .linkOpacity(1.0)
@@ -798,11 +928,13 @@ export function Graph3D() {
         if (kind === "dm") return 0.8;
         if (kind === "pane-agent") return 0.6;
         if (kind === "pane-h" || kind === "pane-v") return 0.3;
+        if (kind === "backlog-agent") return 0.4;
         return 0.5;
       })
       .linkDirectionalParticles((l: object) => {
         const link = l as GraphLink;
         if (link.kind === "pane-h" || link.kind === "pane-v") return 0;
+        if (link.kind === "backlog-agent") return 0;
         if (link.kind === "pane-agent") return 1;
         const key = graphLinkKey(link);
         const lastTs = lastMsgTimeRef.current.get(key);
@@ -866,6 +998,10 @@ export function Graph3D() {
             setDimmed(id !== node.id);
           }
           refreshLinksRef.current();
+          // For backlog nodes: single-click opens the panel; double-click also opens it
+          if (node.kind === "backlog") {
+            setOpenBacklogProject((node.data as ProjectBacklog).project);
+          }
           // Open radial context menu (only for agent/room nodes)
           if (node.kind === "agent" || node.kind === "room") {
             setContextMenu({
@@ -878,6 +1014,8 @@ export function Graph3D() {
           lastClickRef.current = { id: node.id, time: now };
           if (node.kind === "pane") {
             setPaneSelection(node.id.replace(/^pane:/, ""));
+          } else if (node.kind === "backlog") {
+            setOpenBacklogProject((node.data as ProjectBacklog).project);
           } else {
             setSelection({
               kind: node.kind === "room" ? "room" : "agent",
@@ -1160,6 +1298,7 @@ export function Graph3D() {
           // pane split links: show if both pane ends are visible
           if (link.kind === "pane-h" || link.kind === "pane-v")
             return visiblePaneIds.has(src) && visiblePaneIds.has(tgt);
+          if (link.kind === "backlog-agent") return memberSet.has(tgt);
           return false;
         });
       return;

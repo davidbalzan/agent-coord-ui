@@ -4,6 +4,7 @@ import { HUD } from "./components/HUD.js";
 import { FloatingTerminal } from "./components/FloatingTerminal.js";
 import { StatusTicker } from "./components/StatusTicker.js";
 import { NexusOverlay } from "./components/NexusOverlay.js";
+import { BacklogPanel } from "./components/BacklogPanel.js";
 
 export function App() {
   return (
@@ -30,6 +31,7 @@ export function App() {
         <Graph3D />
         <FloatingTerminal />
         <SidePanel />
+        <BacklogPanel />
       </main>
       <StatusTicker />
     </div>
