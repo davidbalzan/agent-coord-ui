@@ -5,6 +5,7 @@ import type {
   ProjectBacklog,
 } from "@coord-ui/shared";
 import type { GraphNode } from "./backlogNodes.js";
+import { FONT_MONO } from "../../theme/tokens.js";
 
 export const STATUS_GLOW: Record<string, number> = {
   active: 0x00ff88,
@@ -191,7 +192,7 @@ export function makeTextSprite(
   const cv = document.createElement("canvas");
   const ctx = cv.getContext("2d")!;
   const fontSize = 22;
-  const font = `${fontSize}px "Share Tech Mono", monospace`;
+  const font = `${fontSize}px ${FONT_MONO}`;
   ctx.font = font;
   const pad = 10;
   const W = Math.ceil(ctx.measureText(text).width) + pad * 2;

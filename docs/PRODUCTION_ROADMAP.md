@@ -151,7 +151,7 @@ aliases: ["Roadmap", "PRODUCTION_ROADMAP"]
 
 **Goal**: Extract a design-system layer (tokens + primitive components) and split the mega-files, behavior-preserving — so the NEXUS look is defined once and large files read whole.
 **Duration**: 1–2 weeks (incremental)
-**Status**: 🟡 In Progress
+**Status**: ✅ Complete
 
 **Context**: Web app is ~9.5k LOC; Graph3D.tsx alone is 1,645 lines. Glass surface duplicated in 6 files, prefix→severity colour map in 4 (drift), `Share Tech Mono` inline in 18. Refactor during the feature lull, behavior-preserving (gate + visual spot-check per PR), soft feature freeze.
 
@@ -205,7 +205,7 @@ aliases: ["Roadmap", "PRODUCTION_ROADMAP"]
 | Phase 3: Polish           | 🟡 High     | v2 perception   | Medium     | 1–2 weeks | Three.js coupling complexity          |
 | Phase 4: Provisioning     | 🟡 High     | operator toil   | Medium     | 1–2 weeks | Readiness races, injection            |
 | Phase 5: Cockpit          | 🟡 High     | David's UX      | Medium     | 1–2 weeks | Notification spam, missed decisions   |
-| Phase 6: Componentization | 🟡 High     | maintainability | Medium     | 1–2 weeks | Refactor regressions, file collisions |
+| Phase 6: Componentization | ✅ Done     | maintainability | Medium     | 1–2 weeks | Refactor regressions, file collisions |
 | Phase 7: xterm.js         | 🟢 Medium   | Phase 3         | High       | TBD       | Bundle size, PTY lifecycle            |
 | Phase 8: Networked        | 🟢 Medium   | —               | High       | TBD       | Auth scope creep                      |
 

@@ -118,12 +118,72 @@ This forces both imports to the same module instance. `three` must be `^0.184.0`
 
 ---
 
+## 🎨 Design System Layer
+
+Added in **Phase 6** — behavior-preserving extraction of the NEXUS visual language into a single authoritative layer. All new UI work must consume these instead of writing inline values.
+
+### `theme/tokens.ts` — Single source of truth
+
+Canonical colour, font, and spacing constants. **No component may introduce a new inline hex or font string** — every visual value must trace back to a token.
+
+| Export                  | Value                                  | Purpose                           |
+| ----------------------- | -------------------------------------- | --------------------------------- |
+| `COLOR_CYAN`            | `#00d4ff`                              | Primary accent                    |
+| `COLOR_GREEN`           | `#00ff88`                              | Active / success                  |
+| `COLOR_RED`             | `#ff4e4e`                              | Alert / DAVID_DECISION            |
+| `COLOR_ORANGE`          | `#ff8c00`                              | Warning / RISK                    |
+| `FONT_MONO`             | `"Share Tech Mono", monospace`         | Monospace UI text                 |
+| `FONT_DISPLAY`          | `"Orbitron", sans-serif`               | Display / headers                 |
+| `PREFIX_COLORS`         | `{ DAVID_DECISION, BLOCKER, RISK, … }` | Severity badge colours            |
+| `PREFIX_COLOR_FALLBACK` | `COLOR_CYAN_DIM`                       | Badge colour for unknown prefixes |
+| `PRIORITY_ACCENT`       | `{ loud, dock, subtle }`               | Notification popup tints          |
+| `SPACE`                 | `{ xs:4, sm:8, md:12, lg:16, xl:24 }`  | Spacing scale (px)                |
+
+`PREFIX_COLORS` is the **canonical prefix→severity map** — the single place that maps bus message prefixes (`DAVID_DECISION`, `BLOCKER`, `RISK`, `AGENT_ACTION`, `DONE`, `FYI`) to their badge colours. Any badge, label, or node tint driven by a bus prefix must read from this map.
+
+### `components/primitives/` — Reusable presentational components
+
+Self-contained, zero business logic. Consume tokens; accept `style` override for caller-specific overrides (spread last so callers always win).
+
+| Primitive       | Props                                                        | Purpose                                                      |
+| --------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
+| `GlassPanel`    | `background`, `blur?`, `saturate?`, `cornerBrackets?`, `as?` | Frosted-glass surface with optional animated corner brackets |
+| `HoloButton`    | standard `<button>` props                                    | Holographic button wrapping `.holo-btn` CSS class            |
+| `SeverityBadge` | `prefix: string`, `style?`                                   | Bordered inline badge coloured via `PREFIX_COLORS`           |
+| `PulsingDot`    | —                                                            | Animated green dot + "working…" activity indicator           |
+| `SectionLabel`  | `color?`, `style?`, children                                 | Uppercase eyebrow label (Share Tech Mono, dim cyan)          |
+
+### Sub-module structure — co-located `*/*.tsx`
+
+Large component files are split into co-located sub-folders. The top-level file is a thin orchestrator; logic/sub-components live in the named folder.
+
+| Folder      | Orchestrator        | Contains                                                                                  |
+| ----------- | ------------------- | ----------------------------------------------------------------------------------------- |
+| `graph/`    | `Graph3D.tsx`       | `buildGlowNode.ts`, `forces.ts`, `animationLoop.ts`, `interactions.ts`, `backlogNodes.ts` |
+| `launcher/` | `AgentLauncher.tsx` | `types.ts`, `LauncherShell.tsx`, `FormHelpers.tsx`, `ProgressCard.tsx`                    |
+| `backlog/`  | `BacklogPanel.tsx`  | `BacklogRows.tsx`, `AddItemForm.tsx`, `styles.ts`                                         |
+
+### Rules
+
+1. **Tokens are the single source of truth** — no new inline hex colour or font-family string in any component. Use `COLOR_*`, `FONT_MONO`, `FONT_DISPLAY`, `PREFIX_COLORS`, or `PRIORITY_ACCENT`.
+2. **Primitives are presentational** — no store access, no business logic. If you need store-connected behaviour, wrap the primitive (see `AgentActivityDot` wrapping `PulsingDot`).
+3. **`SeverityBadge` scope** — only apply where a severity colour is already shown today. Do not add severity colouring to components that don't currently colour by prefix.
+4. **`style` prop overrides** — primitives spread `style` last, so callers can always override defaults without forking the primitive.
+
+---
+
 ## 📁 Directory Structure
 
 ```
 apps/web/src/
+├── theme/
+│   └── tokens.ts        # Design tokens — colours, fonts, spacing, PREFIX_COLORS
 ├── components/
-│   ├── Graph3D.tsx      # Three.js scene wrapper — node/link rendering only, no business logic
+│   ├── primitives/      # Presentational building blocks (GlassPanel, HoloButton, …)
+│   ├── graph/           # Graph3D sub-modules (buildGlowNode, forces, animationLoop, …)
+│   ├── launcher/        # AgentLauncher sub-modules (types, LauncherShell, FormHelpers, …)
+│   ├── backlog/         # BacklogPanel sub-modules (BacklogRows, AddItemForm, styles)
+│   ├── Graph3D.tsx      # Three.js scene orchestrator — imports from graph/*
 │   ├── HUD.tsx          # Top status bar — reads agent/room counts from store
 │   ├── SidePanel.tsx    # Container — reads selection, renders DMPanel or RoomPanel
 │   ├── DMPanel.tsx      # Agent DM thread + compose
@@ -221,3 +281,4 @@ logger.info("ws", "client connected", { clientId });
 - **[[CURRENT_FOCUS|Current Focus]]** - What's actively being worked on
 - **[[DESIGN_SYSTEM|Design System]]** - Holographic visual language and component patterns
 - **[[prd|PRD]]** - Original product requirements
+- **`theme/tokens.ts`** - Canonical colour/font/spacing constants (see Design System Layer above)
