@@ -424,14 +424,12 @@ const detailPanelStyle: CSSProperties = {
   transform: "translate(-50%, -50%)",
   pointerEvents: "none",
   padding: "20px 22px",
-  border: "1px solid rgba(0, 212, 255, 0.34)",
+  border: "1px solid rgba(0, 212, 255, 0.28)",
   borderRadius: 12,
-  background:
-    "linear-gradient(145deg, rgba(8, 24, 48, 0.91), rgba(0, 8, 22, 0.88))",
-  boxShadow:
-    "inset 0 1px 0 rgba(255,255,255,0.09), inset 0 0 38px rgba(0,8,22,0.58), 0 20px 60px rgba(0,0,0,0.62), 0 0 34px rgba(0,212,255,0.16)",
-  backdropFilter: "blur(18px) saturate(155%)",
-  WebkitBackdropFilter: "blur(18px) saturate(155%)",
+  background: "rgba(0, 8, 22, 0.97)",
+  boxShadow: "0 20px 60px rgba(0,0,0,0.62), 0 0 24px rgba(0,212,255,0.10)",
+  backdropFilter: "blur(22px) saturate(160%)",
+  WebkitBackdropFilter: "blur(22px) saturate(160%)",
   color: "rgba(242, 253, 255, 0.96)",
   textShadow: "0 1px 2px rgba(0, 0, 0, 0.72), 0 0 10px rgba(0, 212, 255, 0.16)",
 };
@@ -478,9 +476,7 @@ const detailDatumValueStyle: CSSProperties = {
 const detailBodyStyle: CSSProperties = {
   maxHeight: "42vh",
   overflow: "hidden",
-  padding: "10px 12px",
-  border: "1px solid rgba(0, 212, 255, 0.14)",
-  borderRadius: 8,
-  background: "rgba(0, 8, 22, 0.97)",
+  padding: "10px 0 0",
+  borderTop: "1px solid rgba(0, 212, 255, 0.12)",
   color: "rgba(250, 254, 255, 0.96)",
 };
