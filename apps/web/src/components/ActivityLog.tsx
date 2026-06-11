@@ -426,12 +426,16 @@ const detailPanelStyle: CSSProperties = {
   padding: "20px 22px",
   border: "1px solid rgba(0, 212, 255, 0.28)",
   borderRadius: 12,
-  background: "rgba(0, 8, 22, 0.97)",
+  // Frosted glass: translucent enough that the heavy backdrop-blur is actually
+  // visible (the graph behind reads as a soft wash), kept legible by the dark
+  // tint + strong text-shadow. At ~0.97 the blur was invisible (nothing showed
+  // through); at ~0.4 it was unreadable — ~0.62 is the frosted middle.
+  background: "rgba(0, 8, 22, 0.62)",
   boxShadow: "0 20px 60px rgba(0,0,0,0.62), 0 0 24px rgba(0,212,255,0.10)",
-  backdropFilter: "blur(22px) saturate(160%)",
-  WebkitBackdropFilter: "blur(22px) saturate(160%)",
-  color: "rgba(242, 253, 255, 0.96)",
-  textShadow: "0 1px 2px rgba(0, 0, 0, 0.72), 0 0 10px rgba(0, 212, 255, 0.16)",
+  backdropFilter: "blur(26px) saturate(160%)",
+  WebkitBackdropFilter: "blur(26px) saturate(160%)",
+  color: "rgba(242, 253, 255, 0.97)",
+  textShadow: "0 1px 3px rgba(0, 0, 0, 0.9), 0 0 10px rgba(0, 212, 255, 0.16)",
 };
 
 const detailEyebrowStyle: CSSProperties = {
