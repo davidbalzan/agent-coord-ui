@@ -301,6 +301,8 @@ export function Graph3D() {
   const setPaneSelection = useBusStore((s) => s.setPaneSelection);
   const hoveredAgentId = useBusStore((s) => s.hoveredAgentId);
   const sidePanelWidth = useBusStore((s) => s.sidePanelWidth);
+  const notificationPopup = useBusStore((s) => s.notificationPopup);
+  const setNotificationOrigin = useBusStore((s) => s.setNotificationOrigin);
 
   // Fetch backlogs on mount and every 30 s so graph nodes stay in sync with running agents
   useEffect(() => {
@@ -363,6 +365,68 @@ export function Graph3D() {
       600
     );
   }, [hoveredAgentId]);
+
+  // Resolve the active loud notification's sender node into viewport pixels.
+  // NotificationLayer falls back to its center entry when this read-only lookup
+  // cannot resolve a stable on-screen coordinate.
+  useEffect(() => {
+    if (!notificationPopup || notificationPopup.priority !== "loud") return;
+
+    const popupId = notificationPopup.id;
+    const senderId = notificationPopup.from;
+    const rafId = requestAnimationFrame(() => {
+      const graph = graphRef.current;
+      const container = containerRef.current;
+      if (!graph || !container) {
+        setNotificationOrigin(popupId, null);
+        return;
+      }
+
+      try {
+        const gd = graph.graphData?.() as { nodes: GraphNode[] } | undefined;
+        const node = gd?.nodes.find(
+          (candidate) => candidate.kind === "agent" && candidate.id === senderId
+        );
+        if (!node || node.x == null) {
+          setNotificationOrigin(popupId, null);
+          return;
+        }
+
+        const coords = graph.graph2ScreenCoords(
+          node.x,
+          node.y ?? 0,
+          node.z ?? 0
+        ) as { x: number; y: number };
+        const rect = container.getBoundingClientRect();
+        const x = rect.left + coords.x;
+        const y = rect.top + coords.y;
+        const margin = 32;
+
+        if (
+          !Number.isFinite(x) ||
+          !Number.isFinite(y) ||
+          x < rect.left - margin ||
+          x > rect.right + margin ||
+          y < rect.top - margin ||
+          y > rect.bottom + margin
+        ) {
+          setNotificationOrigin(popupId, null);
+          return;
+        }
+
+        setNotificationOrigin(popupId, { x, y });
+      } catch {
+        setNotificationOrigin(popupId, null);
+      }
+    });
+
+    return () => cancelAnimationFrame(rafId);
+  }, [
+    notificationPopup?.from,
+    notificationPopup?.id,
+    notificationPopup?.priority,
+    setNotificationOrigin,
+  ]);
 
   // Emit particle bursts on new messages — skip historical (full_state) messages
   useEffect(() => {

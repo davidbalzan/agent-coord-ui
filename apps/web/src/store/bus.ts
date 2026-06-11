@@ -72,6 +72,12 @@ export interface NotificationItem {
   timestamp: number;
   priority: Priority;
   prefix: BusPrefix | null;
+  origin?: NotificationOrigin;
+}
+
+export interface NotificationOrigin {
+  x: number;
+  y: number;
 }
 
 interface BusState {
@@ -116,6 +122,10 @@ interface BusState {
   moveNotificationToDock: (id: string) => void;
   dismissNotification: (id: string) => void;
   actNotification: (id: string) => void;
+  setNotificationOrigin: (
+    id: string,
+    origin: NotificationOrigin | null
+  ) => void;
   fetchBacklogs: () => Promise<void>;
   saveBacklogQueue: (
     project: string,
@@ -185,6 +195,17 @@ function clearNotification(s: BusState, id: string) {
       (item) => item.id !== id
     ),
   };
+}
+
+function withNotificationOrigin(
+  item: NotificationItem,
+  origin: NotificationOrigin | null
+): NotificationItem {
+  if (!origin) {
+    const { origin: _origin, ...rest } = item;
+    return rest;
+  }
+  return { ...item, origin };
 }
 
 export const useBusStore = create<BusState>((set) => {
@@ -353,6 +374,19 @@ export const useBusStore = create<BusState>((set) => {
       }),
     dismissNotification: (id) => set((s) => clearNotification(s, id)),
     actNotification: (id) => set((s) => clearNotification(s, id)),
+    setNotificationOrigin: (id, origin) =>
+      set((s) => ({
+        notificationPopup:
+          s.notificationPopup?.id === id
+            ? withNotificationOrigin(s.notificationPopup, origin)
+            : s.notificationPopup,
+        notificationQueue: s.notificationQueue.map((item) =>
+          item.id === id ? withNotificationOrigin(item, origin) : item
+        ),
+        notificationDockItems: s.notificationDockItems.map((item) =>
+          item.id === id ? withNotificationOrigin(item, origin) : item
+        ),
+      })),
     fetchBacklogs: async () => {
       const res = await fetch("/api/backlogs");
       if (res.ok) {
