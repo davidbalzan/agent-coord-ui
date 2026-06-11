@@ -5,6 +5,7 @@ import { FloatingTerminal } from "./components/FloatingTerminal.js";
 import { StatusTicker } from "./components/StatusTicker.js";
 import { NexusOverlay } from "./components/NexusOverlay.js";
 import { BacklogPanel } from "./components/BacklogPanel.js";
+import { InboxPanel } from "./components/InboxPanel.js";
 
 export function App() {
   return (
@@ -32,6 +33,7 @@ export function App() {
         <FloatingTerminal />
         <SidePanel />
         <BacklogPanel />
+        <InboxPanel />
       </main>
       <StatusTicker />
     </div>

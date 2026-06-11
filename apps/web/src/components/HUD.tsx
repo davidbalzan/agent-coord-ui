@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from "react";
-import { useBusStore } from "../store/bus.js";
+import { useBusStore, davidGlobalUnread } from "../store/bus.js";
 import { AgentLauncher } from "./AgentLauncher.js";
 
 export function HUD() {
@@ -11,6 +11,9 @@ export function HUD() {
   const setLauncherOpen = useBusStore((s) => s.setLauncherOpen);
   const launcherPrefill = useBusStore((s) => s.launcherPrefill);
   const setLauncherPrefill = useBusStore((s) => s.setLauncherPrefill);
+  const inboxOpen = useBusStore((s) => s.inboxOpen);
+  const setInboxOpen = useBusStore((s) => s.setInboxOpen);
+  const globalUnread = useBusStore(davidGlobalUnread);
   const agents = Object.values(agentsMap);
   const rooms = Object.values(roomsMap);
   const active = agents.filter((a) => a.status === "active").length;
@@ -312,8 +315,48 @@ export function HUD() {
           </div>
         </div>
 
-        {/* Right side: launch button + sys hint */}
+        {/* Right side: inbox + launch button + sys hint */}
         <div className="ml-auto flex items-center gap-3 flex-shrink-0">
+          {/* INBOX button with global unread badge */}
+          <div style={{ position: "relative", flexShrink: 0 }}>
+            <button
+              className="holo-btn"
+              style={{
+                fontSize: "9px",
+                padding: "3px 10px",
+                background: inboxOpen ? "rgba(0,212,255,0.2)" : undefined,
+                boxShadow: inboxOpen
+                  ? "0 0 12px rgba(0,212,255,0.4)"
+                  : undefined,
+              }}
+              onClick={() => setInboxOpen(!inboxOpen)}
+            >
+              ✉ INBOX
+            </button>
+            {globalUnread > 0 && (
+              <span
+                style={{
+                  position: "absolute",
+                  top: -5,
+                  right: -6,
+                  background: "#ff4e4e",
+                  color: "#fff",
+                  fontFamily: "Orbitron, sans-serif",
+                  fontWeight: 700,
+                  fontSize: 7,
+                  padding: "1px 4px",
+                  borderRadius: 8,
+                  minWidth: 14,
+                  textAlign: "center",
+                  pointerEvents: "none",
+                  boxShadow: "0 0 6px rgba(255,78,78,0.7)",
+                  lineHeight: "12px",
+                }}
+              >
+                {globalUnread > 99 ? "99+" : globalUnread}
+              </span>
+            )}
+          </div>
           <button
             className="holo-btn"
             style={{
