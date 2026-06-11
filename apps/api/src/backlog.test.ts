@@ -49,10 +49,28 @@ type ExecCallback = (
   result?: { stdout: string; stderr: string }
 ) => void;
 
+// gitRootMap: cwd → root path (for rev-parse --show-toplevel)
 const gitRootMap = new Map<string, string | null>();
+
+// gitCommandResults: substring-pattern → stdout string | null (null → error)
+// Checked in insertion order; first match wins.
+// Used for symbolic-ref, rev-parse --verify, git show, etc.
+const gitCommandResults = new Map<string, string | null>();
 
 vi.mock("node:child_process", () => ({
   exec: (cmd: string, cb: ExecCallback) => {
+    // git show <ref>:path or symbolic-ref or rev-parse --verify — check registry first
+    for (const [pattern, result] of gitCommandResults) {
+      if (cmd.includes(pattern)) {
+        if (result === null) {
+          cb(new Error(`git command failed: ${pattern}`));
+        } else {
+          cb(null, { stdout: result, stderr: "" });
+        }
+        return;
+      }
+    }
+    // Fallback: rev-parse --show-toplevel via gitRootMap
     const m = /git -C '(.+?)' rev-parse/.exec(cmd);
     const cwd = m ? m[1]!.replace(/'\\''/g, "'") : "";
     const root = gitRootMap.get(cwd) ?? null;
@@ -86,6 +104,8 @@ const {
   getAgentPaneRoots,
   getAgentRootsWithAgents,
   rewriteQueueRegion,
+  resolveDefaultRef,
+  readBacklogContent,
 } = await import("./backlog.js");
 
 // ─── Real-file fixture (lines copied from shadowGuard/docs/BACKLOG.md) ────────
@@ -503,6 +523,151 @@ describe("getAgentRootsWithAgents", () => {
       expect.arrayContaining(["agent-a", "agent-b"])
     );
     expect(map.get("/repo/multi")).toHaveLength(2);
+  });
+});
+
+// ─── resolveDefaultRef ────────────────────────────────────────────────────────
+
+describe("resolveDefaultRef", () => {
+  beforeEach(() => {
+    gitCommandResults.clear();
+    gitRootMap.clear();
+  });
+
+  it("returns origin/<branch> from symbolic-ref when set", async () => {
+    gitCommandResults.set(
+      "symbolic-ref --quiet refs/remotes/origin/HEAD",
+      "refs/remotes/origin/main\n"
+    );
+    const ref = await resolveDefaultRef("/repo/proj");
+    expect(ref).toBe("origin/main");
+  });
+
+  it("strips refs/remotes/ prefix from symbolic-ref output", async () => {
+    gitCommandResults.set(
+      "symbolic-ref --quiet refs/remotes/origin/HEAD",
+      "refs/remotes/origin/develop\n"
+    );
+    const ref = await resolveDefaultRef("/repo/proj");
+    expect(ref).toBe("origin/develop");
+  });
+
+  it("falls back to origin/main when symbolic-ref fails", async () => {
+    gitCommandResults.set(
+      "symbolic-ref --quiet refs/remotes/origin/HEAD",
+      null
+    );
+    gitCommandResults.set("rev-parse --verify --quiet origin/main", "abc123\n");
+    const ref = await resolveDefaultRef("/repo/proj");
+    expect(ref).toBe("origin/main");
+  });
+
+  it("falls back to local main when origin/main is absent", async () => {
+    gitCommandResults.set(
+      "symbolic-ref --quiet refs/remotes/origin/HEAD",
+      null
+    );
+    gitCommandResults.set("rev-parse --verify --quiet origin/main", null);
+    gitCommandResults.set("rev-parse --verify --quiet main", "def456\n");
+    const ref = await resolveDefaultRef("/repo/proj");
+    expect(ref).toBe("main");
+  });
+
+  it("returns null when all refs fail", async () => {
+    gitCommandResults.set(
+      "symbolic-ref --quiet refs/remotes/origin/HEAD",
+      null
+    );
+    gitCommandResults.set("rev-parse --verify --quiet origin/main", null);
+    gitCommandResults.set("rev-parse --verify --quiet main", null);
+    const ref = await resolveDefaultRef("/repo/proj");
+    expect(ref).toBeNull();
+  });
+});
+
+// ─── readBacklogContent ───────────────────────────────────────────────────────
+
+describe("readBacklogContent", () => {
+  const CANONICAL =
+    "# CANONICAL\n\n## Queue\n\n- [ ] (P1) Canonical task\n\n## Done\n";
+  const WORKING_COPY =
+    "# WORKING COPY\n\n## Queue\n\n- [ ] (P1) Local task\n\n## Done\n";
+
+  beforeEach(() => {
+    gitCommandResults.clear();
+    gitRootMap.clear();
+    readFileContent = null;
+    readFileSequence = [];
+    readFileCallCount = 0;
+  });
+
+  it("returns default-branch content when git show succeeds", async () => {
+    gitCommandResults.set(
+      "symbolic-ref --quiet refs/remotes/origin/HEAD",
+      "refs/remotes/origin/main\n"
+    );
+    gitCommandResults.set("show origin/main:docs/BACKLOG.md", CANONICAL);
+    const content = await readBacklogContent("/repo/proj");
+    expect(content).toBe(CANONICAL);
+  });
+
+  it("falls back to working-copy when git show fails", async () => {
+    gitCommandResults.set(
+      "symbolic-ref --quiet refs/remotes/origin/HEAD",
+      "refs/remotes/origin/main\n"
+    );
+    // git show fails (file not on that branch)
+    gitCommandResults.set("show origin/main:docs/BACKLOG.md", null);
+    readFileContent = WORKING_COPY;
+    const content = await readBacklogContent("/repo/proj");
+    expect(content).toBe(WORKING_COPY);
+  });
+
+  it("falls back to working-copy when no ref can be resolved", async () => {
+    gitCommandResults.set(
+      "symbolic-ref --quiet refs/remotes/origin/HEAD",
+      null
+    );
+    gitCommandResults.set("rev-parse --verify --quiet origin/main", null);
+    gitCommandResults.set("rev-parse --verify --quiet main", null);
+    readFileContent = WORKING_COPY;
+    const content = await readBacklogContent("/repo/proj");
+    expect(content).toBe(WORKING_COPY);
+  });
+
+  it("returns null when both git show and working-copy file are absent", async () => {
+    gitCommandResults.set(
+      "symbolic-ref --quiet refs/remotes/origin/HEAD",
+      null
+    );
+    gitCommandResults.set("rev-parse --verify --quiet origin/main", null);
+    gitCommandResults.set("rev-parse --verify --quiet main", null);
+    readFileContent = null; // ENOENT
+    const content = await readBacklogContent("/repo/proj");
+    expect(content).toBeNull();
+  });
+
+  it("loadBacklog uses default-branch content via readBacklogContent", async () => {
+    gitCommandResults.set(
+      "symbolic-ref --quiet refs/remotes/origin/HEAD",
+      "refs/remotes/origin/main\n"
+    );
+    gitCommandResults.set("show origin/main:docs/BACKLOG.md", CANONICAL);
+    const backlog = await loadBacklog("/repo/proj");
+    expect(backlog).not.toBeNull();
+    expect(backlog!.queue[0]!.text).toBe("Canonical task");
+  });
+
+  it("loadBacklog returns null when file absent on branch and no working copy", async () => {
+    gitCommandResults.set(
+      "symbolic-ref --quiet refs/remotes/origin/HEAD",
+      null
+    );
+    gitCommandResults.set("rev-parse --verify --quiet origin/main", null);
+    gitCommandResults.set("rev-parse --verify --quiet main", null);
+    readFileContent = null;
+    const backlog = await loadBacklog("/repo/proj");
+    expect(backlog).toBeNull();
   });
 });
 

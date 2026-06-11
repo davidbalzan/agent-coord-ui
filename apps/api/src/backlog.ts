@@ -43,7 +43,9 @@ export async function getAgentPaneRoots(): Promise<string[]> {
 
 /** Build a root→agentIds map from live panes. Preserves the agentId→root link
  *  that getAgentPaneRoots discards. Multiple agents at the same root accumulate. */
-export async function getAgentRootsWithAgents(): Promise<Map<string, string[]>> {
+export async function getAgentRootsWithAgents(): Promise<
+  Map<string, string[]>
+> {
   const agentPanes = tmuxWatcher.panes.filter(
     (p): p is typeof p & { agentId: string } => !!p.agentId && !!p.cwd
   );
@@ -148,18 +150,75 @@ export function parseBacklog(project: string, content: string): ProjectBacklog {
   return { project, queue, done };
 }
 
+/**
+ * Resolve the default remote branch ref for a repo root.
+ * Tries origin/HEAD, then origin/main, then main.
+ * Returns null if none can be resolved.
+ */
+export async function resolveDefaultRef(root: string): Promise<string | null> {
+  const esc = root.replace(/'/g, "'\\''");
+  // 1. Prefer origin/HEAD (set by git clone, reflects remote default branch)
+  try {
+    const { stdout } = await execAsync(
+      `git -C '${esc}' symbolic-ref --quiet refs/remotes/origin/HEAD`
+    );
+    const ref = stdout.trim(); // e.g. "refs/remotes/origin/main"
+    if (ref) return ref.replace(/^refs\/remotes\//, ""); // → "origin/main"
+  } catch {
+    // not set — fall through
+  }
+  // 2. Fallback: check origin/main exists
+  try {
+    await execAsync(`git -C '${esc}' rev-parse --verify --quiet origin/main`);
+    return "origin/main";
+  } catch {
+    // no origin/main
+  }
+  // 3. Last resort: local main
+  try {
+    await execAsync(`git -C '${esc}' rev-parse --verify --quiet main`);
+    return "main";
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Read docs/BACKLOG.md from the repo's default branch via git-show.
+ * Falls back to the working-copy file if the ref is unavailable or git fails.
+ * Never throws.
+ */
+export async function readBacklogContent(root: string): Promise<string | null> {
+  const workingCopyPath = join(root, "docs", "BACKLOG.md");
+
+  // Attempt canonical default-branch read
+  const ref = await resolveDefaultRef(root);
+  if (ref) {
+    try {
+      const esc = root.replace(/'/g, "'\\''");
+      const { stdout } = await execAsync(
+        `git -C '${esc}' show ${ref}:docs/BACKLOG.md`
+      );
+      if (stdout) return stdout;
+    } catch {
+      // ref exists but file absent on that branch, or other git error — fall through
+    }
+  }
+
+  // Fallback: working-copy file
+  try {
+    return await readFile(workingCopyPath, "utf8");
+  } catch {
+    return null;
+  }
+}
+
 export async function loadBacklog(
   repoPath: string
 ): Promise<ProjectBacklog | null> {
-  try {
-    const content = await readFile(
-      join(repoPath, "docs", "BACKLOG.md"),
-      "utf8"
-    );
-    return parseBacklog(repoPath, content);
-  } catch {
-    return null; // file absent or unreadable — not an error
-  }
+  const content = await readBacklogContent(repoPath);
+  if (content === null) return null;
+  return parseBacklog(repoPath, content);
 }
 
 interface FileIdentity {
