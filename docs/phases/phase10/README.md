@@ -7,7 +7,7 @@ aliases: ["Phase 10"]
 # Phase 10: Immersive WebXR (VR) Graph View
 
 **Duration**: TBD — spike-first; a full feature estimate only after the PoC de-risks the render-loop rehost.
-**Status**: 🚧 In Progress — T1–T3 code-complete & desktop-verified; awaiting Quest 3S validation (T4)
+**Status**: 🟢 Spike Complete — validated on Quest 3S 2026-06-12; **GO on in-place rehost** (see T4 outcome in [[phases/phase10/PHASE10_TASKS|Tasks]]). Follow-ons 10.2–10.4 unlocked.
 **Priority**: 🟢 Medium (exploratory) — forward-looking, pairs with [[phases/phase9/README|Phase 9]] (v2). Not on the critical path.
 **Branch**: `feat/phase10-webxr`
 
@@ -71,11 +71,11 @@ This is the same render-loop coupling class that produced the [[project_render_l
 
 ## ✅ Success Criteria (spike)
 
-- [ ] "Enter VR" appears only on WebXR-capable browsers; desktop build & UX **unchanged** when absent.
-- [ ] On the Quest 3S, the operator enters an immersive session and sees the agent graph in stereoscopic 3D with head tracking.
-- [ ] Live WS updates (new agents, message particle bursts) are visible while in-session.
-- [ ] Exiting VR cleanly restores the desktop mouse/trackball graph — no frozen loop, no doubled rendering, node positions intact.
-- [ ] `pnpm -r typecheck` + web build + existing tests green; XR code is lazy-loaded and off the default desktop path.
+- [x] "Enter VR" appears only on WebXR-capable browsers; desktop build & UX **unchanged** when absent.
+- [x] On the Quest 3S, the operator enters an immersive session and sees the agent graph in stereoscopic 3D with head tracking.
+- [x] Live WS updates (new agents, message particle bursts) are visible while in-session.
+- [x] Exiting VR cleanly restores the desktop mouse/trackball graph — no frozen loop, no doubled rendering, node positions intact.
+- [x] `pnpm -r typecheck` + web build + existing tests green; XR code is lazy-loaded and off the default desktop path.
 
 ---
 
@@ -116,16 +116,24 @@ Implementation: `apps/web/src/xr/` (`XrEntry.tsx` lazy entry · `enterXr.ts` reh
 
 ## 🔌 Dev tunnel for headset testing (T4.1)
 
-WebXR needs a secure context — plain LAN `http://` won't expose `navigator.xr` on the headset. Simplest path is **adb reverse** (Quest in developer mode, USB-C to the dev machine):
+WebXR needs a secure context — plain LAN `http://` won't expose `navigator.xr` on the headset.
+
+**Proven path (no cable) — HTTPS over LAN.** Headset and Mac on the same Wi-Fi:
+
+```bash
+XR_HTTPS=1 VITE_WS_URL=wss://<mac-lan-ip>:5173/ws pnpm dev
+```
+
+`XR_HTTPS=1` turns on `@vitejs/plugin-basic-ssl` (self-signed) + `host: true` in the vite config, and the `/ws` proxy entry carries the bus WebSocket through the same TLS origin (a secure page may not open plain `ws://` to another host). Both env vars are declared as `passThroughEnv` on the `dev` task in `turbo.json` — turbo 2's strict env mode strips them otherwise. On the headset, open `https://<mac-lan-ip>:5173/?xr=1` in the Meta Quest Browser, accept the self-signed-cert warning (the page remains a secure context), and log in — Phase 8 auth works normally. If the page won't load, check the macOS firewall (allow node).
+
+**Alternative — adb reverse** (Quest in developer mode, **data-capable** USB-C cable — charge-only cables don't enumerate):
 
 ```bash
 adb reverse tcp:5173 tcp:5173   # web (vite dev)
 adb reverse tcp:3000 tcp:3000   # API + WS
 ```
 
-Then open `http://localhost:5173/?xr=1` in the Meta Quest Browser — `localhost` is a secure context, both the app and `ws://localhost:3000` resolve through the tunnel, and Phase 8 auth works normally (log in on the headset). No HTTPS certs needed.
-
-Alternative (no cable): `@vitejs/plugin-basic-ssl` + `--host` for HTTPS over LAN, but the WS URL must then be overridden (`VITE_WS_URL`) and the self-signed cert accepted on-headset — use only if USB is impractical.
+Then `http://localhost:5173/?xr=1` on the headset — `localhost` is a secure context, no certs needed. Default dev flow (no `XR_HTTPS`) is byte-identical to before in both cases.
 
 ---
 
