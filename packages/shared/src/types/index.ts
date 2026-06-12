@@ -10,6 +10,14 @@ export type {
   SpawnAgentPayload,
   TeardownAgentPayload,
   PaneSendKeysPayload,
+  PtyAttachPayload,
+  PtyInputPayload,
+  PtyResizePayload,
+  PtyDetachPayload,
+  PtyClientPayload,
+  PtyDataEvent,
+  PtyExitEvent,
+  PtyServerEvent,
 } from "./bus.js";
 export type {
   ApiResponse,
