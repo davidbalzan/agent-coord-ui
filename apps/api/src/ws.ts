@@ -8,6 +8,8 @@ import type {
   BusEvent,
   SendMessagePayload,
   PaneSendKeysPayload,
+  PtyAttachPayload,
+  PtyClientPayload,
   SpawnAgentPayload,
   TeardownAgentPayload,
 } from "@coord-ui/shared";
@@ -17,6 +19,7 @@ import { spawnAgent, teardownAgent } from "./provisioner.js";
 import { loadPresets } from "./presets.js";
 import { isLoopback } from "./routes/agents.js";
 import { logger } from "./logger.js";
+import { PtyManager, type PtyHandle } from "./pty.js";
 
 // ─── Validation ───────────────────────────────────────────────────────────────
 
@@ -31,11 +34,14 @@ const ROOT =
   process.env.CLAUDE_COORD_DIR ??
   join(homedir(), "agent-coord");
 
+const ptyManager = new PtyManager();
+
 export function attachWss(server: import("node:http").Server) {
   const wss = new WebSocketServer({ server });
 
   wss.on("connection", async (ws: WebSocket, req: IncomingMessage) => {
     const clientIsLoopback = isLoopback(req.socket.remoteAddress);
+    const ptys = new Map<string, PtyHandle>();
     logger.info({ loopback: clientIsLoopback }, "ws client connected");
 
     // Send full state on connect
@@ -141,6 +147,8 @@ export function attachWss(server: import("node:http").Server) {
               })
               .catch(() => {});
           }
+        } else if (isPtyClientPayload(payload)) {
+          handlePtyPayload(ws, payload, clientIsLoopback, ptys);
         }
       } catch {
         // malformed — ignore
@@ -149,6 +157,10 @@ export function attachWss(server: import("node:http").Server) {
 
     ws.on("close", () => {
       unsub();
+      for (const handle of ptys.values()) {
+        handle.kill();
+      }
+      ptys.clear();
       logger.info("ws client disconnected");
     });
   });
@@ -159,6 +171,92 @@ export function attachWss(server: import("node:http").Server) {
 function send(ws: WebSocket, data: BusEvent | Record<string, unknown>) {
   if (ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify(data));
+  }
+}
+
+function isPtyClientPayload(payload: {
+  type: string;
+}): payload is PtyClientPayload {
+  return (
+    payload.type === "pty_attach" ||
+    payload.type === "pty_input" ||
+    payload.type === "pty_resize" ||
+    payload.type === "pty_detach"
+  );
+}
+
+function handlePtyPayload(
+  ws: WebSocket,
+  payload: PtyClientPayload,
+  clientIsLoopback: boolean,
+  ptys: Map<string, PtyHandle>
+) {
+  if (!clientIsLoopback) {
+    send(ws, {
+      type: "pty_exit",
+      paneId: payload.paneId,
+      error: `${payload.type}: local connection required`,
+    });
+    return;
+  }
+
+  if (payload.type === "pty_attach") {
+    attachPty(ws, payload, ptys);
+    return;
+  }
+
+  const handle = ptys.get(payload.paneId);
+  if (!handle) {
+    send(ws, {
+      type: "pty_exit",
+      paneId: payload.paneId,
+      error: `${payload.type}: pty not attached`,
+    });
+    return;
+  }
+
+  if (payload.type === "pty_input") {
+    handle.write(payload.data);
+  } else if (payload.type === "pty_resize") {
+    handle.resize(payload.cols, payload.rows);
+  } else if (payload.type === "pty_detach") {
+    handle.kill();
+    ptys.delete(payload.paneId);
+    send(ws, { type: "pty_exit", paneId: payload.paneId });
+  }
+}
+
+function attachPty(
+  ws: WebSocket,
+  payload: PtyAttachPayload,
+  ptys: Map<string, PtyHandle>
+) {
+  ptys.get(payload.paneId)?.kill();
+  ptys.delete(payload.paneId);
+
+  try {
+    const handle = ptyManager.attach(
+      payload.paneId,
+      payload.cols,
+      payload.rows,
+      (data) => send(ws, { type: "pty_data", paneId: payload.paneId, data }),
+      (error) => {
+        if (ptys.get(payload.paneId) !== handle) return;
+        ptys.delete(payload.paneId);
+        send(ws, {
+          type: "pty_exit",
+          paneId: payload.paneId,
+          ...(error ? { error } : {}),
+        });
+      }
+    );
+    ptys.set(payload.paneId, handle);
+  } catch (err) {
+    send(ws, {
+      type: "pty_exit",
+      paneId: payload.paneId,
+      error: err instanceof Error ? err.message : "pty attach failed",
+    });
   }
 }
 
