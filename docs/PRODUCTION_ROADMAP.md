@@ -215,6 +215,23 @@ aliases: ["Roadmap", "PRODUCTION_ROADMAP"]
 
 ---
 
+### Phase 10: Immersive WebXR (VR) Graph View
+
+**Goal**: Stand inside the live force graph in room-scale VR on a Meta Quest 3S via WebXR. **Spike-first** — prove the render-loop rehost before committing to a feature.
+**Duration**: TBD (gated on the PoC)
+**Status**: ⚪ Not Started — exploratory, pairs with Phase 9 v2 work
+
+**Key Deliverables**:
+
+- [ ] "Enter VR" entry behind a `navigator.xr` capability gate (desktop unaffected when absent)
+- [ ] Rehost `3d-force-graph`'s internal rAF loop into `renderer.setAnimationLoop` with `renderer.xr.enabled` — the core risk
+- [ ] Live WS updates visible in-session; clean restore to the desktop path on exit
+- [ ] Validation on Quest 3S + go/no-go decision (in-place rehost vs. mirror-scene fallback)
+
+**Key Risk**: `3d-force-graph` owns its renderer/camera/rAF loop — rehosting it for WebXR is the same render-loop coupling that caused bug #43. Isolate behind a `?xr` mount; treat the desktop path as sacred. Out of scope for the spike: controllers, immersive HUD, ray/gaze selection. See [[phases/phase10/README|Phase 10]].
+
+---
+
 ## 📊 Implementation Priority Matrix
 
 | Phase                     | Priority    | Blocks          | Complexity | Duration  | Key Risk                              |
@@ -228,6 +245,7 @@ aliases: ["Roadmap", "PRODUCTION_ROADMAP"]
 | Phase 7: xterm.js         | 🟢 Medium   | Phase 3         | High       | TBD       | Bundle size, PTY lifecycle            |
 | Phase 8: Auth & Access    | 🟡 High     | safe exposure   | Medium     | TBD       | Auth scope creep                      |
 | Phase 9: Networked        | 🟢 Medium   | —               | High       | TBD       | Depends on Phase 8 auth               |
+| Phase 10: WebXR (VR)      | 🟢 Medium   | —               | High       | TBD       | Render-loop rehost (re: bug #43)      |
 
 **Critical Path**: Phase 1 → Phase 2 → Phase 3 (sequential). Phase 4 (provisioning) is high-value and reuses existing tmux infra — recommended next. Phases 5–6 are independent v2 work.
 
@@ -274,6 +292,7 @@ aliases: ["Roadmap", "PRODUCTION_ROADMAP"]
 | 2026-06-11 | Inserted Phase 5 (David Coordination Cockpit); renumbered xterm.js → Phase 6, Networked → Phase 7. Also: read-only Task Backlog feature shipped (discovery + parser + panel) outside the phase numbering | Make the UI David's coordination surface (DM inbox + notifications + decision cards); DM data + send path already exist                                                                               |
 | 2026-06-11 | Inserted Phase 6 (UI Componentization & Design System); renumbered xterm.js → Phase 7, Networked → Phase 8                                                                                               | ~9.5k LOC web app with heavy duplication (glass ×6, severity map ×4, font ×18) + 1,645-line Graph3D; componentize during the feature lull, behavior-preserving                                        |
 | 2026-06-12 | Phase 7 built (in test). Split auth out as Phase 8 (Auth & Access Control, High) ahead of networking (now Phase 9). Added "open agent terminal" button as a quick win.                                   | Phase 7's PTY exposes a full shell over WS (only loopback-gated today) → auth is now urgent + warrants its own focused phase. David requested the per-agent open-terminal button + an auth mechanism. |
+| 2026-06-12 | Appended Phase 10 (Immersive WebXR/VR Graph View) — spike-first, exploratory, appended (no renumber).                                                                                                    | David has a Quest 3S to test with; the graph is already a three.js scene. Scoped as a PoC to de-risk rehosting `3d-force-graph`'s render loop into WebXR before any feature commit.                   |
 
 ---
 

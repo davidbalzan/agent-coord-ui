@@ -19,6 +19,7 @@
 - [ ] (P2) node-pty install hardening — native module fails ERR_MODULE_NOT_FOUND on fresh pull; wire reliable postinstall/rebuild (fix-node-pty-permissions.mjs) so the dev pair comes up clean
 - [ ] (P2) Doc reconciliation — mark Phase 5 + Phase 7 complete in PRODUCTION_ROADMAP; refresh stale CURRENT_FOCUS.md (says Phase 3) + roadmap "Current Focus" header (says Phase 4); tick phase5/phase7 README acceptance boxes
 - [ ] (P2) Phase 8 (stretch) — per-operator identity + audit log of privileged actions (who attached which PTY, who spawned/tore down)
+- [ ] (P3) Phase 10 — Immersive WebXR (VR) graph view: PoC spike to view the live 3D graph in VR on a Meta Quest 3S. Rehost 3d-force-graph's render loop into renderer.setAnimationLoop + renderer.xr; isolate behind a `?xr` mount, no desktop regression (re: render-loop bug #43). See docs/phases/phase10/
 - [ ] (P3) Phase 9 — HTTP proxy mode in watcher.ts (replace direct file import for non-local MCP)
 - [ ] (P3) Phase 9 — Docker Compose for both services (web + api)
 - [ ] (P3) Phase 9 — multi-operator: operator identity shown in DM threads + per-operator sessions
