@@ -2,32 +2,9 @@ import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import type { HttpBindings } from "@hono/node-server";
-import type { Context, Next } from "hono";
 import { loadPresets, savePresets } from "../presets.js";
+import { requireAuth } from "../auth.js";
 import { logger } from "../logger.js";
-
-// ─── Loopback gate ────────────────────────────────────────────────────────────
-
-export function isLoopback(addr: string | undefined): boolean {
-  return (
-    addr === "127.0.0.1" ||
-    addr === "::1" ||
-    addr === "::ffff:127.0.0.1" ||
-    addr === "localhost"
-  );
-}
-
-async function requireLoopback(
-  c: Context<{ Bindings: HttpBindings }>,
-  next: Next
-) {
-  const addr = c.env?.incoming?.socket?.remoteAddress;
-  if (!isLoopback(addr)) {
-    logger.warn({ addr }, "rejected non-loopback preset write");
-    return c.json({ error: "Local access only" }, 403);
-  }
-  return next();
-}
 
 // ─── Input validation ─────────────────────────────────────────────────────────
 
@@ -92,16 +69,17 @@ const presetSchema = z.object({
 
 export const agentRoutes = new Hono<{ Bindings: HttpBindings }>();
 
-// GET — open (read-only)
-agentRoutes.get("/agents/presets", async (c) => {
+// GET — auth required (presets expose repoPath/launchCmd/skillInvocation —
+// reconnaissance for the shell-exec surface — so reads are gated too, not just writes)
+agentRoutes.get("/agents/presets", requireAuth, async (c) => {
   const presets = await loadPresets();
   return c.json(presets);
 });
 
-// POST — loopback only
+// POST — auth required
 agentRoutes.post(
   "/agents/presets",
-  requireLoopback,
+  requireAuth,
   zValidator("json", presetSchema),
   async (c) => {
     const body = c.req.valid("json");
@@ -116,10 +94,10 @@ agentRoutes.post(
   }
 );
 
-// PUT — loopback only
+// PUT — auth required
 agentRoutes.put(
   "/agents/presets/:id",
-  requireLoopback,
+  requireAuth,
   zValidator("json", presetSchema),
   async (c) => {
     const id = c.req.param("id");
@@ -136,8 +114,8 @@ agentRoutes.put(
   }
 );
 
-// DELETE — loopback only
-agentRoutes.delete("/agents/presets/:id", requireLoopback, async (c) => {
+// DELETE — auth required
+agentRoutes.delete("/agents/presets/:id", requireAuth, async (c) => {
   const id = c.req.param("id");
   const presets = await loadPresets();
   const idx = presets.findIndex((p) => p.id === id);

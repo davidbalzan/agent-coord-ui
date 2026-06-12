@@ -8,6 +8,7 @@ import { healthRoutes } from "./routes/health.js";
 import { logRoutes } from "./routes/logs.js";
 import { agentRoutes } from "./routes/agents.js";
 import { backlogRoutes } from "./routes/backlogs.js";
+import { authRoutes } from "./routes/auth.js";
 import { busWatcher } from "./watcher.js";
 import { attachWss } from "./ws.js";
 
@@ -45,6 +46,7 @@ app.notFound((c) => {
 
 app.route("/api", healthRoutes);
 app.route("/api", logRoutes);
+app.route("/api", authRoutes);
 app.route("/api", agentRoutes);
 app.route("/api", backlogRoutes);
 

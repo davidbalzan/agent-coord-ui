@@ -1,4 +1,10 @@
 import type { BusEvent, PtyServerEvent } from "@coord-ui/shared";
+import { getToken, notifyUnauthorized } from "./auth.js";
+
+// Must match WS_AUTH_PROTOCOL on the server (apps/api/src/auth.ts). The JWT is
+// passed as a subprotocol so it never lands in the URL (which would leak into
+// access logs).
+const WS_AUTH_PROTOCOL = "coord-auth";
 
 // The socket carries broadcast BusEvents plus per-connection PTY stream events
 // (pty_data/pty_exit), so handlers may receive either.
@@ -14,7 +20,28 @@ class BusSocket {
   }
 
   connect() {
-    this.ws = new WebSocket(this.url);
+    // Idempotent: if a socket is already connecting or open, do nothing. This
+    // dedups the module-load connect() and the post-login connect() (which would
+    // otherwise reconnect-flicker). A closed socket — including after a 1008 auth
+    // rejection — falls through and reconnects (e.g. re-login after expiry).
+    if (
+      this.ws &&
+      (this.ws.readyState === WebSocket.CONNECTING ||
+        this.ws.readyState === WebSocket.OPEN)
+    ) {
+      return;
+    }
+    // Detach the old (closing/closed) socket's handlers so its onclose can't
+    // trigger a duplicate reconnect or unauthorized notification.
+    if (this.ws) {
+      this.ws.onclose = null;
+      this.ws.onmessage = null;
+    }
+
+    const token = getToken();
+    this.ws = token
+      ? new WebSocket(this.url, [WS_AUTH_PROTOCOL, token])
+      : new WebSocket(this.url);
 
     this.ws.onmessage = (e) => {
       try {
@@ -25,7 +52,13 @@ class BusSocket {
       }
     };
 
-    this.ws.onclose = () => {
+    this.ws.onclose = (e) => {
+      // 1008 = policy violation: the server rejected our auth. Don't reconnect
+      // in a loop — surface it so the UI can re-prompt for login.
+      if (e.code === 1008) {
+        notifyUnauthorized();
+        return;
+      }
       setTimeout(() => this.connect(), 2000); // auto-reconnect
     };
   }
