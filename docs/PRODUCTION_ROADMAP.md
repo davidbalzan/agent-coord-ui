@@ -165,7 +165,7 @@ aliases: ["Roadmap", "PRODUCTION_ROADMAP"]
 
 **Goal**: Replace the ANSI-snapshot + send-keys terminal with a real PTY-backed xterm.js emulator — full cursor control, tab-completion, arrow keys, and Claude Code's interactive TUI work from the browser.
 **Duration**: TBD
-**Status**: ⚪ Not Started
+**Status**: 🟢 Built — in test on `feat/phase7-xterm-terminal` (node-pty + tmux attach bridge, loopback-gated; xterm frontend with ANSI fallback). PR feat→main pending David's verification. See [[phases/phase7/README]].
 
 **Context**: The current terminal (Phase 3) captures ANSI snapshots and injects text via `tmux send-keys`. It renders colours correctly but has no PTY connection, so interactive features (arrow keys, tab-complete, Ctrl+C, Claude Code spinner/prompts) don't work.
 
@@ -181,18 +181,37 @@ aliases: ["Roadmap", "PRODUCTION_ROADMAP"]
 
 ---
 
-### Phase 8 (v2): Networked & Multi-Operator
+### Phase 8: Auth & Access Control
 
-**Goal**: Support remote teams; auth token; HTTP API mode for non-local MCP.
+**Goal**: Put an authentication layer in front of the tool. As of Phase 7 the app exposes a **full interactive shell** (PTY → `tmux attach`) plus agent spawn/teardown, raw `send-keys`, and message sending over the WS/HTTP API. Today the only control on the dangerous surfaces is a **loopback check** (`clientIsLoopback`) — which is not real authn/authz and is bypassed the moment the port is forwarded, proxied, or bound non-locally.
+**Duration**: TBD
+**Status**: ⚪ Not Started
+**Priority**: 🟡 High — security-critical, **escalated by Phase 7's PTY exposure**. Recommended next phase after Phase 7 ships.
+
+**Context**: Phase 7 turned the in-UI terminal into a real PTY (full shell access to every agent's tmux session). The loopback gate is defense-in-depth, not authentication — it gives no per-operator identity, no revocation, no audit, and fails open if the service is exposed beyond localhost.
+
+**Key Deliverables**:
+
+- [ ] **Shared-secret token on the WS handshake + HTTP requests** — reject unauthenticated connections before any `pty_*`, `spawn_agent`, `teardown_agent`, `pane_send_keys`, or `send_message` is processed.
+- [ ] **Gate ALL privileged surfaces on auth, not just loopback** — PTY attach, spawn/teardown, send-keys, message send. Keep loopback as an extra layer, but auth is the primary control.
+- [ ] Token provisioning + storage (env/secret on the server; entered/stored client-side), with a clear "unauthorized" UX (not a silent fallback).
+- [ ] (Stretch) Per-operator identity + a basic audit log of privileged actions (who attached which PTY, who spawned/tore down).
+
+**Key Risk**: auth scope creep — keep v1 to a single shared secret that hard-gates the dangerous endpoints; defer full multi-user/RBAC.
+
+---
+
+### Phase 9 (v2): Networked & Multi-Operator
+
+**Goal**: Support remote teams beyond a single local operator (builds on Phase 8 auth).
 **Duration**: TBD
 **Status**: ⚪ Not Started
 
 **Key Deliverables**:
 
-- [ ] Shared-secret token on WS handshake
-- [ ] HTTP proxy mode in `watcher.ts` (replace direct file import)
+- [ ] HTTP proxy mode in `watcher.ts` (replace direct file import) for non-local MCP
 - [ ] Docker Compose for both services
-- [ ] Multi-operator: operator identity shown in DM threads
+- [ ] Multi-operator: operator identity shown in DM threads + per-operator sessions
 
 ---
 
@@ -207,7 +226,8 @@ aliases: ["Roadmap", "PRODUCTION_ROADMAP"]
 | Phase 5: Cockpit          | 🟡 High     | David's UX      | Medium     | 1–2 weeks | Notification spam, missed decisions   |
 | Phase 6: Componentization | ✅ Done     | maintainability | Medium     | 1–2 weeks | Refactor regressions, file collisions |
 | Phase 7: xterm.js         | 🟢 Medium   | Phase 3         | High       | TBD       | Bundle size, PTY lifecycle            |
-| Phase 8: Networked        | 🟢 Medium   | —               | High       | TBD       | Auth scope creep                      |
+| Phase 8: Auth & Access    | 🟡 High     | safe exposure   | Medium     | TBD       | Auth scope creep                      |
+| Phase 9: Networked        | 🟢 Medium   | —               | High       | TBD       | Depends on Phase 8 auth               |
 
 **Critical Path**: Phase 1 → Phase 2 → Phase 3 (sequential). Phase 4 (provisioning) is high-value and reuses existing tmux infra — recommended next. Phases 5–6 are independent v2 work.
 
@@ -215,11 +235,13 @@ aliases: ["Roadmap", "PRODUCTION_ROADMAP"]
 
 ## ⚡ Quick Wins (Available Now)
 
-1. **Stale node pulse** (~1 hour) — Add `animation: glow-pulse 1s ease-in-out infinite` to the halo sphere material in `buildGlowNode` when status is `stale`. No new deps.
+1. **"Open terminal" button in the Inbox + Agent panels** (~1–2 hours · LOW complexity) — Add a button on each agent's row/header in `InboxPanel.tsx` and the agent panel (`SidePanel`/`DMPanel`) that opens that agent's live terminal. Resolve the agent's pane (`Object.values(panes).find(p => p.agentId === id)`) and call `setPaneSelection(pane.id)` — the `FloatingTerminal` already opens on `paneSelection`. Disable/hide when the agent has no matched pane. (Pairs naturally with the Phase 7 PTY terminal.)
 
-2. **Filter input in HUD** (~2 hours) — Add a text input to `HUD.tsx` that writes a `nameFilter` string to the store; `Graph3D.tsx` reads it and calls `graph.nodeVisibility(n => n.label.includes(filter))`.
+2. ~~**Stale node pulse**~~ — _done._
 
-3. **DM edge click** (~1 hour) — Wire `onLinkClick` in `Graph3D.tsx`; for `membership` links open the room, for `dm` links open the agent DM panel.
+3. ~~**Filter input in HUD**~~ — _done (HUD `nameFilter`)._
+
+4. ~~**DM edge click**~~ — _done (`onLinkClick` in `Graph3D`)._
 
 ---
 
@@ -242,13 +264,14 @@ aliases: ["Roadmap", "PRODUCTION_ROADMAP"]
 
 ## 🔄 Revision History
 
-| Date       | Change                                                                                                                                                                                                   | Reason                                                                                                                                                         |
-| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 2026-06-08 | Initial roadmap created from kickstart                                                                                                                                                                   | Project bootstrapped; Phase 1 & 2 retrospectively documented                                                                                                   |
-| 2026-06-08 | Added Phase 4 (xterm.js interactive terminal)                                                                                                                                                            | ANSI snapshot approach can't support cursor keys / tab-complete / Claude Code TUI                                                                              |
-| 2026-06-10 | Inserted Phase 4 (Agent Provisioning & Terminal Groups); renumbered xterm.js → Phase 5, Networked → Phase 6                                                                                              | Automate the manual tmux spawn/configure/join ritual from the UI; reuses existing tmux infra, high operator value                                              |
-| 2026-06-11 | Inserted Phase 5 (David Coordination Cockpit); renumbered xterm.js → Phase 6, Networked → Phase 7. Also: read-only Task Backlog feature shipped (discovery + parser + panel) outside the phase numbering | Make the UI David's coordination surface (DM inbox + notifications + decision cards); DM data + send path already exist                                        |
-| 2026-06-11 | Inserted Phase 6 (UI Componentization & Design System); renumbered xterm.js → Phase 7, Networked → Phase 8                                                                                               | ~9.5k LOC web app with heavy duplication (glass ×6, severity map ×4, font ×18) + 1,645-line Graph3D; componentize during the feature lull, behavior-preserving |
+| Date       | Change                                                                                                                                                                                                   | Reason                                                                                                                                                                                                |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-06-08 | Initial roadmap created from kickstart                                                                                                                                                                   | Project bootstrapped; Phase 1 & 2 retrospectively documented                                                                                                                                          |
+| 2026-06-08 | Added Phase 4 (xterm.js interactive terminal)                                                                                                                                                            | ANSI snapshot approach can't support cursor keys / tab-complete / Claude Code TUI                                                                                                                     |
+| 2026-06-10 | Inserted Phase 4 (Agent Provisioning & Terminal Groups); renumbered xterm.js → Phase 5, Networked → Phase 6                                                                                              | Automate the manual tmux spawn/configure/join ritual from the UI; reuses existing tmux infra, high operator value                                                                                     |
+| 2026-06-11 | Inserted Phase 5 (David Coordination Cockpit); renumbered xterm.js → Phase 6, Networked → Phase 7. Also: read-only Task Backlog feature shipped (discovery + parser + panel) outside the phase numbering | Make the UI David's coordination surface (DM inbox + notifications + decision cards); DM data + send path already exist                                                                               |
+| 2026-06-11 | Inserted Phase 6 (UI Componentization & Design System); renumbered xterm.js → Phase 7, Networked → Phase 8                                                                                               | ~9.5k LOC web app with heavy duplication (glass ×6, severity map ×4, font ×18) + 1,645-line Graph3D; componentize during the feature lull, behavior-preserving                                        |
+| 2026-06-12 | Phase 7 built (in test). Split auth out as Phase 8 (Auth & Access Control, High) ahead of networking (now Phase 9). Added "open agent terminal" button as a quick win.                                   | Phase 7's PTY exposes a full shell over WS (only loopback-gated today) → auth is now urgent + warrants its own focused phase. David requested the per-agent open-terminal button + an auth mechanism. |
 
 ---
 
