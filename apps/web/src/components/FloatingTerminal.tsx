@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import AnsiToHtml from "ansi-to-html";
 import { useBusStore } from "../store/bus.js";
+import { XtermPane, type PtyState } from "./terminal/XtermPane.js";
 
 const ansiConverter = new AnsiToHtml({
   fg: "#33ff66",
@@ -214,6 +215,9 @@ export function FloatingTerminal() {
   );
 
   const [input, setInput] = useState("");
+  // PTY (xterm) lifecycle. "closed" → fall back to the read-only ANSI snapshot.
+  const [ptyState, setPtyState] = useState<PtyState>("connecting");
+  const ptyFallback = ptyState === "closed";
   const outputRef = useRef<HTMLPreElement>(null);
   const [rect, setRect] = useState({ x: 16, y: 16, w: W, h: H });
   const dragRef = useRef<{
@@ -228,6 +232,7 @@ export function FloatingTerminal() {
 
   useEffect(() => {
     if (!paneSelection) return;
+    setPtyState("connecting"); // re-attempt the PTY for the newly-selected pane
     requestOutput(paneSelection);
     // Trigger lift animation only when switching between panes (not on first open)
     if (prevPaneRef.current && prevPaneRef.current !== paneSelection) {
@@ -513,98 +518,109 @@ export function FloatingTerminal() {
                 "repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.07) 2px, rgba(0,0,0,0.07) 4px)",
             }}
           />
-          <pre
-            ref={outputRef}
-            style={{
-              position: "absolute",
-              inset: 0,
-              margin: 0,
-              padding: "8px 14px 4px",
-              overflowY: "auto",
-              fontFamily: FONT_MONO,
-              fontSize: "0.71rem",
-              lineHeight: 1.5,
-              color: "#33ff66",
-              background: "rgba(0, 8, 2, 0.55)",
-              whiteSpace: "pre-wrap",
-              wordBreak: "break-all",
-              textShadow: "0 0 4px rgba(0,255,65,0.3)",
-            }}
-            dangerouslySetInnerHTML={{
-              __html: paneAnsi[activePane.id]
-                ? ansiConverter.toHtml(paneAnsi[activePane.id]!)
-                : activePane.lines.join("\n"),
-            }}
-          />
+          {ptyFallback ? (
+            <pre
+              ref={outputRef}
+              style={{
+                position: "absolute",
+                inset: 0,
+                margin: 0,
+                padding: "8px 14px 4px",
+                overflowY: "auto",
+                fontFamily: FONT_MONO,
+                fontSize: "0.71rem",
+                lineHeight: 1.5,
+                color: "#33ff66",
+                background: "rgba(0, 8, 2, 0.55)",
+                whiteSpace: "pre-wrap",
+                wordBreak: "break-all",
+                textShadow: "0 0 4px rgba(0,255,65,0.3)",
+              }}
+              dangerouslySetInnerHTML={{
+                __html: paneAnsi[activePane.id]
+                  ? ansiConverter.toHtml(paneAnsi[activePane.id]!)
+                  : activePane.lines.join("\n"),
+              }}
+            />
+          ) : (
+            // Real interactive PTY view. Remount on pane switch via key.
+            <XtermPane
+              key={activePane.id}
+              paneId={activePane.id}
+              onState={setPtyState}
+            />
+          )}
         </div>
 
-        {/* Input */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            height: 32,
-            flexShrink: 0,
-            borderTop: "1px solid rgba(0,255,65,0.12)",
-            background: "rgba(0,8,2,0.7)",
-            padding: "0 0 0 10px",
-          }}
-        >
-          <span
+        {/* Input — fallback only; the live PTY captures keystrokes directly */}
+        {ptyFallback && (
+          <div
             style={{
-              fontFamily: FONT_MONO,
-              fontSize: "0.71rem",
-              color: "rgba(0,255,65,0.5)",
-              userSelect: "none",
-              whiteSpace: "nowrap",
-              textShadow: "0 0 4px rgba(0,255,65,0.3)",
+              display: "flex",
+              alignItems: "center",
+              height: 32,
+              flexShrink: 0,
+              borderTop: "1px solid rgba(0,255,65,0.12)",
+              background: "rgba(0,8,2,0.7)",
+              padding: "0 0 0 10px",
             }}
           >
-            {activePane.session}:{activePane.window}.{activePane.pane}
-            <span style={{ color: "rgba(0,255,65,0.8)", marginLeft: 4 }}>
-              $
+            <span
+              style={{
+                fontFamily: FONT_MONO,
+                fontSize: "0.71rem",
+                color: "rgba(0,255,65,0.5)",
+                userSelect: "none",
+                whiteSpace: "nowrap",
+                textShadow: "0 0 4px rgba(0,255,65,0.3)",
+              }}
+            >
+              {activePane.session}:{activePane.window}.{activePane.pane}
+              <span style={{ color: "rgba(0,255,65,0.8)", marginLeft: 4 }}>
+                $
+              </span>
             </span>
-          </span>
-          <input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                handleSend();
-              }
-            }}
-            placeholder=" type and press Enter…"
-            style={{
-              flex: 1,
-              background: "transparent",
-              border: "none",
-              outline: "none",
-              color: "#33ff66",
-              fontFamily: FONT_MONO,
-              fontSize: "0.71rem",
-              caretColor: "#33ff66",
-              padding: "0 6px",
-              textShadow: "0 0 4px rgba(0,255,65,0.3)",
-            }}
-          />
-          <button
-            onClick={handleSend}
-            style={{
-              height: "100%",
-              padding: "0 12px",
-              background: "rgba(0,255,65,0.07)",
-              border: "none",
-              borderLeft: "1px solid rgba(0,255,65,0.1)",
-              color: "rgba(0,255,65,0.6)",
-              fontFamily: FONT_MONO,
-              fontSize: "0.8rem",
-              cursor: "pointer",
-            }}
-          >
-            ↵
-          </button>
-        </div>
+            <input
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSend();
+                }
+              }}
+              placeholder=" type and press Enter…"
+              style={{
+                flex: 1,
+                background: "transparent",
+                border: "none",
+                outline: "none",
+                color: "#33ff66",
+                fontFamily: FONT_MONO,
+                fontSize: "0.71rem",
+                caretColor: "#33ff66",
+                padding: "0 6px",
+                textShadow: "0 0 4px rgba(0,255,65,0.3)",
+              }}
+            />
+            <button
+              onClick={handleSend}
+              style={{
+                height: "100%",
+                padding: "0 12px",
+                background: "rgba(0,255,65,0.07)",
+                border: "none",
+                borderLeft: "1px solid rgba(0,255,65,0.1)",
+                color: "rgba(0,255,65,0.6)",
+                fontFamily: FONT_MONO,
+                fontSize: "0.8rem",
+                cursor: "pointer",
+              }}
+            >
+              ↵
+            </button>
+          </div>
+        )}
       </div>
     </>
   );

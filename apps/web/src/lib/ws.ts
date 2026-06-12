@@ -1,6 +1,8 @@
-import type { BusEvent } from "@coord-ui/shared";
+import type { BusEvent, PtyServerEvent } from "@coord-ui/shared";
 
-type Handler = (event: BusEvent) => void;
+// The socket carries broadcast BusEvents plus per-connection PTY stream events
+// (pty_data/pty_exit), so handlers may receive either.
+type Handler = (event: BusEvent | PtyServerEvent) => void;
 
 class BusSocket {
   private ws: WebSocket | null = null;
