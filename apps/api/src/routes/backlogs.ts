@@ -2,22 +2,9 @@ import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import type { HttpBindings } from "@hono/node-server";
-import type { Context, Next } from "hono";
 import { loadAllBacklogs, rewriteQueueRegion } from "../backlog.js";
-import { isLoopback } from "./agents.js";
+import { requireAuth } from "../auth.js";
 import { logger } from "../logger.js";
-
-async function requireLoopback(
-  c: Context<{ Bindings: HttpBindings }>,
-  next: Next
-) {
-  const addr = c.env?.incoming?.socket?.remoteAddress;
-  if (!isLoopback(addr)) {
-    logger.warn({ addr }, "backlogs: rejected non-loopback queue write");
-    return c.json({ error: "Local access only" }, 403);
-  }
-  return next();
-}
 
 const QueueItemSchema = z.object({
   priority: z.enum(["P1", "P2", "P3"]),
@@ -32,7 +19,7 @@ const PutQueueSchema = z.object({
 
 const app = new Hono<{ Bindings: HttpBindings }>();
 
-app.get("/backlogs", async (c) => {
+app.get("/backlogs", requireAuth, async (c) => {
   try {
     const backlogs = await loadAllBacklogs();
     return c.json(backlogs);
@@ -42,10 +29,10 @@ app.get("/backlogs", async (c) => {
   }
 });
 
-// PUT /backlogs/:projectId/queue — loopback only, rewrites ## Queue region atomically
+// PUT /backlogs/:projectId/queue — auth required, rewrites ## Queue region atomically
 app.put(
   "/backlogs/:projectId/queue",
-  requireLoopback,
+  requireAuth,
   zValidator("json", PutQueueSchema),
   async (c) => {
     const projectId = decodeURIComponent(c.req.param("projectId"));

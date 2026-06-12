@@ -9,6 +9,7 @@ import type {
   ProjectBacklog,
 } from "@coord-ui/shared";
 import { busSocket } from "../lib/ws.js";
+import { authedFetch } from "../lib/auth.js";
 import {
   DAVID_ID,
   buildDavidThreads,
@@ -405,7 +406,7 @@ export const useBusStore = create<BusState>((set) => {
         ),
       })),
     fetchBacklogs: async () => {
-      const res = await fetch("/api/backlogs");
+      const res = await authedFetch("/api/backlogs");
       if (res.ok) {
         const data = (await res.json()) as ProjectBacklog[];
         set({ backlogs: data });
@@ -413,7 +414,7 @@ export const useBusStore = create<BusState>((set) => {
     },
     saveBacklogQueue: async (project, items) => {
       const projectId = encodeURIComponent(project);
-      const res = await fetch(`/api/backlogs/${projectId}/queue`, {
+      const res = await authedFetch(`/api/backlogs/${projectId}/queue`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ queue: items }),
@@ -437,7 +438,7 @@ export const useBusStore = create<BusState>((set) => {
       busSocket.send({ type: "pane_request_output", paneId });
     },
     fetchPresets: async () => {
-      const res = await fetch("/api/agents/presets");
+      const res = await authedFetch("/api/agents/presets");
       if (res.ok) {
         const data = (await res.json()) as AgentPreset[];
         set({ presets: data });

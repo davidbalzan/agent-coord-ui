@@ -18,7 +18,8 @@ vi.mock("../logger.js", () => ({
   logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }));
 
-const { agentRoutes, isLoopback } = await import("./agents.js");
+const { agentRoutes } = await import("./agents.js");
+const { isLoopback } = await import("../auth.js");
 
 beforeEach(() => vi.clearAllMocks());
 
@@ -68,16 +69,22 @@ describe("isLoopback", () => {
 // ─── GET /api/agents/presets ──────────────────────────────────────────────────
 
 describe("GET /api/agents/presets", () => {
-  it("returns presets without loopback requirement", async () => {
+  it("returns presets from loopback (auth unconfigured → loopback fallback)", async () => {
+    loadPresetsMock.mockResolvedValue([VALID_PRESET]);
+    const res = await app.request("/api/agents/presets", {}, loopbackEnv());
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body).toEqual([VALID_PRESET]);
+  });
+
+  it("rejects reads from a non-loopback origin — 403 (presets leak launch cmds)", async () => {
     loadPresetsMock.mockResolvedValue([VALID_PRESET]);
     const res = await app.request(
       "/api/agents/presets",
       {},
       remoteEnv("203.0.113.5")
     );
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body).toEqual([VALID_PRESET]);
+    expect(res.status).toBe(403);
   });
 });
 

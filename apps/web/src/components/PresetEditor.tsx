@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import type { AgentPreset, AgentRole } from "@coord-ui/shared";
 import { useBusStore } from "../store/bus.js";
+import { authedFetch } from "../lib/auth.js";
 import { HoloButton } from "./primitives/HoloButton.js";
 import { FONT_MONO, FONT_DISPLAY } from "../theme/tokens.js";
 
@@ -71,7 +72,7 @@ export function PresetEditor({ onBack }: Props) {
       const isNew = creating;
       const url = isNew ? API_BASE : `${API_BASE}/${editing!.id}`;
       const method = isNew ? "POST" : "PUT";
-      const res = await fetch(url, {
+      const res = await authedFetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -95,7 +96,9 @@ export function PresetEditor({ onBack }: Props) {
       setError(null);
       setSaving(true);
       try {
-        const res = await fetch(`${API_BASE}/${id}`, { method: "DELETE" });
+        const res = await authedFetch(`${API_BASE}/${id}`, {
+          method: "DELETE",
+        });
         if (!res.ok && res.status !== 204) {
           const data = (await res.json().catch(() => ({}))) as {
             error?: string;

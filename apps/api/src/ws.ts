@@ -17,7 +17,7 @@ import { busWatcher } from "./watcher.js";
 import { sendKeys, capturePane, capturePaneAnsi, tmuxWatcher } from "./tmux.js";
 import { spawnAgent, teardownAgent } from "./provisioner.js";
 import { loadPresets } from "./presets.js";
-import { isLoopback } from "./routes/agents.js";
+import { authorizeWs, WS_AUTH_PROTOCOL } from "./auth.js";
 import { logger } from "./logger.js";
 import { PtyManager, type PtyHandle } from "./pty.js";
 
@@ -37,12 +37,29 @@ const ROOT =
 const ptyManager = new PtyManager();
 
 export function attachWss(server: import("node:http").Server) {
-  const wss = new WebSocketServer({ server });
+  // Confirm the auth subprotocol when offered so the browser handshake
+  // completes cleanly; the token itself is verified in the connection handler.
+  const wss = new WebSocketServer({
+    server,
+    handleProtocols: (protocols) =>
+      protocols.has(WS_AUTH_PROTOCOL) ? WS_AUTH_PROTOCOL : false,
+  });
 
   wss.on("connection", async (ws: WebSocket, req: IncomingMessage) => {
-    const clientIsLoopback = isLoopback(req.socket.remoteAddress);
+    // Auth gate: reject the whole connection before any state flows. Covers
+    // every privileged op (incl. send_message / pane_send_keys, previously
+    // ungated). authorize() also enforces the loopback layer when enabled.
+    const decision = await authorizeWs(req);
+    if (!decision.ok) {
+      logger.warn(
+        { addr: req.socket.remoteAddress, status: decision.status },
+        "ws connection rejected (unauthorized)"
+      );
+      ws.close(1008, decision.error);
+      return;
+    }
     const ptys = new Map<string, PtyHandle>();
-    logger.info({ loopback: clientIsLoopback }, "ws client connected");
+    logger.info({ sub: decision.sub }, "ws client connected (authorized)");
 
     // Register the message + close handlers BEFORE the (potentially slow)
     // fullState() below, so a pty_attach / privileged message sent during the
@@ -66,15 +83,6 @@ export function attachWss(server: import("node:http").Server) {
             logger.error({ err, paneId: p.paneId }, "pane_send_keys error")
           );
         } else if (payload.type === "spawn_agent") {
-          if (!clientIsLoopback) {
-            send(ws, {
-              type: "spawn_progress",
-              agentId: "",
-              step: "error",
-              error: "spawn_agent: local connection required",
-            });
-            return;
-          }
           const p = payload as unknown as SpawnAgentPayload;
           if (!isValidAgentId(p.agentId)) {
             send(ws, {
@@ -110,15 +118,6 @@ export function attachWss(server: import("node:http").Server) {
             })
             .catch((err) => logger.error({ err }, "spawn_agent error"));
         } else if (payload.type === "teardown_agent") {
-          if (!clientIsLoopback) {
-            send(ws, {
-              type: "spawn_progress",
-              agentId: "",
-              step: "error",
-              error: "teardown_agent: local connection required",
-            });
-            return;
-          }
           const p = payload as unknown as TeardownAgentPayload;
           if (!isValidAgentId(p.agentId)) {
             send(ws, {
@@ -147,7 +146,7 @@ export function attachWss(server: import("node:http").Server) {
               .catch(() => {});
           }
         } else if (isPtyClientPayload(payload)) {
-          handlePtyPayload(ws, payload, clientIsLoopback, ptys);
+          handlePtyPayload(ws, payload, ptys);
         }
       } catch {
         // malformed — ignore
@@ -194,18 +193,8 @@ function isPtyClientPayload(payload: {
 function handlePtyPayload(
   ws: WebSocket,
   payload: PtyClientPayload,
-  clientIsLoopback: boolean,
   ptys: Map<string, PtyHandle>
 ) {
-  if (!clientIsLoopback) {
-    send(ws, {
-      type: "pty_exit",
-      paneId: payload.paneId,
-      error: `${payload.type}: local connection required`,
-    });
-    return;
-  }
-
   if (payload.type === "pty_attach") {
     attachPty(ws, payload, ptys);
     return;
