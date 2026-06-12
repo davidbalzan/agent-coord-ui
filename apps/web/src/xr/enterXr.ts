@@ -1,5 +1,7 @@
 import * as THREE from "three";
 import { graphCosmeticTick } from "../components/graph/animationLoop.js";
+import { createXrCockpit, type XrCockpit } from "./cockpit/cockpit.js";
+import { setupXrControllers, type XrControllerRig } from "./controllers.js";
 
 /**
  * The slice of the 3d-force-graph instance the XR rehost relies on.
@@ -70,6 +72,8 @@ export function wireXrSession(graph: XrGraphHandle): () => void {
   renderer.xr.enabled = true;
 
   let saved: SavedDesktopState | null = null;
+  let cockpit: XrCockpit | null = null;
+  let controllers: XrControllerRig | null = null;
 
   const onSessionStart = () => {
     const scene = graph.scene();
@@ -107,6 +111,23 @@ export function wireXrSession(graph: XrGraphHandle): () => void {
       forceGraphObj.position.copy(XR_WORLD_POSITION);
     }
 
+    // Cockpit (world-space HUD / exit / info card) + controller rays —
+    // session-scoped, torn down on sessionend.
+    cockpit = createXrCockpit(() => void renderer.xr.getSession()?.end());
+    scene.add(cockpit.group);
+    controllers = setupXrControllers({
+      renderer,
+      scene,
+      getTargets: () => {
+        const t: THREE.Object3D[] = [...(cockpit?.uiTargets ?? [])];
+        if (forceGraphObj) t.push(forceGraphObj);
+        return t;
+      },
+      onSelect: (hit) => cockpit?.handleSelect(hit),
+      onHover: (hit) => cockpit?.handleHover(hit),
+    });
+
+    let cockpitDead = false;
     renderer.setAnimationLoop(() => {
       // Advance the force sim + message particles, then the cosmetic
       // material tick (stale pulse / halos / waves) — window rAF can be
@@ -114,12 +135,28 @@ export function wireXrSession(graph: XrGraphHandle): () => void {
       // pumps it directly. Render bypasses the lib's composer (see above).
       forceGraphObj?.tickFrame();
       graphCosmeticTick.current?.();
+      // Cockpit/controller failures must degrade to "no UI", never to
+      // "no frames" — an uncaught throw here kills the whole session.
+      if (!cockpitDead) {
+        try {
+          controllers?.update();
+          cockpit?.update(renderer.xr.getCamera());
+        } catch (err) {
+          cockpitDead = true;
+          console.error("[xr] cockpit update failed — disabling VR UI", err);
+        }
+      }
       renderer.render(scene, camera);
     });
   };
 
   const onSessionEnd = () => {
     renderer.setAnimationLoop(null);
+
+    controllers?.dispose();
+    controllers = null;
+    cockpit?.dispose();
+    cockpit = null;
 
     if (saved) {
       for (const { helper, visible } of saved.grids) helper.visible = visible;
