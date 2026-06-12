@@ -9,6 +9,7 @@ import { AgentActivityDot } from "./AgentActivityDot.js";
 import { FONT_MONO, FONT_DISPLAY } from "../theme/tokens.js";
 import { GlassPanel } from "./primitives/GlassPanel.js";
 import { SeverityBadge } from "./primitives/SeverityBadge.js";
+import { HoloButton } from "./primitives/HoloButton.js";
 
 const PANEL_WIDTH = 700;
 
@@ -293,6 +294,13 @@ function ThreadView({
 }) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [draft, setDraft] = useState("");
+  // The counterpart's tmux pane, if matched — enables the "open terminal" button.
+  const counterpartPaneId = useBusStore(
+    (s) =>
+      Object.values(s.panes).find((p) => p.agentId === thread.counterpart)
+        ?.id ?? null
+  );
+  const setPaneSelection = useBusStore((s) => s.setPaneSelection);
 
   // Scroll to bottom on new messages
   useEffect(() => {
@@ -331,6 +339,20 @@ function ThreadView({
           {thread.counterpart}
         </span>
         <AgentActivityDot agentId={thread.counterpart} />
+        {counterpartPaneId && (
+          <HoloButton
+            style={{
+              marginLeft: "auto",
+              fontSize: 9,
+              padding: "2px 8px",
+              flexShrink: 0,
+            }}
+            onClick={() => setPaneSelection(counterpartPaneId)}
+            title="Open this agent's terminal"
+          >
+            ▣ TERMINAL
+          </HoloButton>
+        )}
       </div>
 
       {/* Messages */}

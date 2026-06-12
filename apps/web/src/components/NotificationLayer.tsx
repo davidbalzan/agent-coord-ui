@@ -24,7 +24,17 @@ export function NotificationLayer({ renderContent }: NotificationLayerProps) {
   const moveNotificationToDock = useBusStore((s) => s.moveNotificationToDock);
   const dismissNotification = useBusStore((s) => s.dismissNotification);
   const actNotification = useBusStore((s) => s.actNotification);
+  const setInboxOpen = useBusStore((s) => s.setInboxOpen);
+  const setActiveInboxThread = useBusStore((s) => s.setActiveInboxThread);
   const [exitingPopupId, setExitingPopupId] = useState<string | null>(null);
+
+  // Jump from a notification straight to its conversation in the inbox, and
+  // clear the alert (opening it counts as handling it).
+  const openInInbox = (item: NotificationItem) => {
+    setActiveInboxThread(item.from);
+    setInboxOpen(true);
+    actNotification(item.id);
+  };
 
   useEffect(() => {
     if (!popup) {
@@ -80,6 +90,7 @@ export function NotificationLayer({ renderContent }: NotificationLayerProps) {
           </div>
           {render(popup, "popup")}
           <NotificationActions
+            onOpen={() => openInInbox(popup)}
             onAct={() => actNotification(popup.id)}
             onDismiss={() => dismissNotification(popup.id)}
           />
@@ -106,6 +117,7 @@ export function NotificationLayer({ renderContent }: NotificationLayerProps) {
                 {render(item, "dock")}
                 <NotificationActions
                   compact
+                  onOpen={() => openInInbox(item)}
                   onAct={() => actNotification(item.id)}
                   onDismiss={() => dismissNotification(item.id)}
                 />
@@ -169,17 +181,22 @@ function defaultRenderContent(
 
 function NotificationActions({
   compact = false,
+  onOpen,
   onAct,
   onDismiss,
 }: {
   compact?: boolean;
+  onOpen: () => void;
   onAct: () => void;
   onDismiss: () => void;
 }) {
   return (
     <div style={compact ? compactActionRow : actionRow}>
-      <button style={actionButton} onClick={onAct}>
-        ACT
+      <button style={actionButton} onClick={onOpen}>
+        OPEN
+      </button>
+      <button style={ghostButton} onClick={onAct}>
+        ACK
       </button>
       <button style={ghostButton} onClick={onDismiss}>
         DISMISS
