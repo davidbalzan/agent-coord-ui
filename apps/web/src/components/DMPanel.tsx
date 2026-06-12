@@ -37,6 +37,11 @@ export function DMPanel({ agentId }: Props) {
   const sendMessage = useBusStore((s) => s.sendMessage);
   const setHoveredAgentId = useBusStore((s) => s.setHoveredAgentId);
   const setNameFilter = useBusStore((s) => s.setNameFilter);
+  // The agent's tmux pane, if matched — enables the "open terminal" button.
+  const agentPaneId = useBusStore(
+    (s) => Object.values(s.panes).find((p) => p.agentId === agentId)?.id ?? null
+  );
+  const setPaneSelection = useBusStore((s) => s.setPaneSelection);
   // All DMs where this agent is sender or recipient, sorted oldest-first
   const msgs = useBusStore(
     useShallow((s) =>
@@ -140,6 +145,20 @@ export function DMPanel({ agentId }: Props) {
               </span>
             </div>
           </div>
+          {agentPaneId && (
+            <HoloButton
+              style={{
+                marginLeft: "auto",
+                fontSize: 9,
+                padding: "3px 9px",
+                flexShrink: 0,
+              }}
+              onClick={() => setPaneSelection(agentPaneId)}
+              title="Open this agent's terminal"
+            >
+              ▣ TERMINAL
+            </HoloButton>
+          )}
         </div>
 
         {/* Agent metadata line */}
