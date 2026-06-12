@@ -518,6 +518,51 @@ export function FloatingTerminal() {
                 "repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.07) 2px, rgba(0,0,0,0.07) 4px)",
             }}
           />
+          {/* Fallback notice — the live PTY couldn't attach; we're showing the
+              read-only ANSI snapshot. Surfaced so it's never silent. */}
+          {ptyFallback && (
+            <div
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                right: 0,
+                zIndex: 3,
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                padding: "5px 12px",
+                background: "rgba(40, 18, 0, 0.93)",
+                borderBottom: "1px solid rgba(255,140,0,0.45)",
+                fontFamily: FONT_MONO,
+                fontSize: "0.66rem",
+                letterSpacing: "0.05em",
+                color: "#ffb454",
+                textShadow: "0 0 6px rgba(255,140,0,0.4)",
+              }}
+            >
+              <span style={{ flex: 1 }}>
+                ⚠ LIVE TERMINAL UNAVAILABLE — showing read-only snapshot
+              </span>
+              <button
+                onClick={() => setPtyState("connecting")}
+                title="Retry the live PTY connection"
+                style={{
+                  background: "rgba(255,140,0,0.12)",
+                  border: "1px solid rgba(255,140,0,0.5)",
+                  color: "#ffb454",
+                  fontFamily: FONT_MONO,
+                  fontSize: "0.62rem",
+                  letterSpacing: "0.1em",
+                  padding: "2px 9px",
+                  cursor: "pointer",
+                  flexShrink: 0,
+                }}
+              >
+                ↻ RETRY
+              </button>
+            </div>
+          )}
           {ptyFallback ? (
             <pre
               ref={outputRef}

@@ -74,7 +74,7 @@ export function XtermPane({ paneId, onState }: Props) {
       });
       connectTimer = setTimeout(() => {
         if (!gotData) onStateRef.current?.("closed");
-      }, 3000);
+      }, 5000);
 
       term.onData((data) => {
         busSocket.send({ type: "pty_input", paneId, data });

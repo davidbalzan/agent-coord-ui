@@ -44,12 +44,11 @@ export function attachWss(server: import("node:http").Server) {
     const ptys = new Map<string, PtyHandle>();
     logger.info({ loopback: clientIsLoopback }, "ws client connected");
 
-    // Send full state on connect
-    const state = await busWatcher.fullState();
-    send(ws, { type: "full_state", ...state });
-
-    // Forward bus events to this client
-    const unsub = busWatcher.subscribe((event) => send(ws, event));
+    // Register the message + close handlers BEFORE the (potentially slow)
+    // fullState() below, so a pty_attach / privileged message sent during the
+    // connect window is handled immediately instead of being silently dropped
+    // (which would make the live terminal fall back to the read-only snapshot).
+    let unsub: () => void = () => {};
 
     ws.on("message", (raw) => {
       try {
@@ -163,6 +162,13 @@ export function attachWss(server: import("node:http").Server) {
       ptys.clear();
       logger.info("ws client disconnected");
     });
+
+    // Stream initial state, then subscribe to deltas. The message handler is
+    // already live above, so PTY/privileged messages aren't lost while this
+    // (potentially slow) fullState resolves.
+    const state = await busWatcher.fullState();
+    send(ws, { type: "full_state", ...state });
+    unsub = busWatcher.subscribe((event) => send(ws, event));
   });
 
   return wss;
