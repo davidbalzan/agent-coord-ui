@@ -22,6 +22,13 @@ interface StartGraphAnimationLoopArgs {
   activityGlowTau: number;
 }
 
+// Live handle to the cosmetic tick body so the XR animation loop can pump it
+// while a headset session is presenting (window rAF may be throttled then).
+// Material/visibility mutations only — safe to call from any loop.
+export const graphCosmeticTick: { current: (() => void) | null } = {
+  current: null,
+};
+
 export function startGraphAnimationLoop({
   graphRef,
   agentLabelSetters,
@@ -33,7 +40,7 @@ export function startGraphAnimationLoop({
 }: StartGraphAnimationLoopArgs): () => void {
   const t0 = performance.now();
   let rafId: number;
-  const tick = () => {
+  const runTick = () => {
     if (graphRef.current) {
       const elapsed = (performance.now() - t0) / 1000;
 
@@ -143,8 +150,15 @@ export function startGraphAnimationLoop({
         }
       });
     }
+  };
+  const tick = () => {
+    runTick();
     rafId = requestAnimationFrame(tick);
   };
+  graphCosmeticTick.current = runTick;
   rafId = requestAnimationFrame(tick);
-  return () => cancelAnimationFrame(rafId);
+  return () => {
+    graphCosmeticTick.current = null;
+    cancelAnimationFrame(rafId);
+  };
 }

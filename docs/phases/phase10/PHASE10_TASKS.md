@@ -8,7 +8,7 @@ aliases: ["Phase 10 Tasks"]
 
 ## Overview
 
-Stand inside the live agent-coordination force graph in room-scale VR on a **Meta Quest 3S** via WebXR. The app already renders a real `THREE.Scene`/`WebGLRenderer` through `3d-force-graph@1.73.5` + `three@0.184.0` ([[Graph3D]]); this phase is a **proof-of-concept spike** to enable an immersive session over that existing scene — nothing more. The whole phase is gated on one unknown: whether we can rehost `3d-force-graph`'s internal render loop into `renderer.setAnimationLoop` without forking the library or regressing the desktop path.
+Stand inside the live agent-coordination force graph in room-scale VR on a **Meta Quest 3S** via WebXR. The app already renders a real `THREE.Scene`/`WebGLRenderer` through `3d-force-graph@1.80.0` + `three@0.184.0` ([[Graph3D]]); this phase is a **proof-of-concept spike** to enable an immersive session over that existing scene — nothing more. The whole phase is gated on one unknown: whether we can rehost `3d-force-graph`'s internal render loop into `renderer.setAnimationLoop` without forking the library or regressing the desktop path.
 
 See [[phases/phase10/README|Phase 10 README]] for goal, scope, and risks. Links: [[PRODUCTION_ROADMAP]], [[ARCHITECTURE_GUIDE]], [[TECH_STACK]], [[DECISIONS]], [[CURRENT_FOCUS]].
 
@@ -26,7 +26,7 @@ See [[phases/phase10/README|Phase 10 README]] for goal, scope, and risks. Links:
 ### ⚠️ Impact Assessment
 
 - **Render-loop coupling**: rehosting the loop is the same coupling class as bug [[project_render_loop_bug|#43]]. Treat the desktop mouse path as sacred — isolate XR behind a `?xr` mount and session state.
-- **Library-internals reliance**: depends on `graph.renderer()/scene()/camera()/controls()` + a usable `tickFrame()`/`pauseAnimation()`. If absent in 1.73.5 → mirror-scene fallback (Task 4).
+- **Library-internals reliance**: depends on `graph.renderer()/scene()/camera()/controls()` + a usable `tickFrame()`/`pauseAnimation()`. If absent in 1.80.0 → mirror-scene fallback (Task 4).
 - **Secure context**: WebXR needs HTTPS or `localhost`; plain LAN http won't expose `navigator.xr` on the headset.
 - **Comfort**: graph is in unit-space (~±400); XR is metric — needs a root transform to room scale.
 
@@ -77,9 +77,9 @@ apps/web/src/
 
 **Sub-Steps**:
 
-- [ ] 1.1: Add an isolated XR mount (`XrGraphView`) reachable via `?xr=1` (or a hidden route) that mounts the existing graph — never alter the default desktop mount in `Graph3D`/`App`.
-- [ ] 1.2: Add `VrEntryButton` wrapping `three/examples/jsm/webxr/VRButton.js`, rendered only when `await navigator.xr?.isSessionSupported('immersive-vr')` is true.
-- [ ] 1.3: Lazy-load the whole XR entry so non-XR/desktop bundles are unaffected.
+- [x] 1.1: Add an isolated XR mount (`XrGraphView`) reachable via `?xr=1` (or a hidden route) that mounts the existing graph — never alter the default desktop mount in `Graph3D`/`App`.
+- [x] 1.2: Add `VrEntryButton` wrapping `three/examples/jsm/webxr/VRButton.js`, rendered only when `await navigator.xr?.isSessionSupported('immersive-vr')` is true.
+- [x] 1.3: Lazy-load the whole XR entry so non-XR/desktop bundles are unaffected.
 - [ ] 1.4: Verify on Quest 3S the button appears and a session **starts** (rendering correctness comes in T2).
 
 **Deliverables**: an XR-capable entry that launches a session on the headset; desktop build untouched.
@@ -92,11 +92,11 @@ apps/web/src/
 
 **Sub-Steps**:
 
-- [ ] 2.1: Enumerate what `3d-force-graph@1.73.5` actually exposes — `renderer()`, `scene()`, `camera()`, `controls()`, `pauseAnimation()`, `resumeAnimation()`, `tickFrame()` — and log the real surface (don't assume).
-- [ ] 2.2: On `sessionstart`: `graph.pauseAnimation()`, `renderer.xr.enabled = true`, `renderer.setAnimationLoop(() => { graph.tickFrame?.(); renderer.render(graph.scene(), renderer.xr.getCamera()); })`.
-- [ ] 2.3: Apply a root `THREE.Group` transform so the ~±400-unit cluster sits at a comfortable seated/standing scale in metres.
+- [x] 2.1: Enumerate what `3d-force-graph@1.80.0` actually exposes — `renderer()`, `scene()`, `camera()`, `controls()`, `pauseAnimation()`, `resumeAnimation()`, `tickFrame()` — and log the real surface (don't assume).
+- [x] 2.2: On `sessionstart`: `graph.pauseAnimation()`, `renderer.xr.enabled = true`, `renderer.setAnimationLoop(() => { graph.tickFrame?.(); renderer.render(graph.scene(), renderer.xr.getCamera()); })`.
+- [x] 2.3: Apply a root `THREE.Group` transform so the ~±400-unit cluster sits at a comfortable seated/standing scale in metres.
 - [ ] 2.4: Confirm the force simulation + message particles still advance each XR frame (driven by `tickFrame`).
-- [ ] 2.5: **Decision checkpoint** — if no clean `tickFrame`/handoff exists, STOP and record the gap; route to Task 4 fallback.
+- [x] 2.5: **Decision checkpoint** — if no clean `tickFrame`/handoff exists, STOP and record the gap; route to Task 4 fallback. **Outcome: clean handoff exists — in-place rehost viable, no fallback needed (see README spike findings).**
 
 **Deliverables**: the live graph rendered stereoscopically in-headset via the XR loop.
 
@@ -118,7 +118,7 @@ apps/web/src/
 
 - [ ] 3.1: Verify Zustand→graph effects (`agent_join/leave/update`, `room_update`, `message`, particle bursts) keep mutating the scene while in-session.
 - [ ] 3.2: Confirm `startGraphAnimationLoop` (stale pulse / labels / pane waves — material mutations only) runs correctly under the XR loop.
-- [ ] 3.3: On `sessionend`: `renderer.setAnimationLoop(null)`, `renderer.xr.enabled = false`, `graph.resumeAnimation()`, re-fit desktop camera.
+- [x] 3.3: On `sessionend`: `renderer.setAnimationLoop(null)`, `renderer.xr.enabled = false`, `graph.resumeAnimation()`, re-fit desktop camera.
 - [ ] 3.4: Regression pass — desktop mouse/trackball, focus lock, filter, node colors all behave exactly as before entering/exiting VR.
 
 **Deliverables**: real-time graph in VR; lossless return to the desktop cockpit.

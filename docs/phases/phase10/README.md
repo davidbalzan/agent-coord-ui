@@ -7,9 +7,9 @@ aliases: ["Phase 10"]
 # Phase 10: Immersive WebXR (VR) Graph View
 
 **Duration**: TBD — spike-first; a full feature estimate only after the PoC de-risks the render-loop rehost.
-**Status**: ⚪ Not Started
+**Status**: 🚧 In Progress — T1–T3 code-complete & desktop-verified; awaiting Quest 3S validation (T4)
 **Priority**: 🟢 Medium (exploratory) — forward-looking, pairs with [[phases/phase9/README|Phase 9]] (v2). Not on the critical path.
-**Branch**: `feat/phase10-webxr` (when started)
+**Branch**: `feat/phase10-webxr`
 
 ---
 
@@ -17,7 +17,7 @@ aliases: ["Phase 10"]
 
 Let an operator put on a **Meta Quest 3S** and stand inside the live agent-coordination force graph in **room-scale VR** via WebXR — nodes and message edges floating in 3D around them, updating in real time over the existing WebSocket.
 
-**Current state**: `Graph3D.tsx` renders the graph with `3d-force-graph@1.73.5` on top of `three@0.184.0` — a real `THREE.Scene` / `THREE.WebGLRenderer`, desktop mouse/trackball only. No WebXR, no headset entry point. three.js already ships WebXR support; we just don't enable it.
+**Current state**: `Graph3D.tsx` renders the graph with `3d-force-graph@1.80.0` on top of `three@0.184.0` — a real `THREE.Scene` / `THREE.WebGLRenderer`, desktop mouse/trackball only. No WebXR, no headset entry point. three.js already ships WebXR support; we just don't enable it.
 
 **Target state (this phase = PoC spike)**: an "Enter VR" button appears in a WebXR-capable browser; pressing it on the Quest 3S drops the operator into the graph in stereoscopic 3D with head tracking and live updates, **without breaking the existing desktop 2D/mouse render path or the node-pulse / hydration behavior**. Controller interaction, immersive HUD, and ray/gaze node selection are explicitly **out of scope for the spike** (see Phase 10.x follow-ons).
 
@@ -51,7 +51,7 @@ This is the same render-loop coupling class that produced the [[project_render_l
 
 ### Task 2 — Renderer rehost into the XR loop · CRITICAL · dep: T1
 
-- Access `graph.renderer()/scene()/camera()/controls()`; confirm which accessors `3d-force-graph@1.73.5` actually exposes (validate, don't assume).
+- Access `graph.renderer()/scene()/camera()/controls()`; confirm which accessors `3d-force-graph@1.80.0` actually exposes (validate, don't assume).
 - `graph.pauseAnimation()`, `renderer.xr.enabled = true`, `renderer.setAnimationLoop(...)` driving `graph.tickFrame?.()` + `renderer.render(scene, renderer.xr.getCamera())`.
 - Scale/position the world to room scale (the graph spans ~±400 units; XR is in metres — apply a root `THREE.Group` transform so the cluster sits at a comfortable ~1.5 m standing distance).
 
@@ -101,6 +101,31 @@ This is the same render-loop coupling class that produced the [[project_render_l
 
 - Meta Quest 3S with the Meta Quest Browser (WebXR support).
 - A secure context to load the dev app on the headset (HTTPS or `localhost` forward).
+
+---
+
+## 🔍 Spike findings (T2.1 — validated against `3d-force-graph@1.80.0` dist source)
+
+- ✅ `pauseAnimation()` cleanly cancels the library's internal rAF; `resumeAnimation()` restarts it.
+- ✅ The internal `ThreeForceGraph` object (owner of `tickFrame()` — force sim + link particles) is added to the scene via `.objects([forceGraph])`, so it's discoverable as the scene child with a `tickFrame` method. **In-place rehost is viable — no fork, no mirror-scene fallback needed.**
+- ⚠️ The library **always renders through an `EffectComposer`** (`three-render-objects` `stateInit`), which bypasses the XR framebuffer — the XR loop must call `renderer.render(scene, camera)` directly. Composer post-effects (bloom) are absent in-headset; acceptable for the spike.
+- ⚠️ `WebXRManager` mutates the passed camera's pose while presenting — desktop camera + controls target are saved on `sessionstart` and restored explicitly on `sessionend`.
+- ⚠️ Window rAF can be throttled while an immersive session presents, so the XR loop pumps the cosmetic material tick (`graphCosmeticTick`) directly, and the two message-path one-shot rAFs in `Graph3D` became `setTimeout(0)` (same post-effects ordering, but timers keep firing in-session).
+
+Implementation: `apps/web/src/xr/` (`XrEntry.tsx` lazy entry · `enterXr.ts` rehost/restore · `graphHandle.ts` registry). Opt-in via `?xr`; verified code-split — zero XR bytes on the default desktop path.
+
+## 🔌 Dev tunnel for headset testing (T4.1)
+
+WebXR needs a secure context — plain LAN `http://` won't expose `navigator.xr` on the headset. Simplest path is **adb reverse** (Quest in developer mode, USB-C to the dev machine):
+
+```bash
+adb reverse tcp:5173 tcp:5173   # web (vite dev)
+adb reverse tcp:3000 tcp:3000   # API + WS
+```
+
+Then open `http://localhost:5173/?xr=1` in the Meta Quest Browser — `localhost` is a secure context, both the app and `ws://localhost:3000` resolve through the tunnel, and Phase 8 auth works normally (log in on the headset). No HTTPS certs needed.
+
+Alternative (no cable): `@vitejs/plugin-basic-ssl` + `--host` for HTTPS over LAN, but the WS URL must then be overridden (`VITE_WS_URL`) and the self-signed cert accepted on-headset — use only if USB is impractical.
 
 ---
 

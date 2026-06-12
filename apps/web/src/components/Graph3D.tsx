@@ -14,6 +14,8 @@ import {
 import { STATUS_GLOW, createNodeThreeObject } from "./graph/buildGlowNode.js";
 import { startGraphAnimationLoop } from "./graph/animationLoop.js";
 import { applyForceConfig } from "./graph/forces.js";
+import { setXrGraphHandle } from "../xr/graphHandle.js";
+import type { XrGraphHandle } from "../xr/enterXr.js";
 import {
   closeMenuAndRestore as closeGraphMenuAndRestore,
   createBackgroundClickHandler,
@@ -235,16 +237,18 @@ export function Graph3D() {
     const fresh = newMsgs.filter((m) => now - m.timestamp < 15_000);
     if (!fresh.length) return;
 
-    // Update timestamps immediately; emit particles in next frame so topology
-    // rebuild (which runs after this effect due to declaration order) can add
-    // any new DM edge before we try to find it.
+    // Update timestamps immediately; emit particles on the next macrotask so
+    // topology rebuild (which runs after this effect due to declaration order)
+    // can add any new DM edge before we try to find it. setTimeout rather than
+    // rAF so emission still fires while an immersive XR session is presenting
+    // (window rAF can be throttled then); both run after all effects commit.
     for (const msg of fresh) {
       lastMsgTimeRef.current.set(linkKey(msg), now);
       if (!msg.isDM) roomActivityRef.current.set(msg.to, now);
       agentMsgTimestampRef.current.set(msg.from, now);
       if (msg.isDM && msg.to) agentMsgTimestampRef.current.set(msg.to, now);
     }
-    requestAnimationFrame(() => {
+    setTimeout(() => {
       if (!graphRef.current) return;
       const gd = graphRef.current.graphData?.() as
         | { links: GraphLink[] }
@@ -260,7 +264,7 @@ export function Graph3D() {
           }
         }
       }
-    });
+    }, 0);
   }, [messages]);
 
   const buildGraphData = useCallback(() => {
@@ -436,7 +440,11 @@ export function Graph3D() {
     });
 
     graphRef.current = graph;
+    // Expose the instance to the lazy XR entry (?xr) — read-only registry,
+    // no effect on the desktop path.
+    setXrGraphHandle(graph as unknown as XrGraphHandle);
     return () => {
+      setXrGraphHandle(null);
       graph._destructor?.();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -576,7 +584,9 @@ export function Graph3D() {
       structSigRef.current = sig;
       graphRef.current?.graphData(data);
     }
-    requestAnimationFrame(applyNodeColors);
+    // setTimeout rather than rAF so recolour still runs in an XR session
+    // (window rAF throttled) — same post-effects ordering either way.
+    setTimeout(applyNodeColors, 0);
   }, [buildGraphData, applyNodeColors]);
 
   const sidePanelWidthRef = useRef(sidePanelWidth);
