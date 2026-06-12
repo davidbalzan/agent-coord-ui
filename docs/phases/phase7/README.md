@@ -6,9 +6,9 @@ aliases: ["Phase 7"]
 
 # Phase 7: Full Interactive Terminal (xterm.js)
 
-**Status**: 🟡 In Progress
+**Status**: 🟢 Complete — merged to `main`; PTY bridge + `XtermPane` + JetBrainsMono Nerd Font shipped, now auth-gated by Phase 8.
 **Priority**: 🟢 Medium — highest-impact remaining feature; makes the in-UI terminal actually interactive.
-**Branch**: `feat/phase7-xterm-terminal`
+**Branch**: `feat/phase7-xterm-terminal` → merged to `main`
 
 ---
 
@@ -73,10 +73,10 @@ Why this over alternatives:
 
 ## ✅ Success Criteria
 
-- [ ] Arrow keys, tab-complete, `Ctrl+C`, and Claude Code's live TUI work in a browser terminal.
-- [ ] Resize keeps the remote PTY in sync (no wrapping artifacts).
-- [ ] `pty_*` is loopback-gated; non-local connections get the read-only fallback.
-- [ ] `pnpm -r typecheck` + web build + all tests green; `FloatingTerminal` lazy-loaded.
+- [x] Arrow keys, tab-complete, `Ctrl+C`, and Claude Code's live TUI work in a browser terminal.
+- [x] Resize keeps the remote PTY in sync (no wrapping artifacts).
+- [x] `pty_*` is loopback-gated (and, as of Phase 8, auth-gated); non-local connections get the read-only fallback.
+- [x] `pnpm -r typecheck` + web build + all tests green; terminal + xterm lazy-loaded.
 
 ---
 
@@ -91,4 +91,4 @@ Why this over alternatives:
 
 ## ⏭️ Next
 
-Phase 8: Networked & Multi-Operator. See [[PRODUCTION_ROADMAP]].
+Phase 8: Auth & Access Control (done — PR #54). Networking is now Phase 9. See [[PRODUCTION_ROADMAP]].

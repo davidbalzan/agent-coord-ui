@@ -12,9 +12,9 @@ aliases: ["Roadmap", "PRODUCTION_ROADMAP"]
 
 ## 🎯 Current Focus
 
-**Phase**: Phase 4 → Phase 5 transition
-**Task**: Phase 4 complete (PRs #1–#4 + T6); next: Phase 5 (xterm.js interactive terminal) or Phase 6 auth
-**Status**: 🟢 Phase 4 Complete
+**Phase**: Post–Phase 8 — hardening + forward planning (Phase 9/10)
+**Task**: Phases 1–8 complete (auth shipped, PR #54). Now: P2 hardening (node-pty dev preflight, doc reconciliation) + Phase 9 (networked) / Phase 10 (WebXR) planning
+**Status**: 🟢 Phases 1–8 Complete
 **Branch**: `main`
 **Blocking Issues**: None
 
@@ -35,19 +35,19 @@ aliases: ["Roadmap", "PRODUCTION_ROADMAP"]
 
 ### 🚨 What's Missing for Production
 
-- **Node filter / spotlight** (M5): No way to focus on one agent or room when the graph is large; visual noise becomes unmanageable beyond ~15 nodes
-- **Double-click focus lock** (M5, PRD U8): Camera doesn't lock onto a selected node for close inspection
-- **DM edge click** (PRD U5): Clicking the line between two agents should open their DM thread — currently only clicking the agent node works
-- **Stale pulse animation** (M5): Stale nodes should visually pulse red to stand out; currently just a static red glow
-- **Auth token** (open question from PRD §10): Exposing on a network has no protection; planned for v2 but needs a decision
+- **Networked / multi-operator** (Phase 9): Single local operator only; no HTTP proxy mode, no per-operator sessions
+- **Per-operator audit log** (Phase 8 stretch): Auth gates access but there's no record of who attached which PTY / spawned-tore-down
 - **No persistence** (PRD §3 non-goal for v1): Messages lost on reload
+- **Monitoring/alerting**: Logging in place but no health metrics or alerting; deployment is still a manual `pnpm dev` pair
+
+> The four M5 graph interactions (filter/spotlight, double-click focus lock, DM edge click, stale pulse) and the **auth token** are now shipped — see Phases 3 & 8.
 
 ### 📈 Production Readiness Score
 
-- **Functional Completeness**: 80% — Core flows work; filter/spotlight and edge-click interactions remain
-- **Test Coverage**: ~0% — No unit or integration tests written yet; logic is concentrated in the WS bridge and Zustand store
-- **Security Posture**: Low — Acceptable for local-only v1; must address before any networked exposure
-- **Operational Readiness**: Medium — Logging in place; no monitoring/alerting; deployment is manual `pnpm dev` pair
+- **Functional Completeness**: ~95% — All 8 PRD user stories shipped; PTY terminal + auth in place. Remaining gaps are v2 (networked/multi-operator) + persistence.
+- **Test Coverage**: Growing — unit tests across `bus.ts` selectors/notifications, `decisionPacket`, `notificationPriority`, `tmux`, `ws`, and auth (web + api suites green)
+- **Security Posture**: Medium — JWT auth gates all privileged surfaces (Phase 8); loopback kept as defense-in-depth. Outstanding: shorten token TTL, revocation, token off localStorage before networked exposure
+- **Operational Readiness**: Medium — Logging + dev preflight in place; no monitoring/alerting; deployment is manual `pnpm dev` pair
 
 ---
 
@@ -90,7 +90,7 @@ aliases: ["Roadmap", "PRODUCTION_ROADMAP"]
 
 **Goal**: Holographic aesthetic complete, all PRD interactions implemented, app is stable and navigable with 20+ nodes.
 **Duration**: 1–2 weeks
-**Status**: 🟡 In Progress
+**Status**: 🟢 Complete
 
 **Key Deliverables**:
 
@@ -98,11 +98,11 @@ aliases: ["Roadmap", "PRODUCTION_ROADMAP"]
 - [x] Three.js custom node objects with additive-blended halos and PointLights
 - [x] `useShallow` fix for stable array selectors (infinite re-render resolved)
 - [x] `three@0.184` + Vite `dedupe` fix (multiple Three.js instance crash resolved)
-- [ ] **Node filter toolbar** — filter graph by room or agent name
-- [ ] **Double-click focus lock** — camera locks onto node, dims others
-- [ ] **DM edge click** — clicking agent↔agent line opens their DM thread
-- [ ] **Stale node pulse** — animated red pulse for stale agents (CSS keyframe on node aura)
-- [ ] **Test suite** — vitest unit tests for `bus.ts` selectors and `watcher.ts` diff logic
+- [x] **Node filter toolbar** — filter graph by room or agent name (HUD `nameFilter`)
+- [x] **Double-click focus lock** — camera locks onto node, dims others (`interactions.ts`)
+- [x] **DM edge click** — clicking agent↔agent line opens their DM thread (`onLinkClick`)
+- [x] **Stale node pulse** — animated pulse for stale agents (`startGraphAnimationLoop`)
+- [x] **Test suite** — vitest unit tests for `bus.ts` selectors (`bus.test.ts` + notifications/activity)
 
 ---
 
@@ -137,7 +137,7 @@ aliases: ["Roadmap", "PRODUCTION_ROADMAP"]
 
 **Goal**: David coordinates from the UI — DM inbox + reply, prefix-ranked holographic notifications (emanate from sender node → center popup → bottom-left action dock), and `DAVID_DECISION`s as actionable cards answered in one click.
 **Duration**: 1–2 weeks
-**Status**: 🟡 In Progress
+**Status**: 🟢 Complete — `InboxPanel`, `NotificationLayer`, `DecisionCard` shipped; `decisionPacket`/`notificationPriority` unit-tested.
 
 **Context**: De-risked because DMs to `david` already flow into the store (`inbox/david.jsonl` → `message` events) and `store.sendMessage` already round-trips replies. Mostly a web render+interaction layer.
 
@@ -165,19 +165,19 @@ aliases: ["Roadmap", "PRODUCTION_ROADMAP"]
 
 **Goal**: Replace the ANSI-snapshot + send-keys terminal with a real PTY-backed xterm.js emulator — full cursor control, tab-completion, arrow keys, and Claude Code's interactive TUI work from the browser.
 **Duration**: TBD
-**Status**: 🟢 Built — in test on `feat/phase7-xterm-terminal` (node-pty + tmux attach bridge, loopback-gated; xterm frontend with ANSI fallback). PR feat→main pending David's verification. See [[phases/phase7/README]].
+**Status**: 🟢 Complete — merged to `main` (node-pty + tmux attach bridge, loopback-gated → now auth-gated by Phase 8; `XtermPane` frontend with ANSI fallback; JetBrainsMono Nerd Font). See [[phases/phase7/README]].
 
 **Context**: The current terminal (Phase 3) captures ANSI snapshots and injects text via `tmux send-keys`. It renders colours correctly but has no PTY connection, so interactive features (arrow keys, tab-complete, Ctrl+C, Claude Code spinner/prompts) don't work.
 
 **Key Deliverables**:
 
-- [ ] Server-side PTY bridge — WebSocket endpoint that attaches to a tmux pane via `tmux attach-session -t <pane>` or a raw `node-pty` session and pipes stdin/stdout bidirectionally
-- [ ] xterm.js frontend — replace `<pre>` output + input box in `FloatingTerminal.tsx` with an `xterm.js` `Terminal` instance sized to the pane dimensions
-- [ ] Resize sync — `ResizeObserver` on the terminal container sends `tmux resize-pane` so the remote PTY matches the browser window
-- [ ] Input passthrough — all keystrokes (including escape sequences, arrow keys, Ctrl+\*) forwarded raw to the PTY; no special-casing
-- [ ] Graceful fallback — keep the ANSI snapshot path as a read-only preview when no PTY session is active
+- [x] Server-side PTY bridge — WebSocket endpoint that attaches to a tmux pane via `node-pty` running `tmux attach-session` and pipes stdin/stdout bidirectionally (`apps/api/src/pty.ts`)
+- [x] xterm.js frontend — `XtermPane` replaces the `<pre>` output + input box, sized to pane dimensions via `FitAddon`
+- [x] Resize sync — `FitAddon`/`ResizeObserver` → `pty_resize` keeps the remote PTY matched to the browser window
+- [x] Input passthrough — all keystrokes (escape sequences, arrow keys, Ctrl+\*) forwarded raw to the PTY; no special-casing
+- [x] Graceful fallback — read-only ANSI snapshot preview when no PTY session is active
 
-**Key Risk**: xterm.js adds ~3 MB to the bundle; PTY WebSocket requires a persistent server-side connection per open pane.
+**Key Risk (resolved)**: xterm.js bundle weight — mitigated by lazy-loading `@xterm/xterm` + addon (the "~3 MB" was uncompressed; real cost ~250–300 KB gzipped, off the initial path).
 
 ---
 
@@ -185,19 +185,18 @@ aliases: ["Roadmap", "PRODUCTION_ROADMAP"]
 
 **Goal**: Put an authentication layer in front of the tool. As of Phase 7 the app exposes a **full interactive shell** (PTY → `tmux attach`) plus agent spawn/teardown, raw `send-keys`, and message sending over the WS/HTTP API. Today the only control on the dangerous surfaces is a **loopback check** (`clientIsLoopback`) — which is not real authn/authz and is bypassed the moment the port is forwarded, proxied, or bound non-locally.
 **Duration**: TBD
-**Status**: ⚪ Not Started
-**Priority**: 🟡 High — security-critical, **escalated by Phase 7's PTY exposure**. Recommended next phase after Phase 7 ships.
+**Status**: 🟢 Complete (P1) — JWT auth shipped, PR #54. Shared-secret → HS256 JWT (`jose`) gates all privileged WS/HTTP surfaces; loopback kept as defense-in-depth; `AuthGate`/`LoginScreen` UX, no silent fallback.
 
 **Context**: Phase 7 turned the in-UI terminal into a real PTY (full shell access to every agent's tmux session). The loopback gate is defense-in-depth, not authentication — it gives no per-operator identity, no revocation, no audit, and fails open if the service is exposed beyond localhost.
 
 **Key Deliverables**:
 
-- [ ] **Shared-secret token on the WS handshake + HTTP requests** — reject unauthenticated connections before any `pty_*`, `spawn_agent`, `teardown_agent`, `pane_send_keys`, or `send_message` is processed.
-- [ ] **Gate ALL privileged surfaces on auth, not just loopback** — PTY attach, spawn/teardown, send-keys, message send. Keep loopback as an extra layer, but auth is the primary control.
-- [ ] Token provisioning + storage (env/secret on the server; entered/stored client-side), with a clear "unauthorized" UX (not a silent fallback).
-- [ ] (Stretch) Per-operator identity + a basic audit log of privileged actions (who attached which PTY, who spawned/tore down).
+- [x] **Shared-secret token on the WS handshake + HTTP requests** — rejects unauthenticated connections (WS `1008` close) before any `pty_*`, `spawn_agent`, `teardown_agent`, `pane_send_keys`, or `send_message` is processed.
+- [x] **Gate ALL privileged surfaces on auth, not just loopback** — PTY attach, spawn/teardown, send-keys, message send. Loopback retained as an extra layer; auth is the primary control.
+- [x] Token provisioning + storage (`AUTH_PASSWORD`→JWT server-side; token in client localStorage), with an explicit "unauthorized" UX (`AuthGate`/`LoginScreen`), no silent fallback.
+- [ ] (Stretch) Per-operator identity + a basic audit log of privileged actions (who attached which PTY, who spawned/tore down). _← remaining P2 follow-on._
 
-**Key Risk**: auth scope creep — keep v1 to a single shared secret that hard-gates the dangerous endpoints; defer full multi-user/RBAC.
+**Key Risk (managed)**: auth scope creep — kept v1 to a single shared secret hard-gating the dangerous endpoints; multi-user/RBAC deferred. Hardening follow-ups (shorter TTL, revocation, token off localStorage, `/auth/login` rate-limit) tracked for pre-network exposure.
 
 ---
 
@@ -215,6 +214,23 @@ aliases: ["Roadmap", "PRODUCTION_ROADMAP"]
 
 ---
 
+### Phase 10: Immersive WebXR (VR) Graph View
+
+**Goal**: Stand inside the live force graph in room-scale VR on a Meta Quest 3S via WebXR. **Spike-first** — prove the render-loop rehost before committing to a feature.
+**Duration**: TBD (gated on the PoC)
+**Status**: ⚪ Not Started — exploratory, pairs with Phase 9 v2 work
+
+**Key Deliverables**:
+
+- [ ] "Enter VR" entry behind a `navigator.xr` capability gate (desktop unaffected when absent)
+- [ ] Rehost `3d-force-graph`'s internal rAF loop into `renderer.setAnimationLoop` with `renderer.xr.enabled` — the core risk
+- [ ] Live WS updates visible in-session; clean restore to the desktop path on exit
+- [ ] Validation on Quest 3S + go/no-go decision (in-place rehost vs. mirror-scene fallback)
+
+**Key Risk**: `3d-force-graph` owns its renderer/camera/rAF loop — rehosting it for WebXR is the same render-loop coupling that caused bug #43. Isolate behind a `?xr` mount; treat the desktop path as sacred. Out of scope for the spike: controllers, immersive HUD, ray/gaze selection. See [[phases/phase10/README|Phase 10]].
+
+---
+
 ## 📊 Implementation Priority Matrix
 
 | Phase                     | Priority    | Blocks          | Complexity | Duration  | Key Risk                              |
@@ -228,8 +244,9 @@ aliases: ["Roadmap", "PRODUCTION_ROADMAP"]
 | Phase 7: xterm.js         | 🟢 Medium   | Phase 3         | High       | TBD       | Bundle size, PTY lifecycle            |
 | Phase 8: Auth & Access    | 🟡 High     | safe exposure   | Medium     | TBD       | Auth scope creep                      |
 | Phase 9: Networked        | 🟢 Medium   | —               | High       | TBD       | Depends on Phase 8 auth               |
+| Phase 10: WebXR (VR)      | 🟢 Medium   | —               | High       | TBD       | Render-loop rehost (re: bug #43)      |
 
-**Critical Path**: Phase 1 → Phase 2 → Phase 3 (sequential). Phase 4 (provisioning) is high-value and reuses existing tmux infra — recommended next. Phases 5–6 are independent v2 work.
+**Critical Path**: Phases 1–8 complete (foundation → graph → polish → provisioning → cockpit → componentization → xterm terminal → auth). Remaining work is independent and forward-looking: Phase 9 (networked/multi-operator) and Phase 10 (WebXR/VR), plus P2 hardening follow-ons.
 
 ---
 
@@ -274,6 +291,7 @@ aliases: ["Roadmap", "PRODUCTION_ROADMAP"]
 | 2026-06-11 | Inserted Phase 5 (David Coordination Cockpit); renumbered xterm.js → Phase 6, Networked → Phase 7. Also: read-only Task Backlog feature shipped (discovery + parser + panel) outside the phase numbering | Make the UI David's coordination surface (DM inbox + notifications + decision cards); DM data + send path already exist                                                                               |
 | 2026-06-11 | Inserted Phase 6 (UI Componentization & Design System); renumbered xterm.js → Phase 7, Networked → Phase 8                                                                                               | ~9.5k LOC web app with heavy duplication (glass ×6, severity map ×4, font ×18) + 1,645-line Graph3D; componentize during the feature lull, behavior-preserving                                        |
 | 2026-06-12 | Phase 7 built (in test). Split auth out as Phase 8 (Auth & Access Control, High) ahead of networking (now Phase 9). Added "open agent terminal" button as a quick win.                                   | Phase 7's PTY exposes a full shell over WS (only loopback-gated today) → auth is now urgent + warrants its own focused phase. David requested the per-agent open-terminal button + an auth mechanism. |
+| 2026-06-12 | Appended Phase 10 (Immersive WebXR/VR Graph View) — spike-first, exploratory, appended (no renumber).                                                                                                    | David has a Quest 3S to test with; the graph is already a three.js scene. Scoped as a PoC to de-risk rehosting `3d-force-graph`'s render loop into WebXR before any feature commit.                   |
 
 ---
 
