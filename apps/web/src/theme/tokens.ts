@@ -46,6 +46,10 @@ export const COLOR_BG = "#000913";
 // ── Typography ─────────────────────────────────────────────────────────────
 export const FONT_MONO = '"Share Tech Mono", monospace';
 export const FONT_DISPLAY = '"Orbitron", sans-serif';
+// Nerd Font for the interactive PTY terminal: full powerline/devicon glyph
+// coverage so agent shell prompts render correctly. Falls back to the UI mono.
+export const FONT_TERMINAL =
+  '"JetBrainsMono Nerd Font", "Share Tech Mono", monospace';
 
 // ── Spacing (px values for inline styles) ──────────────────────────────────
 export const SPACE = {

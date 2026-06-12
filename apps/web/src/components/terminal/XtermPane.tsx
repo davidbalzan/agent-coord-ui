@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import type { Terminal } from "@xterm/xterm";
 import type { FitAddon } from "@xterm/addon-fit";
 import { busSocket } from "../../lib/ws.js";
-import { FONT_MONO } from "../../theme/tokens.js";
+import { FONT_TERMINAL } from "../../theme/tokens.js";
 import "@xterm/xterm/css/xterm.css";
 
 export type PtyState = "connecting" | "active" | "closed";
@@ -48,8 +48,24 @@ export function XtermPane({ paneId, onState }: Props) {
       ]);
       if (disposed) return;
 
+      // Ensure the Nerd Font is loaded before xterm measures the cell — otherwise
+      // glyph metrics are taken from the fallback and the grid misaligns until a
+      // resize. Best-effort: if it fails, xterm falls back to the UI mono.
+      if (document.fonts?.load) {
+        try {
+          await Promise.all([
+            document.fonts.load('12px "JetBrainsMono Nerd Font"'),
+            document.fonts.load('bold 12px "JetBrainsMono Nerd Font"'),
+          ]);
+        } catch {
+          // ignore — fallback font still renders
+        }
+        if (disposed) return;
+      }
+
       term = new XTerm({
-        fontFamily: FONT_MONO,
+        fontFamily: FONT_TERMINAL,
+        fontWeightBold: 700,
         fontSize: 12,
         cursorBlink: true,
         allowTransparency: true,

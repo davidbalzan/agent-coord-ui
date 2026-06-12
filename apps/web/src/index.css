@@ -1,5 +1,23 @@
 @import "tailwindcss";
 
+/* Self-hosted JetBrainsMono Nerd Font — used for the PTY terminal so agent
+   shells (starship/powerline prompts, devicon glyphs) render correctly.
+   Files live in apps/web/public/fonts/ (served at /fonts/...). */
+@font-face {
+  font-family: "JetBrainsMono Nerd Font";
+  src: url("/fonts/JetBrainsMonoNerdFont-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "JetBrainsMono Nerd Font";
+  src: url("/fonts/JetBrainsMonoNerdFont-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 @theme {
   --font-sans: "Exo 2", sans-serif;
   --font-mono: "Share Tech Mono", monospace;
