@@ -14,6 +14,9 @@ import { usePanelZ } from "../hooks/usePanelZ.js";
 import { isInboxSoundMuted, setInboxSoundMuted } from "../lib/sound.js";
 
 const PANEL_WIDTH = 700;
+// Only the most recent messages are painted per thread — keeps the list light
+// and the scroll short. Older history stays in the store, just not rendered.
+const MAX_THREAD_MESSAGES = 150;
 
 export function InboxPanel() {
   const inboxOpen = useBusStore((s) => s.inboxOpen);
@@ -327,10 +330,17 @@ function ThreadView({
   );
   const setPaneSelection = useBusStore((s) => s.setPaneSelection);
 
-  // Scroll to bottom on new messages
+  // Scroll to bottom: jump INSTANTLY when switching threads (no animated sweep
+  // through the whole list), and animate only for a new message in the thread
+  // you're already viewing.
+  const prevCounterpartRef = useRef(thread.counterpart);
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [thread.messages.length]);
+    const threadChanged = prevCounterpartRef.current !== thread.counterpart;
+    prevCounterpartRef.current = thread.counterpart;
+    messagesEndRef.current?.scrollIntoView({
+      behavior: threadChanged ? "auto" : "smooth",
+    });
+  }, [thread.counterpart, thread.messages.length]);
 
   const submit = () => {
     const body = draft.trim();
@@ -391,7 +401,22 @@ function ThreadView({
           gap: 2,
         }}
       >
-        {thread.messages.map((msg) => (
+        {thread.messages.length > MAX_THREAD_MESSAGES && (
+          <div
+            style={{
+              fontFamily: FONT_MONO,
+              fontSize: 9,
+              letterSpacing: "0.1em",
+              color: "rgba(0,212,255,0.3)",
+              textAlign: "center",
+              padding: "4px 0 8px",
+            }}
+          >
+            · showing the latest {MAX_THREAD_MESSAGES} of{" "}
+            {thread.messages.length} messages ·
+          </div>
+        )}
+        {thread.messages.slice(-MAX_THREAD_MESSAGES).map((msg) => (
           <MessageBubble key={msg.id} msg={msg} onSend={onSend} />
         ))}
         <div ref={messagesEndRef} />
