@@ -7,7 +7,7 @@ aliases: ["Phase 5"]
 # Phase 5: David Coordination Cockpit
 
 **Duration**: 1–2 weeks — mostly web; the data + send path already exist.
-**Status**: ⚪ Not Started
+**Status**: 🟢 Complete — `InboxPanel`, `NotificationLayer`, `DecisionCard` shipped; `decisionPacket` + `notificationPriority` unit-tested.
 **Priority**: 🟡 High — turns the UI from a dashboard you _watch_ into a cockpit you _coordinate from_; lets David move coordination off the terminal.
 
 ---
@@ -54,22 +54,22 @@ aliases: ["Phase 5"]
 
 ### Functional Requirements
 
-- [ ] David sees coordinator DMs in a threaded inbox panel and can reply from the UI
-- [ ] A new incoming message produces a notification whose prominence matches its prefix (DAVID_DECISION/BLOCKER loud → FYI subtle); it animates from the sender node, pops center, then parks bottom-left for action
-- [ ] A `DAVID_DECISION` renders as a card with its options as buttons; clicking one sends the chosen reply back to the coordinator and clears the notification
-- [ ] No incoming `DAVID_DECISION` is silently lost — unread state is visible until acted on
+- [x] David sees coordinator DMs in a threaded inbox panel and can reply from the UI
+- [x] A new incoming message produces a notification whose prominence matches its prefix (DAVID_DECISION/BLOCKER loud → FYI subtle); it animates from the sender node, pops center, then parks bottom-left for action
+- [x] A `DAVID_DECISION` renders as a card with its options as buttons; clicking one sends the chosen reply back to the coordinator and clears the notification
+- [x] No incoming `DAVID_DECISION` is silently lost — unread state is visible until acted on
 
 ### Quality Requirements
 
-- [ ] `pnpm typecheck` + web build + tests green
-- [ ] Decision-packet parser and prefix→priority classifier are unit-tested (incl. malformed packets → fall back to plain message, never crash)
-- [ ] Notifications are not spammy — FYI/DONE never trigger the center popup
+- [x] `pnpm typecheck` + web build + tests green
+- [x] Decision-packet parser and prefix→priority classifier are unit-tested (incl. malformed packets → fall back to plain message, never crash)
+- [x] Notifications are not spammy — FYI/DONE never trigger the center popup
 
 ### Architecture Requirements
 
-- [ ] Reuse the existing message stream + `sendMessage`; no duplicate transport
-- [ ] Notification/inbox state lives in the store; components stay presentational
-- [ ] Terminal remains a working fallback for coordination (UI is additive, not a hard dependency)
+- [x] Reuse the existing message stream + `sendMessage`; no duplicate transport
+- [x] Notification/inbox state lives in the store; components stay presentational
+- [x] Terminal remains a working fallback for coordination (UI is additive, not a hard dependency)
 
 ---
 
