@@ -11,12 +11,14 @@ import { GlassPanel } from "./primitives/GlassPanel.js";
 import { SeverityBadge } from "./primitives/SeverityBadge.js";
 import { HoloButton } from "./primitives/HoloButton.js";
 import { usePanelZ } from "../hooks/usePanelZ.js";
+import { isInboxSoundMuted, setInboxSoundMuted } from "../lib/sound.js";
 
 const PANEL_WIDTH = 700;
 
 export function InboxPanel() {
   const inboxOpen = useBusStore((s) => s.inboxOpen);
   const panelZ = usePanelZ("inbox");
+  const [muted, setMuted] = useState(isInboxSoundMuted());
   const setInboxOpen = useBusStore((s) => s.setInboxOpen);
   const activeThread = useBusStore((s) => s.activeInboxThread);
   const setActiveThread = useBusStore((s) => s.setActiveInboxThread);
@@ -104,9 +106,29 @@ export function InboxPanel() {
           DM THREADS
         </span>
         <button
-          onClick={() => setInboxOpen(false)}
+          onClick={() => {
+            const next = !muted;
+            setInboxSoundMuted(next);
+            setMuted(next);
+          }}
+          title={muted ? "Inbox sounds off" : "Inbox sounds on"}
           style={{
             marginLeft: "auto",
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            color: muted ? "rgba(0,212,255,0.3)" : "rgba(0,212,255,0.6)",
+            fontFamily: FONT_MONO,
+            fontSize: 13,
+            lineHeight: 1,
+            padding: "0 6px",
+          }}
+        >
+          {muted ? "🔇" : "🔊"}
+        </button>
+        <button
+          onClick={() => setInboxOpen(false)}
+          style={{
             background: "none",
             border: "none",
             cursor: "pointer",

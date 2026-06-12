@@ -1,6 +1,13 @@
-import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import { useBusStore, type NotificationItem } from "../store/bus.js";
 import { PRIORITY_ACCENT, FONT_MONO, FONT_DISPLAY } from "../theme/tokens.js";
+import { playInboxSound } from "../lib/sound.js";
 
 type NotificationLocation = "popup" | "dock";
 type PopupStyle = CSSProperties & {
@@ -21,6 +28,7 @@ const POPUP_EXIT_MS = 480;
 export function NotificationLayer({ renderContent }: NotificationLayerProps) {
   const popup = useBusStore((s) => s.notificationPopup);
   const dockItems = useBusStore((s) => s.notificationDockItems);
+  const queue = useBusStore((s) => s.notificationQueue);
   const moveNotificationToDock = useBusStore((s) => s.moveNotificationToDock);
   const dismissNotification = useBusStore((s) => s.dismissNotification);
   const actNotification = useBusStore((s) => s.actNotification);
@@ -35,6 +43,27 @@ export function NotificationLayer({ renderContent }: NotificationLayerProps) {
     setInboxOpen(true);
     actNotification(item.id);
   };
+
+  // Play a blip when a NEW notification arrives. Seed on mount so pre-existing
+  // (already-shown) notifications don't all sound at once on load.
+  const soundedRef = useRef<Set<string> | null>(null);
+  const current = [popup, ...queue, ...dockItems].filter(
+    (n): n is NotificationItem => Boolean(n)
+  );
+  const idSig = current.map((n) => n.id).join("|");
+  useEffect(() => {
+    if (soundedRef.current === null) {
+      soundedRef.current = new Set(current.map((n) => n.id));
+      return;
+    }
+    for (const n of current) {
+      if (!soundedRef.current.has(n.id)) {
+        soundedRef.current.add(n.id);
+        playInboxSound(n.priority);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idSig]);
 
   useEffect(() => {
     if (!popup) {
