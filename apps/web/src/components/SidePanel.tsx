@@ -5,6 +5,7 @@ import { RoomPanel } from "./RoomPanel.js";
 import { X } from "lucide-react";
 import { GlassPanel } from "./primitives/GlassPanel.js";
 import { FONT_MONO } from "../theme/tokens.js";
+import { usePanelZ } from "../hooks/usePanelZ.js";
 
 const MIN_W = 260;
 const MAX_W = 560;
@@ -13,6 +14,7 @@ export function SidePanel() {
   const selection = useBusStore((s) => s.selection);
   const setSelection = useBusStore((s) => s.setSelection);
   const setSidePanelWidth = useBusStore((s) => s.setSidePanelWidth);
+  const panelZ = usePanelZ("sidePanel");
   const [width, setWidth] = useState(320);
   const startRef = useRef<{ mx: number; w: number } | null>(null);
 
@@ -52,6 +54,7 @@ export function SidePanel() {
       blur={22}
       saturate={160}
       className="flex flex-col"
+      onMouseDownCapture={panelZ.onMouseDownCapture}
       style={{
         position: "fixed",
         top: 48,
@@ -59,7 +62,7 @@ export function SidePanel() {
         // Stop above the 28px status ticker so the compose/POST row isn't covered
         bottom: 28,
         width,
-        zIndex: 50,
+        zIndex: panelZ.zIndex,
         borderLeft: "1px solid rgba(0,212,255,0.18)",
         boxShadow:
           "-2px 0 40px rgba(0,212,255,0.06), inset 1px 0 0 rgba(0,212,255,0.04)",

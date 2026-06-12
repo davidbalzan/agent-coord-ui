@@ -8,10 +8,12 @@ import { AddItemForm } from "./backlog/AddItemForm.js";
 import { DoneItemRow, QueueItemRow } from "./backlog/BacklogRows.js";
 import { actionBtnStyle, emptyStyle, iconBtnStyle } from "./backlog/styles.js";
 import { FONT_MONO, FONT_DISPLAY } from "../theme/tokens.js";
+import { usePanelZ } from "../hooks/usePanelZ.js";
 
 // ─── Main panel ───────────────────────────────────────────────────────────────
 
 export function BacklogPanel() {
+  const panelZ = usePanelZ("backlog");
   const backlogs = useBusStore((s) => s.backlogs);
   const fetchBacklogs = useBusStore((s) => s.fetchBacklogs);
   const saveBacklogQueue = useBusStore((s) => s.saveBacklogQueue);
@@ -132,6 +134,7 @@ export function BacklogPanel() {
   return (
     <GlassPanel
       background="linear-gradient(180deg, rgba(0,8,22,0.98) 0%, rgba(0,4,14,0.99) 100%)"
+      onMouseDownCapture={panelZ.onMouseDownCapture}
       style={{
         position: "fixed",
         top: 56,
@@ -142,7 +145,7 @@ export function BacklogPanel() {
         boxShadow: "-6px 0 40px rgba(0,212,255,0.07)",
         display: "flex",
         flexDirection: "column",
-        zIndex: 200,
+        zIndex: panelZ.zIndex,
       }}
     >
       {/* Header */}
