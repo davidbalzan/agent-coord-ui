@@ -4,6 +4,7 @@ import { useShallow } from "zustand/react/shallow";
 import { useBusStore } from "../store/bus.js";
 import { AgentActivityDot } from "./AgentActivityDot.js";
 import { HoloButton } from "./primitives/HoloButton.js";
+import { FONT_MONO, FONT_DISPLAY } from "../theme/tokens.js";
 
 interface Props {
   agentId: string;
@@ -53,7 +54,7 @@ export function DMPanel({ agentId }: Props) {
     return (
       <p
         style={{
-          fontFamily: "Share Tech Mono",
+          fontFamily: FONT_MONO,
           fontSize: "11px",
           color: "rgba(0,212,255,0.4)",
           padding: "16px",
@@ -105,7 +106,7 @@ export function DMPanel({ agentId }: Props) {
           <div>
             <div
               style={{
-                fontFamily: "Orbitron, sans-serif",
+                fontFamily: FONT_DISPLAY,
                 fontWeight: 600,
                 fontSize: "12px",
                 color: "#8ecfff",
@@ -120,7 +121,7 @@ export function DMPanel({ agentId }: Props) {
             </div>
             <div
               style={{
-                fontFamily: "Share Tech Mono",
+                fontFamily: FONT_MONO,
                 fontSize: "9px",
                 letterSpacing: "0.15em",
                 marginTop: "2px",
@@ -145,7 +146,7 @@ export function DMPanel({ agentId }: Props) {
         <div
           className="flex gap-4 mt-2"
           style={{
-            fontFamily: "Share Tech Mono",
+            fontFamily: FONT_MONO,
             fontSize: "9px",
             letterSpacing: "0.1em",
             color: "rgba(0,212,255,0.3)",
@@ -169,7 +170,7 @@ export function DMPanel({ agentId }: Props) {
         {msgs.length === 0 && (
           <p
             style={{
-              fontFamily: "Share Tech Mono",
+              fontFamily: FONT_MONO,
               fontSize: "10px",
               color: "rgba(0,212,255,0.25)",
               letterSpacing: "0.1em",
@@ -192,7 +193,7 @@ export function DMPanel({ agentId }: Props) {
             >
               <div
                 style={{
-                  fontFamily: "Share Tech Mono",
+                  fontFamily: FONT_MONO,
                   fontSize: "9px",
                   letterSpacing: "0.1em",
                   color: isOutgoing

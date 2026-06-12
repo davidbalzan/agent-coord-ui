@@ -11,6 +11,7 @@ import {
   dangerBtnStyle,
   cancelBtnStyle,
 } from "./launcher/ProgressCard.js";
+import { FONT_MONO } from "../theme/tokens.js";
 
 interface Props {
   onClose: () => void;
@@ -151,7 +152,7 @@ export function AgentLauncher({ onClose, prefill }: Props) {
               <div
                 style={{
                   marginTop: 4,
-                  fontFamily: "Share Tech Mono",
+                  fontFamily: FONT_MONO,
                   fontSize: 9,
                   color: "rgba(0,212,255,0.4)",
                   lineHeight: 1.5,
@@ -191,7 +192,7 @@ export function AgentLauncher({ onClose, prefill }: Props) {
               style={{
                 flex: 1,
                 padding: "4px 0",
-                fontFamily: "Share Tech Mono",
+                fontFamily: FONT_MONO,
                 fontSize: 9,
                 letterSpacing: "0.08em",
                 cursor: "pointer",
@@ -229,7 +230,7 @@ export function AgentLauncher({ onClose, prefill }: Props) {
             <div style={{ marginTop: 4 }}>
               <div
                 style={{
-                  fontFamily: "Share Tech Mono",
+                  fontFamily: FONT_MONO,
                   fontSize: 8,
                   color: "rgba(0,212,255,0.3)",
                   marginBottom: 3,
@@ -243,7 +244,7 @@ export function AgentLauncher({ onClose, prefill }: Props) {
                     key={g.id}
                     onClick={() => setSessionName(g.id)}
                     style={{
-                      fontFamily: "Share Tech Mono",
+                      fontFamily: FONT_MONO,
                       fontSize: 9,
                       padding: "1px 6px",
                       cursor: "pointer",
@@ -280,7 +281,7 @@ export function AgentLauncher({ onClose, prefill }: Props) {
             <div style={{ marginTop: 4 }}>
               <div
                 style={{
-                  fontFamily: "Share Tech Mono",
+                  fontFamily: FONT_MONO,
                   fontSize: 8,
                   color: "rgba(0,212,255,0.3)",
                   marginBottom: 3,
@@ -294,7 +295,7 @@ export function AgentLauncher({ onClose, prefill }: Props) {
                     key={g.id}
                     onClick={() => setPaneTarget(g.id)}
                     style={{
-                      fontFamily: "Share Tech Mono",
+                      fontFamily: FONT_MONO,
                       fontSize: 9,
                       padding: "1px 6px",
                       cursor: "pointer",
@@ -377,7 +378,7 @@ export function AgentLauncher({ onClose, prefill }: Props) {
               >
                 <div
                   style={{
-                    fontFamily: "Share Tech Mono",
+                    fontFamily: FONT_MONO,
                     fontSize: 10,
                     color: "#8ecfff",
                   }}

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useBusStore } from "../store/bus.js";
+import { FONT_MONO } from "../theme/tokens.js";
 
 interface Props {
   paneId: string; // "pane:session:window.pane" — strip prefix before use
@@ -39,7 +40,7 @@ export function PanePanel({ paneId }: Props) {
         style={{
           padding: "1rem",
           color: "#334466",
-          fontFamily: "Share Tech Mono, monospace",
+          fontFamily: FONT_MONO,
           fontSize: "0.8rem",
         }}
       >
@@ -78,7 +79,7 @@ export function PanePanel({ paneId }: Props) {
         <span
           style={{
             color: "#00ff41",
-            fontFamily: "Share Tech Mono, monospace",
+            fontFamily: FONT_MONO,
             fontSize: "0.7rem",
             letterSpacing: "0.1em",
           }}
@@ -98,7 +99,7 @@ export function PanePanel({ paneId }: Props) {
         <span
           style={{
             color: activityColor,
-            fontFamily: "Share Tech Mono, monospace",
+            fontFamily: FONT_MONO,
             fontSize: "0.65rem",
           }}
         >
@@ -128,7 +129,7 @@ export function PanePanel({ paneId }: Props) {
             <span
               style={{
                 color: "#334466",
-                fontFamily: "Share Tech Mono, monospace",
+                fontFamily: FONT_MONO,
                 fontSize: "0.6rem",
                 letterSpacing: "0.08em",
               }}
@@ -138,7 +139,7 @@ export function PanePanel({ paneId }: Props) {
             <span
               style={{
                 color: "#00d4ff",
-                fontFamily: "Share Tech Mono, monospace",
+                fontFamily: FONT_MONO,
                 fontSize: "0.72rem",
               }}
             >
@@ -159,7 +160,7 @@ export function PanePanel({ paneId }: Props) {
           background: "rgba(0,255,65,0.03)",
           border: "1px solid rgba(0,255,65,0.15)",
           borderRadius: 2,
-          fontFamily: "Share Tech Mono, monospace",
+          fontFamily: FONT_MONO,
           fontSize: "0.68rem",
           lineHeight: 1.5,
           color: "#a8ffb8",
@@ -189,7 +190,7 @@ export function PanePanel({ paneId }: Props) {
             borderRadius: 2,
             padding: "0.35rem 0.6rem",
             color: "#00ff41",
-            fontFamily: "Share Tech Mono, monospace",
+            fontFamily: FONT_MONO,
             fontSize: "0.75rem",
             outline: "none",
           }}
@@ -202,7 +203,7 @@ export function PanePanel({ paneId }: Props) {
             border: "1px solid rgba(0,255,65,0.4)",
             borderRadius: 2,
             color: "#00ff41",
-            fontFamily: "Share Tech Mono, monospace",
+            fontFamily: FONT_MONO,
             fontSize: "0.72rem",
             cursor: "pointer",
             letterSpacing: "0.08em",

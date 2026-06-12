@@ -3,6 +3,7 @@ import { useShallow } from "zustand/react/shallow";
 import { MdMessage } from "./MdMessage.js";
 import { useBusStore, roomMessages } from "../store/bus.js";
 import { HoloButton } from "./primitives/HoloButton.js";
+import { FONT_MONO, FONT_DISPLAY } from "../theme/tokens.js";
 
 const STATUS_COLOR: Record<string, string> = {
   active: "#00ff88",
@@ -37,7 +38,7 @@ export function RoomPanel({ roomId }: Props) {
     return (
       <p
         style={{
-          fontFamily: "Share Tech Mono",
+          fontFamily: FONT_MONO,
           fontSize: "11px",
           color: "rgba(0,212,255,0.4)",
           padding: "16px",
@@ -72,7 +73,7 @@ export function RoomPanel({ roomId }: Props) {
           </span>
           <span
             style={{
-              fontFamily: "Orbitron, sans-serif",
+              fontFamily: FONT_DISPLAY,
               fontWeight: 600,
               fontSize: "12px",
               color: "#8ecfff",
@@ -85,7 +86,7 @@ export function RoomPanel({ roomId }: Props) {
         {room.topic && (
           <p
             style={{
-              fontFamily: "Share Tech Mono",
+              fontFamily: FONT_MONO,
               fontSize: "10px",
               color: "rgba(0,212,255,0.4)",
               marginTop: "4px",
@@ -97,7 +98,7 @@ export function RoomPanel({ roomId }: Props) {
         )}
         <p
           style={{
-            fontFamily: "Share Tech Mono",
+            fontFamily: FONT_MONO,
             fontSize: "9px",
             color: "rgba(0,212,255,0.3)",
             marginTop: "4px",
@@ -122,7 +123,7 @@ export function RoomPanel({ roomId }: Props) {
               onMouseEnter={() => setHoveredAgentId(id)}
               onMouseLeave={() => setHoveredAgentId(null)}
               style={{
-                fontFamily: "Share Tech Mono",
+                fontFamily: FONT_MONO,
                 fontSize: "9px",
                 letterSpacing: "0.08em",
                 color,
@@ -150,7 +151,7 @@ export function RoomPanel({ roomId }: Props) {
         {msgs.length === 0 && (
           <p
             style={{
-              fontFamily: "Share Tech Mono",
+              fontFamily: FONT_MONO,
               fontSize: "10px",
               color: "rgba(0,212,255,0.25)",
               letterSpacing: "0.1em",
@@ -171,7 +172,7 @@ export function RoomPanel({ roomId }: Props) {
               onMouseEnter={() => setHoveredAgentId(m.from)}
               onMouseLeave={() => setHoveredAgentId(null)}
               style={{
-                fontFamily: "Share Tech Mono",
+                fontFamily: FONT_MONO,
                 fontSize: "9px",
                 color: "#7b6fff",
                 letterSpacing: "0.1em",

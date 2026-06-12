@@ -7,6 +7,7 @@ import { SectionLabel } from "./primitives/SectionLabel.js";
 import { AddItemForm } from "./backlog/AddItemForm.js";
 import { DoneItemRow, QueueItemRow } from "./backlog/BacklogRows.js";
 import { actionBtnStyle, emptyStyle, iconBtnStyle } from "./backlog/styles.js";
+import { FONT_MONO, FONT_DISPLAY } from "../theme/tokens.js";
 
 // ─── Main panel ───────────────────────────────────────────────────────────────
 
@@ -166,7 +167,7 @@ export function BacklogPanel() {
         >
           <span
             style={{
-              fontFamily: "Share Tech Mono, monospace",
+              fontFamily: FONT_MONO,
               fontSize: 9,
               color: "rgba(255,170,0,0.6)",
               letterSpacing: "0.15em",
@@ -177,7 +178,7 @@ export function BacklogPanel() {
           </span>
           <span
             style={{
-              fontFamily: "Orbitron, sans-serif",
+              fontFamily: FONT_DISPLAY,
               fontSize: 11,
               letterSpacing: "0.18em",
               color: "#00d4ff",
@@ -192,7 +193,7 @@ export function BacklogPanel() {
           {!editMode && (
             <span
               style={{
-                fontFamily: "Share Tech Mono, monospace",
+                fontFamily: FONT_MONO,
                 fontSize: 8,
                 color: "rgba(0,212,255,0.3)",
                 letterSpacing: "0.1em",
@@ -205,7 +206,7 @@ export function BacklogPanel() {
           {editMode && (
             <span
               style={{
-                fontFamily: "Share Tech Mono, monospace",
+                fontFamily: FONT_MONO,
                 fontSize: 8,
                 color: "rgba(255,170,0,0.7)",
                 letterSpacing: "0.1em",
@@ -307,7 +308,7 @@ export function BacklogPanel() {
                         : "rgba(0,255,136,0.08)",
                       border: "1px solid rgba(0,255,136,0.3)",
                       color: pruning ? "rgba(0,255,136,0.35)" : "#00ff88",
-                      fontFamily: "Share Tech Mono, monospace",
+                      fontFamily: FONT_MONO,
                       fontSize: 8,
                       letterSpacing: "0.12em",
                       padding: "2px 10px",
@@ -351,7 +352,7 @@ export function BacklogPanel() {
                 <span
                   style={{
                     marginLeft: 10,
-                    fontFamily: "Share Tech Mono, monospace",
+                    fontFamily: FONT_MONO,
                     fontSize: 8,
                     color: "rgba(0,212,255,0.2)",
                     letterSpacing: "0.1em",

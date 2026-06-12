@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { GlassPanel } from "../primitives/GlassPanel.js";
+import { FONT_MONO, FONT_DISPLAY } from "../../theme/tokens.js";
 
 export function LauncherShell({
   onClose,
@@ -41,7 +42,7 @@ export function LauncherShell({
       >
         <span
           style={{
-            fontFamily: "Orbitron, sans-serif",
+            fontFamily: FONT_DISPLAY,
             fontWeight: 700,
             fontSize: 10,
             letterSpacing: "0.2em",
@@ -58,7 +59,7 @@ export function LauncherShell({
             border: "none",
             cursor: "pointer",
             color: "rgba(0,212,255,0.5)",
-            fontFamily: "Share Tech Mono",
+            fontFamily: FONT_MONO,
             fontSize: 14,
             lineHeight: 1,
             padding: "2px 4px",

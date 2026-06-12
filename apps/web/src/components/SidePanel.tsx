@@ -4,6 +4,7 @@ import { DMPanel } from "./DMPanel.js";
 import { RoomPanel } from "./RoomPanel.js";
 import { X } from "lucide-react";
 import { GlassPanel } from "./primitives/GlassPanel.js";
+import { FONT_MONO } from "../theme/tokens.js";
 
 const MIN_W = 260;
 const MAX_W = 560;
@@ -155,7 +156,7 @@ export function SidePanel() {
       >
         <span
           style={{
-            fontFamily: "Share Tech Mono",
+            fontFamily: FONT_MONO,
             fontSize: "9px",
             letterSpacing: "0.2em",
             color: "rgba(0,212,255,0.5)",

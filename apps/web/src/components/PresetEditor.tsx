@@ -2,6 +2,7 @@ import { useState, useCallback } from "react";
 import type { AgentPreset, AgentRole } from "@coord-ui/shared";
 import { useBusStore } from "../store/bus.js";
 import { HoloButton } from "./primitives/HoloButton.js";
+import { FONT_MONO, FONT_DISPLAY } from "../theme/tokens.js";
 
 const API_BASE = "/api/agents/presets";
 
@@ -135,7 +136,7 @@ export function PresetEditor({ onBack }: Props) {
             border: "none",
             cursor: "pointer",
             color: "rgba(0,212,255,0.6)",
-            fontFamily: "Share Tech Mono",
+            fontFamily: FONT_MONO,
             fontSize: 11,
             padding: 0,
           }}
@@ -144,7 +145,7 @@ export function PresetEditor({ onBack }: Props) {
         </button>
         <span
           style={{
-            fontFamily: "Orbitron, sans-serif",
+            fontFamily: FONT_DISPLAY,
             fontSize: 9,
             letterSpacing: "0.2em",
             color: "#00d4ff",
@@ -170,7 +171,7 @@ export function PresetEditor({ onBack }: Props) {
             padding: "4px 8px",
             background: "rgba(255,51,51,0.08)",
             border: "1px solid rgba(255,51,51,0.3)",
-            fontFamily: "Share Tech Mono",
+            fontFamily: FONT_MONO,
             fontSize: 9,
             color: "#ff3333",
           }}
@@ -185,7 +186,7 @@ export function PresetEditor({ onBack }: Props) {
           {presets.length === 0 && (
             <div
               style={{
-                fontFamily: "Share Tech Mono",
+                fontFamily: FONT_MONO,
                 fontSize: 10,
                 color: "rgba(0,212,255,0.3)",
                 textAlign: "center",
@@ -209,7 +210,7 @@ export function PresetEditor({ onBack }: Props) {
               <div>
                 <div
                   style={{
-                    fontFamily: "Share Tech Mono",
+                    fontFamily: FONT_MONO,
                     fontSize: 10,
                     color: "#8ecfff",
                   }}
@@ -218,7 +219,7 @@ export function PresetEditor({ onBack }: Props) {
                 </div>
                 <div
                   style={{
-                    fontFamily: "Share Tech Mono",
+                    fontFamily: FONT_MONO,
                     fontSize: 8,
                     color: "rgba(0,212,255,0.3)",
                     letterSpacing: "0.08em",
@@ -306,7 +307,7 @@ export function PresetEditor({ onBack }: Props) {
                   style={{
                     flex: 1,
                     padding: "3px 0",
-                    fontFamily: "Share Tech Mono",
+                    fontFamily: FONT_MONO,
                     fontSize: 9,
                     cursor: "pointer",
                     border: `1px solid ${form.role === r ? "rgba(0,212,255,0.8)" : "rgba(0,212,255,0.2)"}`,
@@ -382,7 +383,7 @@ export function PresetEditor({ onBack }: Props) {
             />
             <div
               style={{
-                fontFamily: "Share Tech Mono",
+                fontFamily: FONT_MONO,
                 fontSize: 8,
                 color: "rgba(0,212,255,0.3)",
                 marginTop: 3,
@@ -424,7 +425,7 @@ function FormRow({
     <div style={{ marginBottom: 6 }}>
       <div
         style={{
-          fontFamily: "Share Tech Mono",
+          fontFamily: FONT_MONO,
           fontSize: 8,
           letterSpacing: "0.18em",
           color: "rgba(0,212,255,0.4)",
@@ -439,7 +440,7 @@ function FormRow({
 }
 
 const dangerBtnStyle: React.CSSProperties = {
-  fontFamily: "Share Tech Mono",
+  fontFamily: FONT_MONO,
   fontSize: 9,
   letterSpacing: "0.08em",
   padding: "2px 8px",
@@ -450,7 +451,7 @@ const dangerBtnStyle: React.CSSProperties = {
 };
 
 const cancelBtnStyle: React.CSSProperties = {
-  fontFamily: "Share Tech Mono",
+  fontFamily: FONT_MONO,
   fontSize: 9,
   letterSpacing: "0.08em",
   padding: "2px 8px",

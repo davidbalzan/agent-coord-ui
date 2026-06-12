@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useMemo } from "react";
 import { useBusStore, davidGlobalUnread } from "../store/bus.js";
 import { AgentLauncher } from "./AgentLauncher.js";
 import { HoloButton } from "./primitives/HoloButton.js";
+import { FONT_MONO, FONT_DISPLAY } from "../theme/tokens.js";
 
 export function HUD() {
   const agentsMap = useBusStore((s) => s.agents);
@@ -70,7 +71,7 @@ export function HUD() {
           <span
             style={{
               color: "rgba(0,212,255,0.5)",
-              fontFamily: "Share Tech Mono",
+              fontFamily: FONT_MONO,
               fontSize: "14px",
             }}
           >
@@ -79,7 +80,7 @@ export function HUD() {
           <div>
             <div
               style={{
-                fontFamily: "Orbitron, sans-serif",
+                fontFamily: FONT_DISPLAY,
                 fontWeight: 700,
                 fontSize: "11px",
                 letterSpacing: "0.2em",
@@ -92,7 +93,7 @@ export function HUD() {
             </div>
             <div
               style={{
-                fontFamily: "Share Tech Mono",
+                fontFamily: FONT_MONO,
                 fontSize: "8px",
                 letterSpacing: "0.25em",
                 color: "rgba(0,212,255,0.45)",
@@ -106,7 +107,7 @@ export function HUD() {
           <span
             style={{
               color: "rgba(0,212,255,0.5)",
-              fontFamily: "Share Tech Mono",
+              fontFamily: FONT_MONO,
               fontSize: "14px",
             }}
           >
@@ -171,7 +172,7 @@ export function HUD() {
         >
           <span
             style={{
-              fontFamily: "Share Tech Mono",
+              fontFamily: FONT_MONO,
               fontSize: "9px",
               letterSpacing: "0.15em",
               color: "rgba(0,212,255,0.4)",
@@ -211,7 +212,7 @@ export function HUD() {
                   border: "none",
                   cursor: "pointer",
                   color: "rgba(0,212,255,0.5)",
-                  fontFamily: "Share Tech Mono",
+                  fontFamily: FONT_MONO,
                   fontSize: "11px",
                   lineHeight: 1,
                 }}
@@ -275,7 +276,7 @@ export function HUD() {
                       borderBottom: "1px solid rgba(0,212,255,0.07)",
                       cursor: "pointer",
                       textAlign: "left",
-                      fontFamily: "Share Tech Mono",
+                      fontFamily: FONT_MONO,
                       fontSize: "11px",
                       color: "rgba(0,212,255,0.85)",
                       letterSpacing: "0.06em",
@@ -341,7 +342,7 @@ export function HUD() {
                   right: -6,
                   background: "#ff4e4e",
                   color: "#fff",
-                  fontFamily: "Orbitron, sans-serif",
+                  fontFamily: FONT_DISPLAY,
                   fontWeight: 700,
                   fontSize: 7,
                   padding: "1px 4px",
@@ -375,7 +376,7 @@ export function HUD() {
           </HoloButton>
           <div
             style={{
-              fontFamily: "Share Tech Mono",
+              fontFamily: FONT_MONO,
               fontSize: "10px",
               color: "rgba(0,212,255,0.3)",
               letterSpacing: "0.08em",
@@ -538,7 +539,7 @@ function ArcGauge({
           textAnchor="middle"
           dominantBaseline="middle"
           style={{
-            fontFamily: "Orbitron, sans-serif",
+            fontFamily: FONT_DISPLAY,
             fontSize: "11px",
             fontWeight: 700,
             fill: color,
@@ -551,7 +552,7 @@ function ArcGauge({
 
       <span
         style={{
-          fontFamily: "Share Tech Mono",
+          fontFamily: FONT_MONO,
           fontSize: "8px",
           letterSpacing: "0.18em",
           color: "rgba(0,212,255,0.4)",

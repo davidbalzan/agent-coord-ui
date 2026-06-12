@@ -1,5 +1,6 @@
 import type { CSSProperties } from "react";
 import { STEPS, STEP_LABELS, type StepName } from "./types.js";
+import { FONT_MONO } from "../../theme/tokens.js";
 
 export function ProgressCard({
   prog,
@@ -37,7 +38,7 @@ export function ProgressCard({
       >
         <span
           style={{
-            fontFamily: "Share Tech Mono",
+            fontFamily: FONT_MONO,
             fontSize: 10,
             color: "#8ecfff",
           }}
@@ -93,7 +94,7 @@ export function ProgressCard({
         })}
         <span
           style={{
-            fontFamily: "Share Tech Mono",
+            fontFamily: FONT_MONO,
             fontSize: 8,
             letterSpacing: "0.1em",
             color: isError
@@ -111,7 +112,7 @@ export function ProgressCard({
       {prog.message && !isError && (
         <div
           style={{
-            fontFamily: "Share Tech Mono",
+            fontFamily: FONT_MONO,
             fontSize: 9,
             color: "rgba(0,212,255,0.4)",
             marginTop: 3,
@@ -123,7 +124,7 @@ export function ProgressCard({
       {isError && prog.error && (
         <div
           style={{
-            fontFamily: "Share Tech Mono",
+            fontFamily: FONT_MONO,
             fontSize: 9,
             color: "#ff3333",
             marginTop: 3,
@@ -135,7 +136,7 @@ export function ProgressCard({
       {prog.paneId && (
         <div
           style={{
-            fontFamily: "Share Tech Mono",
+            fontFamily: FONT_MONO,
             fontSize: 9,
             color: "rgba(0,212,255,0.3)",
             marginTop: 2,
@@ -149,7 +150,7 @@ export function ProgressCard({
 }
 
 export const dangerBtnStyle: CSSProperties = {
-  fontFamily: "Share Tech Mono",
+  fontFamily: FONT_MONO,
   fontSize: 9,
   letterSpacing: "0.08em",
   padding: "2px 8px",
@@ -160,7 +161,7 @@ export const dangerBtnStyle: CSSProperties = {
 };
 
 export const cancelBtnStyle: CSSProperties = {
-  fontFamily: "Share Tech Mono",
+  fontFamily: FONT_MONO,
   fontSize: 9,
   letterSpacing: "0.08em",
   padding: "2px 8px",
