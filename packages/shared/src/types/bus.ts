@@ -103,3 +103,56 @@ export interface PaneSendKeysPayload {
   paneId: string;
   keys: string; // raw text; newline = Enter
 }
+
+// ── Phase 7: interactive PTY bridge (xterm.js) ──────────────────────────────
+// Client → server control messages for a real, PTY-backed terminal view.
+// A pty attach gives full interactive shell access to the tmux session, so the
+// server MUST gate these on a loopback connection (same as spawn/teardown).
+// Keyed by paneId so one WS connection can drive several open terminals.
+
+export interface PtyAttachPayload {
+  type: "pty_attach";
+  paneId: string; // tmux pane id "session:window.pane"
+  cols: number;
+  rows: number;
+}
+
+export interface PtyInputPayload {
+  type: "pty_input";
+  paneId: string;
+  data: string; // raw bytes from xterm.js onData (keystrokes, escape seqs)
+}
+
+export interface PtyResizePayload {
+  type: "pty_resize";
+  paneId: string;
+  cols: number;
+  rows: number;
+}
+
+export interface PtyDetachPayload {
+  type: "pty_detach";
+  paneId: string;
+}
+
+export type PtyClientPayload =
+  | PtyAttachPayload
+  | PtyInputPayload
+  | PtyResizePayload
+  | PtyDetachPayload;
+
+// Server → client, sent ONLY on the requesting connection (not broadcast like
+// BusEvent — pty streams are per-viewer).
+export interface PtyDataEvent {
+  type: "pty_data";
+  paneId: string;
+  data: string; // raw bytes to feed xterm.write()
+}
+
+export interface PtyExitEvent {
+  type: "pty_exit";
+  paneId: string;
+  error?: string; // present when the attach failed or the pty died abnormally
+}
+
+export type PtyServerEvent = PtyDataEvent | PtyExitEvent;
