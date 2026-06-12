@@ -37,6 +37,9 @@ export function setupXrControllers({
 
   const pick = (controller: THREE.Object3D): THREE.Intersection | null => {
     raycaster.setFromXRController(controller as THREE.XRTargetRaySpace);
+    // Sprite.raycast (graph glow nodes) dereferences raycaster.camera to
+    // billboard the sprite — without it the first pick crashes the XR loop.
+    raycaster.camera = renderer.xr.getCamera();
     const targets = getTargets();
     if (targets.length === 0) return null;
     return raycaster.intersectObjects(targets, true)[0] ?? null;

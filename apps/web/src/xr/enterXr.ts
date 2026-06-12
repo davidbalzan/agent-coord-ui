@@ -127,6 +127,7 @@ export function wireXrSession(graph: XrGraphHandle): () => void {
       onHover: (hit) => cockpit?.handleHover(hit),
     });
 
+    let cockpitDead = false;
     renderer.setAnimationLoop(() => {
       // Advance the force sim + message particles, then the cosmetic
       // material tick (stale pulse / halos / waves) — window rAF can be
@@ -134,8 +135,17 @@ export function wireXrSession(graph: XrGraphHandle): () => void {
       // pumps it directly. Render bypasses the lib's composer (see above).
       forceGraphObj?.tickFrame();
       graphCosmeticTick.current?.();
-      controllers?.update();
-      cockpit?.update(renderer.xr.getCamera());
+      // Cockpit/controller failures must degrade to "no UI", never to
+      // "no frames" — an uncaught throw here kills the whole session.
+      if (!cockpitDead) {
+        try {
+          controllers?.update();
+          cockpit?.update(renderer.xr.getCamera());
+        } catch (err) {
+          cockpitDead = true;
+          console.error("[xr] cockpit update failed — disabling VR UI", err);
+        }
+      }
       renderer.render(scene, camera);
     });
   };
