@@ -68,7 +68,8 @@ async function isTmuxAvailable(): Promise<boolean> {
 }
 
 interface RawPane {
-  id: string;
+  id: string; // positional "session:window.pane" — used for tmux targeting
+  tmuxPaneId: string; // stable "%N" — survives reorg; how agents self-report
   pid: number;
   title: string;
   command: string;
@@ -99,6 +100,7 @@ async function listPanes(): Promise<RawPane[]> {
     "#{pane_top}",
     "#{pane_width}",
     "#{pane_height}",
+    "#{pane_id}",
   ].join("\t");
 
   try {
@@ -121,9 +123,11 @@ async function listPanes(): Promise<RawPane[]> {
           top,
           width,
           height,
+          tmuxPaneId,
         ] = line.split("\t");
         return {
           id: id ?? "",
+          tmuxPaneId: tmuxPaneId?.trim() ?? "",
           pid: parseInt(pid ?? "0", 10),
           title: title ?? "",
           command: command ?? "",
@@ -343,24 +347,24 @@ export class TmuxWatcher {
   }
 
   // Match a pane to a registered agent.
-  // Strategy 0: transport file (agent-reported tmuxTarget — authoritative, no false positives)
-  // Strategy 1: pane title (set by Claude Code / agent tooling — fast, reliable)
-  // Strategy 2: scan scrollback content (catches anything printed at startup)
-  // Longest ID first on strategies 1+2 to avoid "agent-1" matching before "agent-10".
+  // Strategy 0 (authoritative): the transport file keyed by the STABLE tmux
+  //   pane id (%N) that the agent itself reports on attach. No false positives,
+  //   and survives tmux window/pane renumbering (unlike the positional id).
+  // Strategy 1 (weak fallback): the pane title, when agent tooling sets it to
+  //   include the id. Longest id first so "agent-1" can't match before "agent-10".
+  // NOTE: the old scrollback-content scan was removed — it matched ANY pane that
+  //   merely printed an agent's name (e.g. a coordinator showing bus traffic),
+  //   which was the main source of misidentification.
   private matchAgent(
-    paneId: string,
+    tmuxPaneId: string,
     title: string,
-    lines: string[],
     agentIds: string[],
     transportMap: Map<string, string>
   ): string | undefined {
-    const fromTransport = transportMap.get(paneId);
+    const fromTransport = transportMap.get(tmuxPaneId);
     if (fromTransport && agentIds.includes(fromTransport)) return fromTransport;
     const sorted = [...agentIds].sort((a, b) => b.length - a.length);
-    const titleMatch = sorted.find((id) => title.includes(id));
-    if (titleMatch) return titleMatch;
-    const haystack = lines.join("\n");
-    return sorted.find((id) => haystack.includes(id));
+    return sorted.find((id) => title.includes(id));
   }
 
   async snapshot(agentIds?: string[]): Promise<PaneSnapshot[]> {
@@ -376,7 +380,7 @@ export class TmuxWatcher {
           ...raw,
           lastActivity: this.prev.get(raw.id)?.lastActivity ?? Date.now(),
           agentId: agentIds
-            ? this.matchAgent(raw.id, raw.title, lines, agentIds, transportMap)
+            ? this.matchAgent(raw.tmuxPaneId, raw.title, agentIds, transportMap)
             : undefined,
           lines,
         };
@@ -400,7 +404,7 @@ export class TmuxWatcher {
           ? lines.join("\n") !== prev.lines.join("\n")
           : true;
         const agentId = agentIds
-          ? this.matchAgent(raw.id, raw.title, lines, agentIds, transportMap)
+          ? this.matchAgent(raw.tmuxPaneId, raw.title, agentIds, transportMap)
           : undefined;
         return {
           snap: {

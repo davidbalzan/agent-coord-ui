@@ -76,6 +76,7 @@ function paneRow(
     pane?: number;
     active?: string;
     cwd?: string;
+    tmuxPaneId?: string;
   } = {}
 ): string {
   const d = {
@@ -88,6 +89,7 @@ function paneRow(
     pane: 0,
     active: "1",
     cwd: "/home/user",
+    tmuxPaneId: "%0",
     ...overrides,
   };
   // left top width height all zero — not relevant for these tests
@@ -105,6 +107,7 @@ function paneRow(
     0,
     220,
     50,
+    d.tmuxPaneId,
   ].join("\t");
 }
 
@@ -239,9 +242,12 @@ describe("TmuxWatcher — matchAgent strategies", () => {
     readdirFiles = ["agent-b.json"];
     readFileContents.set(
       `${TRANSPORT_DIR}/agent-b.json`,
-      JSON.stringify({ agentId: "agent-b", tmuxTarget: "main:0.0" })
+      JSON.stringify({ agentId: "agent-b", tmuxTarget: "%5" })
     );
-    setupExec([paneRow({ id: "main:0.0", title: "agent-a" })], "");
+    setupExec(
+      [paneRow({ id: "main:0.0", title: "agent-a", tmuxPaneId: "%5" })],
+      ""
+    );
 
     const events = await collectEvents(watcher, ["agent-a", "agent-b"]);
     expect(
@@ -254,9 +260,12 @@ describe("TmuxWatcher — matchAgent strategies", () => {
     readdirFiles = ["agent-unknown.json"];
     readFileContents.set(
       `${TRANSPORT_DIR}/agent-unknown.json`,
-      JSON.stringify({ agentId: "agent-unknown", tmuxTarget: "main:0.0" })
+      JSON.stringify({ agentId: "agent-unknown", tmuxTarget: "%5" })
     );
-    setupExec([paneRow({ id: "main:0.0", title: "agent-known" })], "");
+    setupExec(
+      [paneRow({ id: "main:0.0", title: "agent-known", tmuxPaneId: "%5" })],
+      ""
+    );
 
     const events = await collectEvents(watcher, ["agent-known"]);
     // Falls through to strategy 1 — title match
@@ -277,7 +286,8 @@ describe("TmuxWatcher — matchAgent strategies", () => {
     ).toBe("agent-foo");
   });
 
-  it("strategy 2: scrollback content match when title has no match", async () => {
+  it("scrollback content is NOT used for matching (dropped — false positives)", async () => {
+    // A pane that merely prints an agent's name must NOT be attributed to it.
     setupExec(
       [paneRow({ id: "main:0.0", title: "zsh" })],
       "starting agent-baz...\nready\n"
@@ -286,7 +296,7 @@ describe("TmuxWatcher — matchAgent strategies", () => {
     const events = await collectEvents(watcher, ["agent-baz"]);
     expect(
       (events[0] as Extract<BusEvent, { type: "pane_update" }>).pane.agentId
-    ).toBe("agent-baz");
+    ).toBeUndefined();
   });
 
   it("longest agent id matched first to avoid prefix collisions", async () => {
@@ -311,16 +321,22 @@ describe("TmuxWatcher — matchAgent strategies", () => {
 
   it("agentId changes when transport is updated between diffs", async () => {
     // First diff: no transport
-    setupExec([paneRow({ id: "main:0.0", title: "" })], "no agent here\n");
+    setupExec(
+      [paneRow({ id: "main:0.0", title: "", tmuxPaneId: "%7" })],
+      "no agent here\n"
+    );
     await collectEvents(watcher, ["agent-q"]);
 
-    // Second diff: transport file now maps pane to agent-q
+    // Second diff: transport file now maps the pane (by stable %N) to agent-q
     readdirFiles = ["agent-q.json"];
     readFileContents.set(
       `${TRANSPORT_DIR}/agent-q.json`,
-      JSON.stringify({ agentId: "agent-q", tmuxTarget: "main:0.0" })
+      JSON.stringify({ agentId: "agent-q", tmuxTarget: "%7" })
     );
-    setupExec([paneRow({ id: "main:0.0", title: "" })], "no agent here\n");
+    setupExec(
+      [paneRow({ id: "main:0.0", title: "", tmuxPaneId: "%7" })],
+      "no agent here\n"
+    );
     const events = await collectEvents(watcher, ["agent-q"]);
 
     // agentId changed from undefined → "agent-q" → pane_update emitted
