@@ -24,6 +24,9 @@ const STATUS_LABEL: Record<string, string> = {
   unknown: "UNKNOWN",
 };
 
+// Only paint the most recent messages — older history stays in the store.
+const MAX_DM_MESSAGES = 150;
+
 export function DMPanel({ agentId }: Props) {
   const [draft, setDraft] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -51,9 +54,16 @@ export function DMPanel({ agentId }: Props) {
     )
   );
 
+  // Jump instantly when switching to a different agent; animate only for a new
+  // message in the agent you're already viewing.
+  const prevAgentRef = useRef(agentId);
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [msgs.length]);
+    const agentChanged = prevAgentRef.current !== agentId;
+    prevAgentRef.current = agentId;
+    bottomRef.current?.scrollIntoView({
+      behavior: agentChanged ? "auto" : "smooth",
+    });
+  }, [agentId, msgs.length]);
 
   if (!agent)
     return (
@@ -198,7 +208,21 @@ export function DMPanel({ agentId }: Props) {
             {"// SECURE CHANNEL OPEN — NO TRANSMISSIONS"}
           </p>
         )}
-        {msgs.map((m) => {
+        {msgs.length > MAX_DM_MESSAGES && (
+          <p
+            style={{
+              fontFamily: FONT_MONO,
+              fontSize: 9,
+              letterSpacing: "0.1em",
+              color: "rgba(0,212,255,0.3)",
+              textAlign: "center",
+              margin: "0 0 6px",
+            }}
+          >
+            · showing the latest {MAX_DM_MESSAGES} of {msgs.length} ·
+          </p>
+        )}
+        {msgs.slice(-MAX_DM_MESSAGES).map((m) => {
           // outgoing = sent BY the viewed agent; incoming = received by them
           const isOutgoing = m.from === agentId;
           return (
