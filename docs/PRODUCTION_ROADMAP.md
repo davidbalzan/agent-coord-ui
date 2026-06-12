@@ -237,11 +237,13 @@ aliases: ["Roadmap", "PRODUCTION_ROADMAP"]
 
 1. **"Open terminal" button in the Inbox + Agent panels** (~1–2 hours · LOW complexity) — Add a button on each agent's row/header in `InboxPanel.tsx` and the agent panel (`SidePanel`/`DMPanel`) that opens that agent's live terminal. Resolve the agent's pane (`Object.values(panes).find(p => p.agentId === id)`) and call `setPaneSelection(pane.id)` — the `FloatingTerminal` already opens on `paneSelection`. Disable/hide when the agent has no matched pane. (Pairs naturally with the Phase 7 PTY terminal.)
 
-2. ~~**Stale node pulse**~~ — _done._
+2. **"Open in inbox" action on notifications** (~1 hour · LOW complexity) — On each notification (popup + action dock in `NotificationLayer.tsx`), add an action — alongside Ack/Dismiss — that opens the inbox to that message's thread. The store already has the wiring: `setInboxOpen(true)` + `setActiveInboxThread(notification.from)` (optionally mark-read). Lets David jump from an alert straight into the conversation instead of only acknowledging it.
 
-3. ~~**Filter input in HUD**~~ — _done (HUD `nameFilter`)._
+3. ~~**Stale node pulse**~~ — _done._
 
-4. ~~**DM edge click**~~ — _done (`onLinkClick` in `Graph3D`)._
+4. ~~**Filter input in HUD**~~ — _done (HUD `nameFilter`)._
+
+5. ~~**DM edge click**~~ — _done (`onLinkClick` in `Graph3D`)._
 
 ---
 
