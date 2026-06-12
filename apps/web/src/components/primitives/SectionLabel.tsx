@@ -1,4 +1,5 @@
 import type { HTMLAttributes } from "react";
+import { FONT_MONO } from "../../theme/tokens.js";
 
 interface SectionLabelProps extends HTMLAttributes<HTMLDivElement> {
   color?: string;
@@ -12,7 +13,7 @@ export function SectionLabel({
   return (
     <div
       style={{
-        fontFamily: "Share Tech Mono, monospace",
+        fontFamily: FONT_MONO,
         fontSize: 9,
         letterSpacing: "0.2em",
         color,

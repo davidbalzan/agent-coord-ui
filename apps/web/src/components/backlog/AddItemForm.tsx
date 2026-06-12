@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
 import type { BacklogQueueItem } from "@coord-ui/shared";
 import { PRIORITY_COLOR } from "./styles.js";
+import { FONT_MONO } from "../../theme/tokens.js";
 
 export function AddItemForm({
   onAdd,
@@ -31,7 +32,7 @@ export function AddItemForm({
     >
       <div
         style={{
-          fontFamily: "Share Tech Mono, monospace",
+          fontFamily: FONT_MONO,
           fontSize: 9,
           letterSpacing: "0.15em",
           color: "rgba(0,212,255,0.4)",
@@ -49,7 +50,7 @@ export function AddItemForm({
             background: "rgba(0,8,22,0.95)",
             border: `1px solid ${PRIORITY_COLOR[priority]}`,
             color: PRIORITY_COLOR[priority],
-            fontFamily: "Share Tech Mono, monospace",
+            fontFamily: FONT_MONO,
             fontSize: 10,
             padding: "3px 6px",
             borderRadius: 2,
@@ -76,7 +77,7 @@ export function AddItemForm({
             background: "rgba(0,8,22,0.9)",
             border: "1px solid rgba(0,212,255,0.25)",
             color: "rgba(0,212,255,0.9)",
-            fontFamily: "Share Tech Mono, monospace",
+            fontFamily: FONT_MONO,
             fontSize: 12,
             padding: "4px 8px",
             resize: "vertical",
@@ -93,7 +94,7 @@ export function AddItemForm({
               : "rgba(0,212,255,0.03)",
             border: "1px solid rgba(0,212,255,0.3)",
             color: text.trim() ? "#00d4ff" : "rgba(0,212,255,0.25)",
-            fontFamily: "Share Tech Mono, monospace",
+            fontFamily: FONT_MONO,
             fontSize: 10,
             padding: "4px 12px",
             borderRadius: 2,

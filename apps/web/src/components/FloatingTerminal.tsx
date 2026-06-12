@@ -11,6 +11,7 @@ const ansiConverter = new AnsiToHtml({
 });
 import type { PaneSnapshot } from "@coord-ui/shared";
 import { useResizeHandle, cornerHandle } from "../hooks/useResize.js";
+import { FONT_MONO } from "../theme/tokens.js";
 
 const W = 660;
 const H = 400;
@@ -71,7 +72,7 @@ function TitleBar({
       {/* Session label */}
       <span
         style={{
-          fontFamily: "Share Tech Mono, monospace",
+          fontFamily: FONT_MONO,
           fontSize: "0.66rem",
           letterSpacing: "0.07em",
           color: "rgba(0,255,65,0.55)",
@@ -110,7 +111,7 @@ function TitleBar({
           </button>
           <span
             style={{
-              fontFamily: "Share Tech Mono, monospace",
+              fontFamily: FONT_MONO,
               fontSize: "0.6rem",
               color: "rgba(0,255,65,0.45)",
               minWidth: 28,
@@ -134,7 +135,7 @@ function TitleBar({
       {/* Activity */}
       <span
         style={{
-          fontFamily: "Share Tech Mono, monospace",
+          fontFamily: FONT_MONO,
           fontSize: "0.6rem",
           color: actColor,
           flexShrink: 0,
@@ -173,7 +174,7 @@ const navBtn: React.CSSProperties = {
   border: "1px solid rgba(0,255,65,0.2)",
   borderRadius: 3,
   color: "rgba(0,255,65,0.6)",
-  fontFamily: "Share Tech Mono, monospace",
+  fontFamily: FONT_MONO,
   fontSize: "0.75rem",
   lineHeight: 1,
   cursor: "pointer",
@@ -341,7 +342,7 @@ export function FloatingTerminal() {
               <span
                 style={{
                   flex: 1,
-                  fontFamily: "Share Tech Mono, monospace",
+                  fontFamily: FONT_MONO,
                   fontSize: "0.64rem",
                   color: "rgba(0,255,65,0.3)",
                   overflow: "hidden",
@@ -520,7 +521,7 @@ export function FloatingTerminal() {
               margin: 0,
               padding: "8px 14px 4px",
               overflowY: "auto",
-              fontFamily: "Share Tech Mono, monospace",
+              fontFamily: FONT_MONO,
               fontSize: "0.71rem",
               lineHeight: 1.5,
               color: "#33ff66",
@@ -551,7 +552,7 @@ export function FloatingTerminal() {
         >
           <span
             style={{
-              fontFamily: "Share Tech Mono, monospace",
+              fontFamily: FONT_MONO,
               fontSize: "0.71rem",
               color: "rgba(0,255,65,0.5)",
               userSelect: "none",
@@ -580,7 +581,7 @@ export function FloatingTerminal() {
               border: "none",
               outline: "none",
               color: "#33ff66",
-              fontFamily: "Share Tech Mono, monospace",
+              fontFamily: FONT_MONO,
               fontSize: "0.71rem",
               caretColor: "#33ff66",
               padding: "0 6px",
@@ -596,7 +597,7 @@ export function FloatingTerminal() {
               border: "none",
               borderLeft: "1px solid rgba(0,255,65,0.1)",
               color: "rgba(0,255,65,0.6)",
-              fontFamily: "Share Tech Mono, monospace",
+              fontFamily: FONT_MONO,
               fontSize: "0.8rem",
               cursor: "pointer",
             }}

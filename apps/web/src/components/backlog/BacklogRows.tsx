@@ -1,12 +1,13 @@
 import type { BacklogQueueItem, BacklogDoneItem } from "@coord-ui/shared";
 import { PRIORITY_COLOR, reorderBtnStyle } from "./styles.js";
+import { FONT_MONO } from "../../theme/tokens.js";
 
 function PriorityBadge({ p }: { p: string }) {
   const color = PRIORITY_COLOR[p] ?? "#00d4ff";
   return (
     <span
       style={{
-        fontFamily: "Share Tech Mono, monospace",
+        fontFamily: FONT_MONO,
         fontSize: 10,
         letterSpacing: "0.12em",
         color,
@@ -74,7 +75,7 @@ export function QueueItemRow({
             background: "rgba(0,8,22,0.95)",
             border: `1px solid ${PRIORITY_COLOR[item.priority] ?? "#00d4ff"}`,
             color: PRIORITY_COLOR[item.priority] ?? "#00d4ff",
-            fontFamily: "Share Tech Mono, monospace",
+            fontFamily: FONT_MONO,
             fontSize: 10,
             padding: "1px 4px",
             borderRadius: 2,
@@ -99,7 +100,7 @@ export function QueueItemRow({
               background: "rgba(0,8,22,0.9)",
               border: "1px solid rgba(0,212,255,0.3)",
               color: "rgba(0,212,255,0.95)",
-              fontFamily: "Share Tech Mono, monospace",
+              fontFamily: FONT_MONO,
               fontSize: 13,
               lineHeight: 1.5,
               padding: "4px 8px",
@@ -111,7 +112,7 @@ export function QueueItemRow({
         ) : (
           <div
             style={{
-              fontFamily: "Share Tech Mono, monospace",
+              fontFamily: FONT_MONO,
               fontSize: 13,
               color: doneMatch ? "rgba(0,212,255,0.55)" : "rgba(0,212,255,0.9)",
               lineHeight: 1.5,
@@ -133,7 +134,7 @@ export function QueueItemRow({
           >
             <span
               style={{
-                fontFamily: "Share Tech Mono, monospace",
+                fontFamily: FONT_MONO,
                 fontSize: 8,
                 letterSpacing: "0.12em",
                 color: "#00ff88",
@@ -147,7 +148,7 @@ export function QueueItemRow({
             {doneMatch.ref && (
               <span
                 style={{
-                  fontFamily: "Share Tech Mono, monospace",
+                  fontFamily: FONT_MONO,
                   fontSize: 9,
                   color: "rgba(0,255,136,0.45)",
                 }}
@@ -158,7 +159,7 @@ export function QueueItemRow({
             {doneMatch.date && (
               <span
                 style={{
-                  fontFamily: "Share Tech Mono, monospace",
+                  fontFamily: FONT_MONO,
                   fontSize: 9,
                   color: "rgba(0,212,255,0.25)",
                 }}
@@ -179,7 +180,7 @@ export function QueueItemRow({
             background: "none",
             border: "1px solid rgba(0,255,136,0.25)",
             color: "rgba(0,255,136,0.55)",
-            fontFamily: "Share Tech Mono, monospace",
+            fontFamily: FONT_MONO,
             fontSize: 9,
             padding: "2px 8px",
             cursor: "pointer",
@@ -266,7 +267,7 @@ export function DoneItemRow({ item }: { item: BacklogDoneItem }) {
       <div style={{ flex: 1, minWidth: 0 }}>
         <div
           style={{
-            fontFamily: "Share Tech Mono, monospace",
+            fontFamily: FONT_MONO,
             fontSize: 12,
             color: "rgba(0,212,255,0.65)",
             textDecoration: "line-through",
@@ -281,7 +282,7 @@ export function DoneItemRow({ item }: { item: BacklogDoneItem }) {
             {item.ref && (
               <span
                 style={{
-                  fontFamily: "Share Tech Mono, monospace",
+                  fontFamily: FONT_MONO,
                   fontSize: 10,
                   color: "rgba(0,255,136,0.5)",
                   letterSpacing: "0.04em",
@@ -293,7 +294,7 @@ export function DoneItemRow({ item }: { item: BacklogDoneItem }) {
             {item.date && (
               <span
                 style={{
-                  fontFamily: "Share Tech Mono, monospace",
+                  fontFamily: FONT_MONO,
                   fontSize: 10,
                   color: "rgba(0,212,255,0.28)",
                 }}

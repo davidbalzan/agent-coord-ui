@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useBusStore } from "../store/bus.js";
+import { FONT_MONO } from "../theme/tokens.js";
 
 interface Props {
   nodeId: string;
@@ -383,7 +384,7 @@ export function NodeRadialMenu({
                   dominantBaseline="middle"
                   fontSize="20"
                   fill={`rgba(${rgb},${hovered ? 1 : 0.75})`}
-                  fontFamily="Share Tech Mono, monospace"
+                  fontFamily={FONT_MONO}
                   style={{
                     pointerEvents: "none",
                     transition: "fill 0.15s",
@@ -404,7 +405,7 @@ export function NodeRadialMenu({
                     fontSize="10"
                     letterSpacing="0.1em"
                     fill={`rgba(${rgb},${hovered ? 1 : 0.65})`}
-                    fontFamily="Share Tech Mono, monospace"
+                    fontFamily={FONT_MONO}
                     style={{
                       pointerEvents: "none",
                       transition: "fill 0.15s",
@@ -460,7 +461,7 @@ export function NodeRadialMenu({
           >
             <div
               style={{
-                fontFamily: "Share Tech Mono",
+                fontFamily: FONT_MONO,
                 fontSize: 10,
                 letterSpacing: "0.12em",
                 color: "#ff7070",
@@ -493,7 +494,7 @@ export function NodeRadialMenu({
 }
 
 const confirmStyle: React.CSSProperties = {
-  fontFamily: "Share Tech Mono, monospace",
+  fontFamily: FONT_MONO,
   fontSize: 9,
   letterSpacing: "0.1em",
   padding: "5px 12px",
@@ -504,7 +505,7 @@ const confirmStyle: React.CSSProperties = {
 };
 
 const cancelStyle: React.CSSProperties = {
-  fontFamily: "Share Tech Mono, monospace",
+  fontFamily: FONT_MONO,
   fontSize: 9,
   letterSpacing: "0.1em",
   padding: "5px 12px",

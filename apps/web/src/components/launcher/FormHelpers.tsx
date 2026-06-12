@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { FONT_MONO } from "../../theme/tokens.js";
 
 export function Section({
   label,
@@ -24,7 +25,7 @@ export function Label({ children }: { children: ReactNode }) {
   return (
     <div
       style={{
-        fontFamily: "Share Tech Mono",
+        fontFamily: FONT_MONO,
         fontSize: 8,
         letterSpacing: "0.2em",
         color: "rgba(0,212,255,0.4)",
@@ -47,7 +48,7 @@ export function Hint({
   return (
     <div
       style={{
-        fontFamily: "Share Tech Mono",
+        fontFamily: FONT_MONO,
         fontSize: 9,
         color,
         marginTop: 3,
