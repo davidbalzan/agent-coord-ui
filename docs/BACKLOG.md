@@ -27,3 +27,7 @@
 ## Done
 
 <!-- Coordinator appends completed items here with PR refs. Append-only. -->
+
+- [x] (P1) Phase 8 — shared-secret token on WS handshake + HTTP; reject unauthenticated before any pty\_\*, spawn/teardown, pane_send_keys, send_message — PR #54 · 2026-06-12
+- [x] (P1) Phase 8 — gate ALL privileged surfaces on auth (not just loopback); loopback kept as defense-in-depth — PR #54 · 2026-06-12
+- [x] (P1) Phase 8 — token provisioning + storage (AUTH_PASSWORD→JWT, client localStorage) with explicit "unauthorized" UX (AuthGate/LoginScreen), no silent fallback — PR #54 · 2026-06-12
