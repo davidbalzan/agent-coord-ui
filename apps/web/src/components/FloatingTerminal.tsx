@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import AnsiToHtml from "ansi-to-html";
 import { useBusStore } from "../store/bus.js";
 import { XtermPane, type PtyState } from "./terminal/XtermPane.js";
+import { usePanelZ } from "../hooks/usePanelZ.js";
 
 const ansiConverter = new AnsiToHtml({
   fg: "#33ff66",
@@ -189,6 +190,7 @@ export function FloatingTerminal() {
   const paneAnsi = useBusStore((s) => s.paneAnsi);
   const sendPaneKeys = useBusStore((s) => s.sendPaneKeys);
   const requestOutput = useBusStore((s) => s.requestPaneOutput);
+  const panelZ = usePanelZ("terminal");
 
   const activePane = paneSelection ? panesMap[paneSelection] : undefined;
 
@@ -311,6 +313,7 @@ export function FloatingTerminal() {
           <div
             key={p.id}
             onClick={() => setPaneSelection(p.id)}
+            onMouseDownCapture={panelZ.onMouseDownCapture}
             title={`${p.session} ${p.window}.${p.pane} — click to focus`}
             style={{
               position: "fixed",
@@ -318,7 +321,7 @@ export function FloatingTerminal() {
               top: rect.y + offset,
               width: rect.w,
               height: rect.h,
-              zIndex: 90 + (behind.length - depth),
+              zIndex: panelZ.zIndex + Math.min(9, behind.length - depth),
               borderRadius: 6,
               background: "rgba(0, 4, 12, 0.22)",
               backdropFilter: "blur(16px)",
@@ -377,13 +380,14 @@ export function FloatingTerminal() {
       <div
         className={lifting ? "terminal-lift" : ""}
         onAnimationEnd={() => setLifting(false)}
+        onMouseDownCapture={panelZ.onMouseDownCapture}
         style={{
           position: "fixed",
           left: rect.x,
           top: rect.y,
           width: rect.w,
           height: rect.h,
-          zIndex: 100,
+          zIndex: panelZ.zIndex + 10,
           display: "flex",
           flexDirection: "column",
           borderRadius: 6,

@@ -109,6 +109,10 @@ export interface BusState {
   notificationLastSeenMessageCount: number;
   /** Monotonically updated every 1s so activity selectors re-evaluate */
   nowTick: number;
+  /** Floating-panel stacking order — last entry renders on top. Clicking a
+   *  panel moves it to the end (bring-to-front). */
+  panelOrder: string[];
+  focusPanel: (id: string) => void;
   setSelection: (s: Selection | null) => void;
   setPaneSelection: (id: string | null) => void;
   setNameFilter: (f: string) => void;
@@ -340,6 +344,13 @@ export const useBusStore = create<BusState>((set) => {
     notificationLastSeenMessageId: null,
     notificationLastSeenMessageCount: 0,
     nowTick: Date.now(),
+    panelOrder: ["sidePanel", "backlog", "launcher", "inbox", "terminal"],
+    focusPanel: (id) =>
+      set((s) =>
+        s.panelOrder[s.panelOrder.length - 1] === id
+          ? {}
+          : { panelOrder: [...s.panelOrder.filter((p) => p !== id), id] }
+      ),
     setSelection: (selection) => set({ selection }),
     setPaneSelection: (paneSelection) => set({ paneSelection }),
     setNameFilter: (nameFilter) => set({ nameFilter }),

@@ -10,11 +10,13 @@ import { FONT_MONO, FONT_DISPLAY } from "../theme/tokens.js";
 import { GlassPanel } from "./primitives/GlassPanel.js";
 import { SeverityBadge } from "./primitives/SeverityBadge.js";
 import { HoloButton } from "./primitives/HoloButton.js";
+import { usePanelZ } from "../hooks/usePanelZ.js";
 
 const PANEL_WIDTH = 700;
 
 export function InboxPanel() {
   const inboxOpen = useBusStore((s) => s.inboxOpen);
+  const panelZ = usePanelZ("inbox");
   const setInboxOpen = useBusStore((s) => s.setInboxOpen);
   const activeThread = useBusStore((s) => s.activeInboxThread);
   const setActiveThread = useBusStore((s) => s.setActiveInboxThread);
@@ -45,6 +47,7 @@ export function InboxPanel() {
   return (
     <GlassPanel
       background="rgba(0,8,22,0.97)"
+      onMouseDownCapture={panelZ.onMouseDownCapture}
       style={{
         position: "fixed",
         top: 56,
@@ -54,7 +57,7 @@ export function InboxPanel() {
         borderLeft: "1px solid rgba(0,212,255,0.25)",
         display: "flex",
         flexDirection: "column",
-        zIndex: 500,
+        zIndex: panelZ.zIndex,
         boxShadow: "-4px 0 40px rgba(0,0,0,0.6)",
       }}
     >

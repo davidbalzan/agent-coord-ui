@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { GlassPanel } from "../primitives/GlassPanel.js";
 import { FONT_MONO, FONT_DISPLAY } from "../../theme/tokens.js";
+import { usePanelZ } from "../../hooks/usePanelZ.js";
 
 export function LauncherShell({
   onClose,
@@ -9,12 +10,14 @@ export function LauncherShell({
   onClose: () => void;
   children: ReactNode;
 }) {
+  const panelZ = usePanelZ("launcher");
   return (
     <GlassPanel
       background="rgba(0,8,22,0.55)"
       blur={20}
       saturate={180}
       cornerBrackets
+      onMouseDownCapture={panelZ.onMouseDownCapture}
       style={{
         position: "fixed",
         top: 64,
@@ -22,7 +25,7 @@ export function LauncherShell({
         width: 320,
         maxHeight: "calc(100vh - 96px)",
         overflowY: "auto",
-        zIndex: 200,
+        zIndex: panelZ.zIndex,
         display: "flex",
         flexDirection: "column",
         border: "1px solid rgba(0,212,255,0.2)",
