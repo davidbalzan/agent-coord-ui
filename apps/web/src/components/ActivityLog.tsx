@@ -181,6 +181,23 @@ export function ActivityLog() {
   const [now, setNow] = useState(() => Date.now());
   const lastSeenRef = useRef<LastSeenMessage | null>(null);
 
+  // Read agents/hover inside the append effect via refs so it depends only on
+  // `messages` (not on every agent heartbeat or hover toggle).
+  const agentsRef = useRef(agents);
+  agentsRef.current = agents;
+  const isHoveredRef = useRef(isHovered);
+  isHoveredRef.current = isHovered;
+
+  // Coalesce appends onto a single deferred setEntries. A burst of bus events
+  // at hydration (history replays as ~1.5k individual `message` events) used to
+  // drive one synchronous setEntries PER message inside this passive effect,
+  // and those nested updates tripped React's "Maximum update depth exceeded"
+  // guard. Buffering + flushing on a macrotask keeps the appends OFF the
+  // synchronous store-update cascade (a setTimeout boundary resets React's
+  // nested-update counter) while still firing when the tab is backgrounded.
+  const pendingRef = useRef<MessageSnapshot[]>([]);
+  const flushTimerRef = useRef<number | null>(null);
+
   useEffect(() => {
     const latestMessage = messages[messages.length - 1] ?? null;
 
@@ -200,17 +217,35 @@ export function ActivityLog() {
 
     if (nextMessages.length === 0) return;
 
-    const now = Date.now();
-    setEntries((current) => {
-      const nextEntries = appendActivityEntries(
-        current,
-        nextMessages,
-        agents,
-        now
-      );
-      return isHovered ? pauseActivityEntries(nextEntries, now) : nextEntries;
-    });
-  }, [agents, isHovered, messages]);
+    pendingRef.current.push(...nextMessages);
+    if (flushTimerRef.current != null) return;
+    flushTimerRef.current = window.setTimeout(() => {
+      flushTimerRef.current = null;
+      const batch = pendingRef.current;
+      pendingRef.current = [];
+      if (batch.length === 0) return;
+      const now = Date.now();
+      setEntries((current) => {
+        const nextEntries = appendActivityEntries(
+          current,
+          batch,
+          agentsRef.current,
+          now
+        );
+        return isHoveredRef.current
+          ? pauseActivityEntries(nextEntries, now)
+          : nextEntries;
+      });
+    }, 0);
+  }, [messages]);
+
+  useEffect(
+    () => () => {
+      if (flushTimerRef.current != null)
+        window.clearTimeout(flushTimerRef.current);
+    },
+    []
+  );
 
   useEffect(() => {
     if (entries.length === 0) return;
