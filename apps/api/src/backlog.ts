@@ -68,10 +68,15 @@ export async function getAgentRootsWithAgents(): Promise<
   return map;
 }
 
-// Queue: canonical format is - [ ] (P1) <task> [— refs/constraints (optional)]
-// Priority MUST be parenthesized: (P1) / (P2) / (P3).
-// Everything after priority is captured as text (no greedy split on prose em-dashes).
+// Queue item formats accepted (priority is always P1/P2/P3; group 1 = priority,
+// group 2 = task text — kept consistent across both regexes):
+//   canonical: - [ ] (P1) <task>   (empty checkbox + parenthesized priority)
+//   compact:   - [P1] <task>       (priority as the checkbox tag)
+// Canonical is preferred (see docs/BACKLOG.md); compact is tolerated so backlogs
+// written in the common "- [P1] …" style surface instead of loading empty.
+// Everything after the priority is captured as text (no greedy split on prose em-dashes).
 const QUEUE_RE = /^-\s+\[\s*\]\s+\((P[123])\)\s+(.+)$/;
+const QUEUE_RE_COMPACT = /^-\s+\[(P[123])\]\s+(.+)$/;
 
 // Done items are parsed procedurally — right-anchored — because task text can
 // contain em-dashes and · as prose punctuation, making left-anchored splits
@@ -126,13 +131,16 @@ export function parseBacklog(project: string, content: string): ProjectBacklog {
       section = "done";
       continue;
     }
-    if (/^##/.test(line)) {
+    // Only an h2 (exactly "## ") ends a section. h3+ (### …) are SUBSECTION
+    // headers within Queue/Done (e.g. "### Phase 2 — …") and must not reset it,
+    // or every item under a subsection is silently dropped.
+    if (/^##(?!#)/.test(line)) {
       section = null;
       continue;
     }
 
     if (section === "queue") {
-      const m = QUEUE_RE.exec(line);
+      const m = QUEUE_RE.exec(line) ?? QUEUE_RE_COMPACT.exec(line);
       if (m) {
         queue.push({
           priority: m[1] as BacklogPriority,

@@ -208,6 +208,36 @@ describe("parseBacklog — queue (real-file lines)", () => {
     expect(queue[0]!.refs).toBe("");
   });
 
+  it("parses the compact '- [P1] task' format (priority as checkbox tag)", () => {
+    const content = `## Queue\n- [P2] S5/S6 web — consensus pages — davidbalzan/edgewatch#15\n- [P3] S7 — long-tail prerender\n`;
+    const { queue } = parseBacklog("/repo", content);
+    expect(queue).toHaveLength(2);
+    expect(queue[0]).toMatchObject({
+      priority: "P2",
+      text: "S5/S6 web — consensus pages — davidbalzan/edgewatch#15",
+    });
+    expect(queue[1]).toMatchObject({ priority: "P3" });
+  });
+
+  it("handles canonical and compact formats mixed in one queue", () => {
+    const content = `## Queue\n- [ ] (P1) Canonical task\n- [P2] Compact task\n`;
+    const { queue } = parseBacklog("/repo", content);
+    expect(queue.map((q) => q.priority)).toEqual(["P1", "P2"]);
+  });
+
+  it("does NOT treat non-priority bracket tags as queue items", () => {
+    const content = `## Queue\n- [ops] deploy step\n- [research] open question\n- [P1] Real task\n`;
+    const { queue } = parseBacklog("/repo", content);
+    expect(queue).toHaveLength(1);
+    expect(queue[0]!.priority).toBe("P1");
+  });
+
+  it("stays in the queue section across ### subsection headers", () => {
+    const content = `## Queue\n### Phase 2 — active\n- [P1] task A\n### Phase 3\n- [P2] task B\n## Discovered\n- [P1] not a queue item\n`;
+    const { queue } = parseBacklog("/repo", content);
+    expect(queue.map((q) => q.priority)).toEqual(["P1", "P2"]);
+  });
+
   it("skips malformed queue lines without throwing", () => {
     const content = `## Queue\n- [ ] no priority here\n- [ ] (P1) Valid task\n`;
     const { queue } = parseBacklog("/repo", content);
