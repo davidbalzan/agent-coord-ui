@@ -1,0 +1,27 @@
+/* Agent Coord UI — design tokens extracted from apps/web/src/index.css @theme block */
+:root {
+  --color-surface: #000913;
+  --color-muted: #060f20;
+  --color-border: #0d2847;
+  --color-primary: #8ecfff;
+  --color-secondary: #4a9abe;
+  --color-tertiary: #1e4d7a;
+  --color-accent: #00d4ff;
+  --color-active: #00ff88;
+  --color-warning: #ff8c00;
+  --color-danger: #ff3333;
+  --color-room: #7b6fff;
+}
+
+/* Base reset for previews */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: var(--color-surface);
+  color: var(--color-primary);
+  font-family: "Exo 2", sans-serif;
+}

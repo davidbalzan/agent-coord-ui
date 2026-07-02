@@ -1,0 +1,15 @@
+{
+  "projectId": "418a853d-3253-44c4-b446-20fa30a0da7f",
+  "shape": "package",
+  "pkg": "@coord-ui/ui",
+  "globalName": "CoordUI",
+  "buildCmd": "pnpm -F \"@coord-ui/ui...\" build",
+  "cssEntry": "ds-compiled.css",
+  "runtimeFontPrefixes": [
+    "Exo 2",
+    "Orbitron",
+    "Share Tech Mono",
+    "JetBrainsMono Nerd Font"
+  ],
+  "readmeHeader": ".design-sync/conventions.md"
+}

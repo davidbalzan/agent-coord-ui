@@ -42,3 +42,10 @@ docs/.obsidian/core-plugins-migration.json
 
 # Ignore root .obsidian (vault is docs/, not root)
 /.obsidian/
+
+# Design sync
+.ds-sync/
+ds-bundle/
+.design-sync/.cache/
+.design-sync/learnings/
+.design-sync/node_modules
