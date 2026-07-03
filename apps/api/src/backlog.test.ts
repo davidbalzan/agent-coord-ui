@@ -8,38 +8,60 @@ let readFileContent: string | null = null;
 let readFileSequence: Array<string | null> = [];
 let readFileCallCount = 0;
 
+// readFileByPath: path-substring pattern → content (null → ENOENT). Checked
+// FIRST, without consuming the sequence counter — used by split-layout tests
+// where QUEUE.md / DONE.md / BACKLOG.md must resolve independently.
+const readFileByPath = new Map<string, string | null>();
+
+// access(): path-substring patterns that "exist"; everything else → ENOENT
+let existingPaths: string[] = [];
+
 // stat: sequence of identities; falls back to DEFAULT_IDENTITY when exhausted
 let statResponses: Array<{ mtimeMs: number; size: number }> = [];
 let statCallCount = 0;
 
 // write/rename tracking
 let writtenContents: string[] = [];
+let writtenPaths: string[] = [];
 let renameCallCount = 0;
+let renameTargets: string[] = [];
 
 const DEFAULT_IDENTITY = { mtimeMs: 1000, size: 500 };
 
+const enoent = () =>
+  Promise.reject(Object.assign(new Error("ENOENT"), { code: "ENOENT" }));
+
 vi.mock("node:fs/promises", () => ({
-  readFile: (_path: string, _enc: string) => {
+  readFile: (path: string, _enc: string) => {
+    for (const [pattern, content] of readFileByPath) {
+      if (String(path).includes(pattern)) {
+        return content === null ? enoent() : Promise.resolve(content);
+      }
+    }
     const idx = readFileCallCount++;
     const override = readFileSequence[idx];
     const content = override !== undefined ? override : readFileContent;
-    if (content === null)
-      return Promise.reject(
-        Object.assign(new Error("ENOENT"), { code: "ENOENT" })
-      );
+    if (content === null) return enoent();
     return Promise.resolve(content);
+  },
+  access: (path: string) => {
+    if (existingPaths.some((p) => String(path).includes(p)))
+      return Promise.resolve();
+    return enoent();
   },
   stat: (_path: string) => {
     const response = statResponses[statCallCount] ?? DEFAULT_IDENTITY;
     statCallCount++;
     return Promise.resolve(response);
   },
-  writeFile: (_path: string, content: string, _enc: string) => {
+  writeFile: (path: string, content: string, _enc: string) => {
     writtenContents.push(content as string);
+    writtenPaths.push(String(path));
     return Promise.resolve();
   },
-  rename: (_src: string, _dst: string) => {
+  rename: (_src: string, dst: string) => {
     renameCallCount++;
+    renameTargets.push(String(dst));
     return Promise.resolve();
   },
 }));
@@ -838,5 +860,204 @@ describe("rewriteQueueRegion — CAS write", () => {
     const result = await rewriteQueueRegion("/repo", NEW_ITEMS);
     expect(result.queue).toHaveLength(2);
     expect(renameCallCount).toBe(1);
+  });
+});
+
+// ─── Split QUEUE.md / DONE.md layout (queue-split proposal, agent-coordination#5) ──
+
+const QUEUE_FILE = `# QUEUE — proj
+
+## Queue
+
+- [ ] (P1) Split-file queue task
+`;
+
+const DONE_FILE = `# DONE — proj
+
+## Done
+
+- [x] Split-file done task — PR #9 · 2026-07-01
+`;
+
+const HEADERLESS_QUEUE = `- [ ] (P1) Headerless canonical task
+- [P2] Headerless compact task
+`;
+
+const HEADERLESS_DONE = `- [x] Headerless done task — PR #3 · 2026-06-30
+`;
+
+function resetSplitMocks() {
+  gitCommandResults.clear();
+  gitRootMap.clear();
+  readFileByPath.clear();
+  readFileContent = null;
+  readFileSequence = [];
+  readFileCallCount = 0;
+  existingPaths = [];
+  statResponses = [];
+  statCallCount = 0;
+  writtenContents = [];
+  writtenPaths = [];
+  renameCallCount = 0;
+  renameTargets = [];
+}
+
+describe("loadBacklog — split QUEUE.md/DONE.md layout", () => {
+  beforeEach(resetSplitMocks);
+
+  it("prefers QUEUE.md + DONE.md over legacy BACKLOG.md when both exist", async () => {
+    readFileByPath.set("QUEUE.md", QUEUE_FILE);
+    readFileByPath.set("DONE.md", DONE_FILE);
+    // Legacy present too — must NOT be consulted for either side
+    readFileByPath.set("BACKLOG.md", REAL_FIXTURE);
+    const backlog = await loadBacklog("/repo/split");
+    expect(backlog).not.toBeNull();
+    expect(backlog!.queue).toHaveLength(1);
+    expect(backlog!.queue[0]!.text).toBe("Split-file queue task");
+    expect(backlog!.done).toHaveLength(1);
+    expect(backlog!.done[0]!.ref).toBe("PR #9");
+    expect(backlog!.project).toBe("/repo/split");
+  });
+
+  it("legacy-only repo: reads both sides from BACKLOG.md (unchanged behavior)", async () => {
+    readFileByPath.set("QUEUE.md", null);
+    readFileByPath.set("DONE.md", null);
+    readFileByPath.set("BACKLOG.md", REAL_FIXTURE);
+    const backlog = await loadBacklog("/repo/legacy");
+    expect(backlog!.queue).toHaveLength(4);
+    expect(backlog!.done).toHaveLength(6);
+  });
+
+  it("mid-migration: only QUEUE.md exists → queue from it, done from legacy", async () => {
+    readFileByPath.set("QUEUE.md", QUEUE_FILE);
+    readFileByPath.set("DONE.md", null);
+    readFileByPath.set("BACKLOG.md", REAL_FIXTURE);
+    const backlog = await loadBacklog("/repo/mid");
+    expect(backlog!.queue).toHaveLength(1);
+    expect(backlog!.queue[0]!.text).toBe("Split-file queue task");
+    expect(backlog!.done).toHaveLength(6); // from legacy ## Done
+  });
+
+  it("mid-migration: only DONE.md exists → done from it, queue from legacy", async () => {
+    readFileByPath.set("QUEUE.md", null);
+    readFileByPath.set("DONE.md", DONE_FILE);
+    readFileByPath.set("BACKLOG.md", REAL_FIXTURE);
+    const backlog = await loadBacklog("/repo/mid");
+    expect(backlog!.queue).toHaveLength(4); // from legacy ## Queue
+    expect(backlog!.done).toHaveLength(1);
+    expect(backlog!.done[0]!.text).toBe("Split-file done task");
+  });
+
+  it("headerless QUEUE.md: items parsed as implied queue section (no silent-empty render)", async () => {
+    readFileByPath.set("QUEUE.md", HEADERLESS_QUEUE);
+    readFileByPath.set("DONE.md", null);
+    readFileByPath.set("BACKLOG.md", null);
+    const backlog = await loadBacklog("/repo/hq");
+    expect(backlog!.queue.map((q) => q.priority)).toEqual(["P1", "P2"]);
+    expect(backlog!.queue[0]!.text).toBe("Headerless canonical task");
+  });
+
+  it("headerless DONE.md: items parsed as implied done section", async () => {
+    readFileByPath.set("QUEUE.md", null);
+    readFileByPath.set("DONE.md", HEADERLESS_DONE);
+    readFileByPath.set("BACKLOG.md", null);
+    const backlog = await loadBacklog("/repo/hd");
+    expect(backlog!.done).toHaveLength(1);
+    expect(backlog!.done[0]!).toMatchObject({
+      text: "Headerless done task",
+      ref: "PR #3",
+      date: "2026-06-30",
+    });
+  });
+
+  it("QUEUE.md items never leak into done (and vice versa) in dedicated files", async () => {
+    // A dedicated file carrying BOTH headers still only contributes its side
+    readFileByPath.set("QUEUE.md", REAL_FIXTURE);
+    readFileByPath.set("DONE.md", null);
+    readFileByPath.set("BACKLOG.md", null);
+    const backlog = await loadBacklog("/repo/x");
+    expect(backlog!.queue).toHaveLength(4);
+    expect(backlog!.done).toHaveLength(0); // done side had no source
+  });
+
+  it("returns null when no backlog file exists in any layout", async () => {
+    readFileByPath.set("QUEUE.md", null);
+    readFileByPath.set("DONE.md", null);
+    readFileByPath.set("BACKLOG.md", null);
+    expect(await loadBacklog("/repo/none")).toBeNull();
+  });
+
+  it("reads each dedicated file from the default branch via git-show, with per-file working-copy fallback", async () => {
+    gitCommandResults.set(
+      "symbolic-ref --quiet refs/remotes/origin/HEAD",
+      "refs/remotes/origin/main\n"
+    );
+    gitCommandResults.set("show origin/main:docs/QUEUE.md", QUEUE_FILE);
+    gitCommandResults.set("show origin/main:docs/DONE.md", null); // absent on branch
+    readFileByPath.set("QUEUE.md", null); // working copy absent — branch wins anyway
+    readFileByPath.set("DONE.md", DONE_FILE); // working-copy fallback
+    readFileByPath.set("BACKLOG.md", null);
+    const backlog = await loadBacklog("/repo/git");
+    expect(backlog!.queue[0]!.text).toBe("Split-file queue task");
+    expect(backlog!.done[0]!.text).toBe("Split-file done task");
+  });
+});
+
+// ─── rewriteQueueRegion — split layout targeting ─────────────────────────────
+
+describe("rewriteQueueRegion — split layout", () => {
+  beforeEach(resetSplitMocks);
+
+  it("targets docs/QUEUE.md when it exists", async () => {
+    existingPaths = ["docs/QUEUE.md"];
+    readFileByPath.set("QUEUE.md", QUEUE_FILE);
+    const result = await rewriteQueueRegion("/repo", NEW_ITEMS);
+    expect(renameTargets).toHaveLength(1);
+    expect(renameTargets[0]!.endsWith("/repo/docs/QUEUE.md")).toBe(true);
+    expect(writtenPaths[0]!.endsWith("/repo/docs/QUEUE.md.tmp")).toBe(true);
+    expect(result.queue.map((q) => q.text)).toEqual([
+      "Updated task one",
+      "Brand new task",
+    ]);
+  });
+
+  it("QUEUE.md write merges the done side into the returned backlog", async () => {
+    existingPaths = ["docs/QUEUE.md"];
+    readFileByPath.set("QUEUE.md", QUEUE_FILE);
+    readFileByPath.set("DONE.md", DONE_FILE);
+    readFileByPath.set("BACKLOG.md", null);
+    const result = await rewriteQueueRegion("/repo", NEW_ITEMS);
+    expect(result.queue).toHaveLength(2);
+    expect(result.done).toHaveLength(1);
+    expect(result.done[0]!.text).toBe("Split-file done task");
+  });
+
+  it("headerless QUEUE.md: writes canonical ## Queue heading + items", async () => {
+    existingPaths = ["docs/QUEUE.md"];
+    readFileByPath.set("QUEUE.md", HEADERLESS_QUEUE);
+    const result = await rewriteQueueRegion("/repo", NEW_ITEMS);
+    const committed = writtenContents[writtenContents.length - 1]!;
+    expect(committed.startsWith("## Queue")).toBe(true);
+    expect(committed).toContain("- [ ] (P1) Updated task one");
+    expect(committed).toContain("- [ ] (P3) Brand new task");
+    expect(result.queue).toHaveLength(2);
+  });
+
+  it("falls back to legacy docs/BACKLOG.md when QUEUE.md is absent", async () => {
+    existingPaths = [];
+    readFileContent = BASE_BACKLOG;
+    const result = await rewriteQueueRegion("/repo", NEW_ITEMS);
+    expect(renameTargets[0]!.endsWith("/repo/docs/BACKLOG.md")).toBe(true);
+    const committed = writtenContents[writtenContents.length - 1]!;
+    expect(committed).toContain("## Done"); // legacy Done region preserved
+    expect(result.done).toHaveLength(1); // parsed from the same file, no extra read
+  });
+
+  it("legacy BACKLOG.md without a ## Queue section still throws (not implied)", async () => {
+    existingPaths = [];
+    readFileContent = "# BACKLOG\n\n## Done\n\n- [x] Old — r#1 · 2026-01-01\n";
+    await expect(rewriteQueueRegion("/repo", NEW_ITEMS)).rejects.toThrow(
+      /No ## Queue section found/
+    );
   });
 });
