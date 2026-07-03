@@ -1,5 +1,5 @@
 import { exec } from "node:child_process";
-import { readFile, writeFile, rename, stat } from "node:fs/promises";
+import { access, readFile, writeFile, rename, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import type {
@@ -192,20 +192,22 @@ export async function resolveDefaultRef(root: string): Promise<string | null> {
 }
 
 /**
- * Read docs/BACKLOG.md from the repo's default branch via git-show.
+ * Read a repo doc file from the repo's default branch via git-show.
  * Falls back to the working-copy file if the ref is unavailable or git fails.
- * Never throws.
+ * Never throws. `ref` may be passed to skip re-resolving the default branch.
  */
-export async function readBacklogContent(root: string): Promise<string | null> {
-  const workingCopyPath = join(root, "docs", "BACKLOG.md");
-
+async function readRepoDoc(
+  root: string,
+  relPath: string,
+  ref?: string | null
+): Promise<string | null> {
   // Attempt canonical default-branch read
-  const ref = await resolveDefaultRef(root);
-  if (ref) {
+  const resolvedRef = ref !== undefined ? ref : await resolveDefaultRef(root);
+  if (resolvedRef) {
     try {
       const esc = root.replace(/'/g, "'\\''");
       const { stdout } = await execAsync(
-        `git -C '${esc}' show ${ref}:docs/BACKLOG.md`
+        `git -C '${esc}' show ${resolvedRef}:${relPath}`
       );
       if (stdout) return stdout;
     } catch {
@@ -215,18 +217,71 @@ export async function readBacklogContent(root: string): Promise<string | null> {
 
   // Fallback: working-copy file
   try {
-    return await readFile(workingCopyPath, "utf8");
+    return await readFile(join(root, ...relPath.split("/")), "utf8");
   } catch {
     return null;
   }
 }
 
+/**
+ * Read docs/BACKLOG.md (legacy single-file layout) from the repo's default
+ * branch via git-show, falling back to the working copy. Never throws.
+ */
+export async function readBacklogContent(root: string): Promise<string | null> {
+  return readRepoDoc(root, "docs/BACKLOG.md");
+}
+
+const QUEUE_HEADER_RE = /^\s*##\s+Queue/im;
+const DONE_HEADER_RE = /^\s*##\s+Done/im;
+
+/**
+ * A dedicated QUEUE.md/DONE.md is expected to carry its `## Queue`/`## Done`
+ * header (the region moved verbatim from BACKLOG.md), but be tolerant: if the
+ * file has no recognized section header, treat the whole file as that implied
+ * section. A non-tolerant parser here silently renders an empty queue with no
+ * signal — the failure class fixed in agent-coord-ui#58.
+ */
+function withImpliedSection(
+  content: string,
+  section: "Queue" | "Done"
+): string {
+  const headerRe = section === "Queue" ? QUEUE_HEADER_RE : DONE_HEADER_RE;
+  return headerRe.test(content) ? content : `## ${section}\n${content}`;
+}
+
+/**
+ * Load a project's backlog, preferring the split two-file layout
+ * (docs/QUEUE.md + docs/DONE.md, per the queue-split proposal —
+ * davidbalzan/agent-coordination#5) with per-side independent fallback to the
+ * legacy single-file docs/BACKLOG.md. Independent fallback handles
+ * mid-migration repos where only one dedicated file exists yet.
+ */
 export async function loadBacklog(
   repoPath: string
 ): Promise<ProjectBacklog | null> {
-  const content = await readBacklogContent(repoPath);
-  if (content === null) return null;
-  return parseBacklog(repoPath, content);
+  const ref = await resolveDefaultRef(repoPath);
+  const [queueDoc, doneDoc] = await Promise.all([
+    readRepoDoc(repoPath, "docs/QUEUE.md", ref),
+    readRepoDoc(repoPath, "docs/DONE.md", ref),
+  ]);
+
+  let legacy: string | null = null;
+  if (queueDoc === null || doneDoc === null) {
+    legacy = await readRepoDoc(repoPath, "docs/BACKLOG.md", ref);
+  }
+
+  if (queueDoc === null && doneDoc === null && legacy === null) return null;
+
+  const queueSource =
+    queueDoc !== null ? withImpliedSection(queueDoc, "Queue") : legacy;
+  const doneSource =
+    doneDoc !== null ? withImpliedSection(doneDoc, "Done") : legacy;
+
+  return {
+    project: repoPath,
+    queue: queueSource ? parseBacklog(repoPath, queueSource).queue : [],
+    done: doneSource ? parseBacklog(repoPath, doneSource).done : [],
+  };
 }
 
 interface FileIdentity {
@@ -243,11 +298,21 @@ function identityEqual(a: FileIdentity, b: FileIdentity): boolean {
   return a.mtimeMs === b.mtimeMs && a.size === b.size;
 }
 
+function renderQueueLines(items: BacklogQueueItem[]): string[] {
+  return items.map((item) => `- [ ] (${item.priority}) ${item.text}`);
+}
+
 /**
- * Replace only the ## Queue region in a BACKLOG.md content string.
- * Throws if no ## Queue section is found.
+ * Replace only the ## Queue region in a backlog content string.
+ * When no ## Queue section is found: with `impliedQueue` (dedicated QUEUE.md,
+ * whole file is the queue region) the canonical `## Queue` heading + items
+ * replace the content; otherwise (legacy BACKLOG.md) it throws.
  */
-function applyQueueItems(content: string, items: BacklogQueueItem[]): string {
+function applyQueueItems(
+  content: string,
+  items: BacklogQueueItem[],
+  impliedQueue = false
+): string {
   const lines = content.split("\n");
   let queueStart = -1;
   let queueEnd = lines.length;
@@ -262,15 +327,15 @@ function applyQueueItems(content: string, items: BacklogQueueItem[]): string {
     }
   }
 
-  if (queueStart === -1) throw new Error("No ## Queue section found");
+  if (queueStart === -1) {
+    if (impliedQueue) {
+      return ["## Queue", "", ...renderQueueLines(items), ""].join("\n");
+    }
+    throw new Error("No ## Queue section found");
+  }
 
   const heading = lines[queueStart];
-  const newQueueLines = [
-    heading,
-    "",
-    ...items.map((item) => `- [ ] (${item.priority}) ${item.text}`),
-    "",
-  ];
+  const newQueueLines = [heading, "", ...renderQueueLines(items), ""];
 
   return [
     ...lines.slice(0, queueStart),
@@ -281,9 +346,21 @@ function applyQueueItems(content: string, items: BacklogQueueItem[]): string {
 
 const CAS_MAX_ATTEMPTS = 5;
 
+async function pathExists(filePath: string): Promise<boolean> {
+  try {
+    await access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
- * Atomically replace the ## Queue region of a BACKLOG.md file using
- * compare-and-swap to prevent clobbering concurrent ## Done appends.
+ * Atomically replace the ## Queue region of the queue-bearing backlog file
+ * using compare-and-swap. Targets docs/QUEUE.md when it exists (split layout,
+ * queue-split proposal — davidbalzan/agent-coordination#5); otherwise the
+ * legacy docs/BACKLOG.md, where CAS protects against a concurrent ## Done
+ * appender sharing the file.
  *
  * Read → capture identity → build content → re-stat before rename →
  * if changed: re-read + re-apply → retry (max 5 attempts).
@@ -293,7 +370,11 @@ export async function rewriteQueueRegion(
   repoPath: string,
   items: BacklogQueueItem[]
 ): Promise<ProjectBacklog> {
-  const filePath = join(repoPath, "docs", "BACKLOG.md");
+  const queuePath = join(repoPath, "docs", "QUEUE.md");
+  const useQueueFile = await pathExists(queuePath);
+  const filePath = useQueueFile
+    ? queuePath
+    : join(repoPath, "docs", "BACKLOG.md");
   const tmpPath = `${filePath}.tmp`;
 
   for (let attempt = 0; attempt < CAS_MAX_ATTEMPTS; attempt++) {
@@ -302,7 +383,7 @@ export async function rewriteQueueRegion(
     const content = await readFile(filePath, "utf8");
 
     // 2. Build new content with only ## Queue replaced
-    const newContent = applyQueueItems(content, items);
+    const newContent = applyQueueItems(content, items, useQueueFile);
 
     // 3. Stage to .tmp
     await writeFile(tmpPath, newContent, "utf8");
@@ -316,7 +397,12 @@ export async function rewriteQueueRegion(
 
     // 5. Commit: rename is atomic on POSIX
     await rename(tmpPath, filePath);
-    return parseBacklog(repoPath, newContent);
+    const parsed = parseBacklog(repoPath, newContent);
+    if (!useQueueFile) return parsed;
+    // Split layout: QUEUE.md carries no ## Done — re-read the done side so the
+    // response is a complete backlog, not one with a spuriously empty done list.
+    const full = await loadBacklog(repoPath);
+    return { ...parsed, done: full?.done ?? [] };
   }
 
   throw new Error(
